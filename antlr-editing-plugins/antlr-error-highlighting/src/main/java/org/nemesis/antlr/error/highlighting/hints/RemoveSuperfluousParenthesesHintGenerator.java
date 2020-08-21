@@ -48,15 +48,6 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = AntlrHintGenerator.class)
 public final class RemoveSuperfluousParenthesesHintGenerator extends NonHighlightingHintGenerator {
 
-    public static String elidedContent(String content) {
-        if (content.length() <= 12) {
-            return content;
-        }
-        String head = content.substring(0, 5).replace("\\s+", " ");
-        String tail = content.substring(content.length() - 6).replace("\\s+", " ");
-        return head + "\u2026" + tail; // ellipsis
-    }
-
     @Override
     protected void generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate, Fixes fixes,
@@ -92,7 +83,8 @@ public final class RemoveSuperfluousParenthesesHintGenerator extends NonHighligh
                         failed.ifUntrue(() -> {
                             LOG.log(Level.FINEST, "Superfluous parens at {0} in {1}",
                                     new Object[]{reg, extraction.source()});
-                            fixen.addFix(Bundle.superfluousParentheses("(" + seg + ")"), bag -> {
+                            fixen.addFix(Bundle.superfluousParentheses("("
+                                    + elidedContent(seg.toString()) + ")"), bag -> {
                                 String txt = seg.toString().trim();
                                 if (appendSpace.get()) {
                                     txt += ' ';

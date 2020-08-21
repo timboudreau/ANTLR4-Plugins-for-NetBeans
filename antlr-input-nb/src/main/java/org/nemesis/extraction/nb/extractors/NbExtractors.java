@@ -32,7 +32,6 @@ import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.ParseException;
-import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.filesystems.FileObject;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -53,6 +52,7 @@ public class NbExtractors extends Extractors {
             throw new IllegalArgumentException("'" + mimeType
                     + "' does not look like a mime type.");
         }
+        Optional<Document> doc = src.lookup(Document.class);
         if (ParserManager.canBeParsed(mimeType)) {
             try {
                 return parse(mimeType, src, type);
@@ -72,10 +72,7 @@ public class NbExtractors extends Extractors {
             ParserManager.parse(Collections.singleton(source), new UserTask() {
                 @Override
                 public void run(ResultIterator resultIterator) throws Exception {
-                    Parser.Result pr = resultIterator.getParserResult();
-                    if (pr instanceof ExtractionParserResult) {
-                        result[0] = ((ExtractionParserResult) pr).extraction();
-                    }
+                    result[0] = ExtractionParserResult.extraction(resultIterator.getParserResult());
                 }
             });
             return result[0];
@@ -85,6 +82,10 @@ public class NbExtractors extends Extractors {
 
     private Source source(GrammarSource<?> src) throws IOException {
         Object o = src.source();
+        Optional<Source> optSrc = src.lookup(Source.class);
+        if (optSrc.isPresent()) {
+            return optSrc.get();
+        }
         if (o instanceof Snapshot) {
             return ((Snapshot) o).getSource();
         } else if (o instanceof Source) {

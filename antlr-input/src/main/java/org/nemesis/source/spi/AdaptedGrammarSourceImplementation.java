@@ -42,7 +42,8 @@ final class AdaptedGrammarSourceImplementation<F, T> extends GrammarSourceImplem
         } else if (type() == toAdapt.type()) {
             return type.cast(toAdapt.source());
         }
-        return super.lookupImpl(type);
+        R result = toAdapt.lookup(type);
+        return result == null ? super.lookupImpl(type) : result;
     }
 
     @Override
@@ -75,4 +76,8 @@ final class AdaptedGrammarSourceImplementation<F, T> extends GrammarSourceImplem
         return convertTo.apply(toAdapt.source());
     }
 
+    @Override
+    public String computeId() {
+        return toAdapt.computeId();
+    }
 }

@@ -215,7 +215,7 @@ public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
                     }
 
                     Set<String> deletableClosure = findDeletableClosureOfOrphan(name, graph);
-                    if (deletableClosure.size() > 0) {
+                    if (!deletableClosure.isEmpty() && !(deletableClosure.size() == 1 && deletableClosure.iterator().next().equals(name))) {
                         // We can also delete the closure of this rule wherever no other
                         // rules reference it
                         Set<PositionRange> closureRanges = new HashSet<>();
@@ -392,7 +392,7 @@ public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
 
     private String elide(String s) {
         if (s.length() > 28) {
-            return s.substring(0, 63) + "\u2026"; // ellipsis
+            return s.substring(0, 28) + "\u2026"; // ellipsis
         }
         return Escaper.BASIC_HTML.escape(s);
     }

@@ -317,7 +317,7 @@ public final class OrganizeRules implements ActionListener {
             + "the reorganized rules to change the semantics. Cannot organize rules now.")
     private static boolean organizeRules(StyledDocument doc, int caretPosition, AtomicReference<CaretRelativeToRuleName> caretRef) throws Exception {
         // we are in the document lock here.
-        Extraction ext = NbAntlrUtils.parseImmediately(doc);
+        Extraction ext = NbAntlrUtils.extractionFor(doc);
         NamedSemanticRegions<RuleTypes> ruleBounds = ext.namedRegions(RULE_BOUNDS);
         if (ruleBounds.isEmpty()) {
             return false;

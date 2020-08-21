@@ -704,7 +704,8 @@ public class AntlrKeys {
             name = "Inline Rule", keybinding = "OS-N", mimeType = ANTLR_MIME_TYPE,
             enabledOnTokens = {PARSER_RULE_ID, TOKEN_ID, FRAGDEC_ID, ID},
             plugin = InlineRefactoringPlugin.class,
-            lexer = ANTLRv4Lexer.class
+            lexer = ANTLRv4Lexer.class,
+            publicRefactoringPluginClass = true
     //            ,ui = InlineRefactoringUI.class
     //            ,refactoring = InlineRuleRefactoring.InlineRule.class
     )

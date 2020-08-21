@@ -32,6 +32,7 @@ import org.netbeans.spi.editor.hints.LazyFixList;
 import org.netbeans.spi.editor.hints.Severity;
 
 import static org.nemesis.antlr.spi.language.fix.Fixes.LOG;
+import static org.nemesis.antlr.spi.language.fix.Fixes.findDocument;
 
 /**
  * Convenience class which makes adding error descriptions with hints to a
@@ -60,6 +61,22 @@ final class FixesImpl extends Fixes {
         this.contents = contents;
         this.positions = PositionFactory.forDocument( document );
     }
+    
+    Extraction extraction() {
+        return extraction;
+    }
+
+    @Override
+    public void copyFrom( Fixes other ) {
+        if (other instanceof FixesImpl) {
+            FixesImpl fi = ( FixesImpl ) other;
+            if (fi.extraction().sourceLastModifiedAtExtractionTime() >= extraction.sourceLastModifiedAtExtractionTime()) {
+                usedErrorIds.clear();
+                usedErrorIds.addAll(fi.usedErrorIds);
+                contents.replaceErrors( ((FixesImpl) other).contents);
+            }
+        }
+    }
 
     @Override
     StyledDocument document() {
@@ -85,10 +102,13 @@ final class FixesImpl extends Fixes {
         if ( id == null ) {
             id = range.id() + ":" + description;
         } else {
-            usedErrorIds.add( id );
+            if (usedErrorIds.contains(id)) {
+                return;
+            }
         }
+        usedErrorIds.add( id );
         ErrorDescription desc;
-        CharSequence detailsSeq = details == null ? description : new LazyCharSequence( details );
+        CharSequence detailsSeq = details == null ? "" : new LazyCharSequence( details );
         if ( lazyFixes == null ) {
             desc = ErrorDescriptionFactory.createErrorDescription( id, severity, description,
                                                                    detailsSeq,

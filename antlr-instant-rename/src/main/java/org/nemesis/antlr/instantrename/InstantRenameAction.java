@@ -217,40 +217,52 @@ public final class InstantRenameAction extends BaseAction {
         }
 
         void findRegions() throws ParseException {
+            Document doc = source.getDocument(false);
+            if (doc != null) {
+                Extraction ext = NbAntlrUtils.extractionFor(doc);
+                if (ext != null) {
+                    processExtraction(ext);
+                    return;
+                }
+            }
             ParserManager.parse(Collections.singleton(source), this);
         }
 
         @Override
         public void run(ResultIterator resultIterator) throws Exception {
             Parser.Result res = resultIterator.getParserResult();
-            if (res instanceof ExtractionParserResult) {
-                Extraction extraction = ((ExtractionParserResult) res).extraction();
-                FindItemsResult<?, ?, ?, ?> fir = null;
-                for (InstantRenameProcessorEntry<?, ?, ?, ?> entry : entries) {
-                    fir = entry.find(extraction, baseDoc, caret, ident);
-                    if (!fir.isNotFound()) {
-                        break;
-                    }
-                }
-                if (fir == null || fir.isNotFound()) {
-                    // If we found nothing to rename, see if there is an unknown
-                    // reference at this spot, and if so, trigger the refactoring
-                    // API which may be able to attribute and resolve it
-                    for (NameReferenceSetKey<?> refkey : extraction.referenceKeys()) {
-                        IndexAddressable unknowns = extraction.unknowns(refkey);
-                        if (unknowns != null && unknowns.at(caret) != null) {
-                            fir = new FindItemsResult<>(Collections.emptySet(),
-                                    RenameQueryResultTrampoline.createUseRefactoringResult());
-                        }
-                    }
-                }
-                if (fir == null) {
-                    fir = new FindItemsResult<>(Collections.emptySet(), RenameQueryResultTrampoline.createNothingFoundResult());
-                }
-                result = fir;
+            Extraction extraction = ExtractionParserResult.extraction(res);
+            if (extraction != null) {
+                processExtraction(extraction);
             } else {
                 LOG.log(Level.WARNING, "Called with wrong parser result type: {0}", res);
             }
+        }
+
+        void processExtraction(Extraction extraction) {
+            FindItemsResult<?, ?, ?, ?> fir = null;
+            for (InstantRenameProcessorEntry<?, ?, ?, ?> entry : entries) {
+                fir = entry.find(extraction, baseDoc, caret, ident);
+                if (!fir.isNotFound()) {
+                    break;
+                }
+            }
+            if (fir == null || fir.isNotFound()) {
+                // If we found nothing to rename, see if there is an unknown
+                // reference at this spot, and if so, trigger the refactoring
+                // API which may be able to attribute and resolve it
+                for (NameReferenceSetKey<?> refkey : extraction.referenceKeys()) {
+                    IndexAddressable unknowns = extraction.unknowns(refkey);
+                    if (unknowns != null && unknowns.at(caret) != null) {
+                        fir = new FindItemsResult<>(Collections.emptySet(),
+                                RenameQueryResultTrampoline.createUseRefactoringResult());
+                    }
+                }
+            }
+            if (fir == null) {
+                fir = new FindItemsResult<>(Collections.emptySet(), RenameQueryResultTrampoline.createNothingFoundResult());
+            }
+            result = fir;
         }
     }
 

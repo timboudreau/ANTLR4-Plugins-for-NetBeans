@@ -16,12 +16,17 @@
 package org.nemesis.antlr.spi.language;
 
 import com.mastfrog.function.throwing.ThrowingSupplier;
+import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.collections.MapFactories;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -33,8 +38,10 @@ import org.nemesis.extraction.ExtractionParserResult;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.netbeans.api.lexer.TokenId;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
+import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.ResultIterator;
+import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.ParseException;
@@ -44,6 +51,7 @@ import org.netbeans.spi.editor.AbstractEditorAction;
 import org.netbeans.spi.lexer.Lexer;
 import org.netbeans.spi.lexer.LexerInput;
 import org.netbeans.spi.lexer.LexerRestartInfo;
+import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
@@ -178,7 +186,6 @@ public final class NbAntlrUtils {
 //                             "Not a registered ANTLR mime type: " + src.getMimeType() ) );
 //        }
 //    }
-
     private static void parseImmediately( Source src,
             BiConsumer<Extraction, Exception> consumer ) {
         String mime = src.getMimeType();
@@ -295,6 +302,121 @@ public final class NbAntlrUtils {
      */
     public static <T> T withPostProcessingDeferredThrowing( ThrowingSupplier<T> supp ) throws Exception {
         return withPostProcessingMode( PostprocessingMode.DEFERRED, supp );
+    }
+
+    private static final String EXTRACTION_DOCUMENT_PROPERTY = "_ext";
+
+    static boolean extractionCachingEnabled() {
+        return !Boolean.getBoolean( "antlr.extraction.cache.disabled" );
+    }
+
+    static void storeExtraction( Snapshot snap, Extraction ext ) {
+        if ( ext == null || ext.isPlaceholder() || ext.isDisposed() || !extractionCachingEnabled() ) {
+            return;
+        }
+        Document doc = null;
+        if ( snap != null ) {
+            doc = snap.getSource().getDocument( false );
+        } else {
+            Optional<Document> docOpt = ext.source().lookup( Document.class );
+            if ( docOpt.isPresent() ) {
+                doc = docOpt.get();
+            }
+        }
+        storeExtraction( doc, ext );
+    }
+
+    @SuppressWarnings( "DoubleCheckedLocking" )
+    static void storeExtraction( Document doc, Extraction ext ) {
+        if ( doc != null && ext != null && !ext.isPlaceholder() ) {
+
+            AtomicReference<WeakReference<Extraction>> ref = extractionReference( doc );
+//            WeakReference<Extraction> old = ref.get();
+            WeakReference<Extraction> nue = new TimedWeakReference<>( ext );
+            ref.set( nue );
+        }
+    }
+
+    @SuppressWarnings( "DoubleCheckedLocking" )
+    private static AtomicReference<WeakReference<Extraction>> extractionReference( Document doc ) {
+        // Unless something weird is happening, the generated editor
+        // kit will prepopulate this - may not be there if the developer
+        // created their own kit
+        AtomicReference<WeakReference<Extraction>> ref = ( AtomicReference<WeakReference<Extraction>> ) doc
+                .getProperty( EXTRACTION_DOCUMENT_PROPERTY );
+        if ( ref == null ) {
+            synchronized ( NbAntlrUtils.class ) {
+                ref = ( AtomicReference<WeakReference<Extraction>> ) doc.getProperty( EXTRACTION_DOCUMENT_PROPERTY );
+                if ( ref == null ) {
+                    ref = new AtomicReference<>();
+                    doc.putProperty( EXTRACTION_DOCUMENT_PROPERTY, ref );
+                }
+            }
+        }
+        return ref;
+    }
+
+    private static final Map<FileObject, Extraction> foCache
+            = Collections.synchronizedMap( CollectionUtils.weakValueMap( MapFactories.EQUALITY_CONCURRENT, 36,
+                                                                         TimedWeakReference::new ) );
+
+    public static Extraction extractionFor( FileObject fo ) {
+        DataObject dob;
+        try {
+            dob = DataObject.find( fo );
+            EditorCookie ck = dob.getLookup().lookup( EditorCookie.class );
+            if ( ck != null ) {
+                Document d = ck.getDocument();
+                if ( d != null ) {
+                    return extractionFor( d );
+                }
+            }
+            Extraction result = foCache.get( fo );
+            if ( result == null || result.isSourceProbablyModifiedSinceCreation() ) {
+                result = NbAntlrUtils.parseImmediately( fo );
+                if ( result != null && !result.isPlaceholder() ) {
+                    foCache.put( fo, result );
+                }
+            }
+            return result;
+        } catch ( Exception ex ) {
+            Exceptions.printStackTrace( ex );
+        }
+        return Extraction.empty( fo.getMIMEType() );
+    }
+
+    /**
+     * Fetch the most recent extraction for the document, or trigger a parse to
+     * create a new one if none is available. This method will *never* parse if it
+     * does not need to, while parseImmediately() will *always* do so.
+     *
+     * @param document The document
+     *
+     * @return The extraction
+     */
+    @SuppressWarnings( "unchecked" )
+    public static Extraction extractionFor( Document document ) {
+        AtomicReference<WeakReference<Extraction>> ref = null;
+        if ( extractionCachingEnabled() ) {
+            ref = extractionReference( document );
+            WeakReference<Extraction> weak = ref.get();
+            if ( weak != null ) {
+                Extraction result = weak.get();
+                if ( result != null && !result.isSourceProbablyModifiedSinceCreation() ) {
+                    return result;
+                }
+            }
+        }
+        Extraction result = null;
+        try {
+            result = parseImmediately( document );
+            if ( ref != null && result != null && !result.isPlaceholder() ) {
+                ref.set( new TimedWeakReference<Extraction>( result ) );
+            }
+        } catch ( Exception ex ) {
+            Exceptions.printStackTrace( ex );
+        }
+        return result != null ? result : Extraction.empty( NbEditorUtilities.getMimeType( document ) );
     }
 
     static PostprocessingMode postProcessingMode() {

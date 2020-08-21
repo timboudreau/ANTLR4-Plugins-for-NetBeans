@@ -118,6 +118,13 @@ public abstract class AbstractFileObjectGrammarSourceImplementation<T> extends G
                     throw new IllegalStateException(ex);
                 }
             }
+        } else if (DataObject.class == type) {
+            FileObject fo = toFileObject();
+            try {
+                return type.cast(DataObject.find(fo));
+            } catch (DataObjectNotFoundException ex) {
+                throw new IllegalStateException(ex);
+            }
         } else if (String.class == type) {
             Path p = lookup(Path.class);
             return type.cast(p == null ? name() : p.toAbsolutePath().toString());

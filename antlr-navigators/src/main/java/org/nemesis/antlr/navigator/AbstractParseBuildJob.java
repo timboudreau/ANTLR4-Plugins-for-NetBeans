@@ -15,8 +15,10 @@
  */
 package org.nemesis.antlr.navigator;
 
+import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.text.Document;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
@@ -57,6 +59,20 @@ abstract class AbstractParseBuildJob extends UserTask implements Runnable {
 
     @Override
     public void run() {
+        // see NbAntlrUtils.extractionFor() - avoid the ParserManager lock if possible
+        // At any rate, this avoids locking on parser manager if we don't need to
+        AtomicReference<WeakReference<Extraction>> wr
+                = (AtomicReference<WeakReference<Extraction>>) document.getProperty("_ext");
+        if (wr != null) {
+            WeakReference<Extraction> e = wr.get();
+            if (e != null) {
+                Extraction ext = e.get();
+                if (ext != null) {
+                    onReplaceExtraction(ext);
+                }
+                return;
+            }
+        }
         try {
             ParserManager.parseWhenScanFinished(Collections.singleton(Source.create(document)), this);
         } catch (ParseException ex) {
@@ -71,17 +87,11 @@ abstract class AbstractParseBuildJob extends UserTask implements Runnable {
             return;
         }
         Parser.Result res = ri.getParserResult();
-        if (res instanceof ExtractionParserResult) {
-            Extraction extraction = ((ExtractionParserResult) res).extraction();
-            if (extraction == null) {
-                // Happens currently if the file is outside the source
-                // folders
-                onParseFailed();
-                return;
-            }
-            onReplaceExtraction(extraction);
+        Extraction ext = ExtractionParserResult.extraction(res);
+        if (ext != null) {
+            onReplaceExtraction(ext);
         } else {
-            onNoModel();
+            onParseFailed();
         }
     }
 }

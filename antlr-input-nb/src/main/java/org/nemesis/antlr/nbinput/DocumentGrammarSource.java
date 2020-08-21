@@ -20,9 +20,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
+import java.nio.file.Path;
 import java.util.Optional;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import static javax.swing.text.Document.StreamDescriptionProperty;
 import org.antlr.v4.runtime.CharStream;
 import org.nemesis.extraction.nb.api.AbstractFileObjectGrammarSourceImplementation;
 import org.nemesis.source.api.GrammarSource;
@@ -31,6 +33,8 @@ import org.nemesis.source.spi.GrammarSourceImplementation;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
+import org.netbeans.modules.parsing.api.Snapshot;
+import org.netbeans.modules.parsing.api.Source;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -96,10 +100,54 @@ final class DocumentGrammarSource extends AbstractFileObjectGrammarSourceImpleme
     }
 
     @Override
+    protected <R> R lookupImpl(Class<R> type) {
+        if (Snapshot.class == type) {
+            return type.cast(Source.create(doc).createSnapshot());
+        }
+        // The next few stanzas would also be taken care of
+        // by the super call below; this is simply a faster
+        // path
+        Object sd = doc.getProperty(StreamDescriptionProperty);
+        if (DataObject.class == type) {
+            if (sd instanceof DataObject) {
+                return type.cast(sd);
+            }
+        } else if (FileObject.class == type) {
+            if (sd instanceof FileObject) {
+                return type.cast(sd);
+            } else if (sd instanceof DataObject) {
+                DataObject dob = (DataObject) sd;
+                return type.cast(dob.getPrimaryFile());
+            }
+        } else if (Path.class == type) {
+            if (sd instanceof FileObject) {
+                FileObject fo = (FileObject) sd;
+                File file = FileUtil.toFile(fo);
+                if (file != null) {
+                    return type.cast(file.toPath());
+                }
+            } else if (sd instanceof DataObject) {
+                DataObject dob = (DataObject) sd;
+                FileObject fo = dob.getPrimaryFile();
+                File file = FileUtil.toFile(fo);
+                if (file != null) {
+                    return type.cast(file.toPath());
+                }
+            }
+        } else if (type.isInstance(sd)) {
+            return type.cast(sd);
+        }
+        Object o = doc.getProperty(type);
+        if (o != null && type.isInstance(o)) {
+            return type.cast(o);
+        }
+        return super.lookupImpl(type);
+    }
+
+    @Override
     public CharStream stream() throws IOException {
         CharSequence seq = DocumentUtilities.getText(doc);
         return new CharSequenceCharStream(name(), seq);
-//        return CharStreams.fromString(getDocumentText());
     }
 
     @Override

@@ -341,5 +341,4 @@ public class InlineRefactoringPlugin extends AbstractRefactoringContext implemen
             return pres[0];
         });
     }
-
 }

@@ -439,17 +439,31 @@ public abstract class AbstractRefactoringContext {
                 EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
                 if (ck != null) {
                     doc = ck.getDocument();
-                    if (docMap.containsKey(doc)) {
-                        return docMap.get(doc);
+                    if (doc != null) {
+                        Extraction result = docMap.get(doc);
+                        if (result != null && !result.isSourceProbablyModifiedSinceCreation()) {
+                            return result;
+                        } else {
+                            Extraction ext = NbAntlrUtils.extractionFor(doc);
+                            if (ext != null && !ext.isDisposed() && !ext.isPlaceholder()) {
+                                docMap.put(doc, ext);
+                                foMap.put(fo, ext);
+                                return ext;
+                            }
+                        }
                     }
                 }
             } catch (DataObjectNotFoundException ex) {
-                return Exceptions.chuck(ex);
+                Logger.getLogger(AbstractRefactoringContext.class.getName())
+                        .log(Level.SEVERE, "parsing " + fo, ex);
             }
             if (doc != null) {
-                return parse(doc);
+                Extraction result = parse(doc);
+                docMap.put(doc, result);
+                foMap.put(fo, result);
+                return result;
             } else {
-                Extraction result = NbAntlrUtils.parseImmediately(fo);
+                Extraction result = NbAntlrUtils.extractionFor(fo);
                 if (result != null) {
                     foMap.put(fo, result);
                 }
@@ -486,9 +500,10 @@ public abstract class AbstractRefactoringContext {
         return inParsingContext((foMap, docMap) -> {
             Extraction result = docMap.get(doc);
             if (result == null) {
-                result = NbAntlrUtils.parseImmediately(doc);
+                result = NbAntlrUtils.extractionFor(doc);
                 if (result != null) {
                     docMap.put(doc, result);
+                    return result;
                 }
                 FileObject fo = NbEditorUtilities.getFileObject(doc);
                 if (fo != null) {

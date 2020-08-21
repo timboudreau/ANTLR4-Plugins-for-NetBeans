@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import javax.tools.JavaFileManager.Location;
 import org.antlr.v4.tool.Grammar;
+import org.nemesis.antlr.memory.AntlrGenerator.RerunInterceptor;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.jfs.JFSFileModifications;
@@ -82,6 +83,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final Map<UnixPath, Set<UnixPath>> dependencies;
     public final long timestamp;
     public final JFSPathHints hints;
+    final RerunInterceptor interceptor;
 
     AntlrGenerationResult(boolean success, int code, Throwable thrown,
             String grammarName, Grammar grammar, List<ParsedAntlrError> errors,
@@ -95,7 +97,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
             Supplier<JFS> jfsSupplier, Map<UnixPath, Set<UnixPath>> outputFiles,
             Map<String, Set<UnixPath>> inputFiles, Map<String, UnixPath> primaryFiles,
             Map<UnixPath, Set<UnixPath>> dependencies,
-            long timestamp, JFSPathHints hints) {
+            long timestamp, JFSPathHints hints, RerunInterceptor interceptor) {
         this.success = success;
         this.jfsSupplier = jfsSupplier;
         this.code = code;
@@ -127,6 +129,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.inputFiles = inputFiles;
         this.dependencies = dependencies;
         this.hints = hints;
+        this.interceptor = interceptor;
     }
 
     public AntlrGenerationResult cleanOldOutput() throws IOException {
@@ -212,7 +215,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
                 allGrammars, jfs, grammarSourceLocation, javaSourceOutputLocation, packageName,
                 sourceDir, importDir, generateAll, options,
                 grammarEncoding, tokensHash, originalFilePath, jfsSupplier, outputFiles, inputFiles,
-                primaryFiles, dependencies, timestamp, hints);
+                primaryFiles, dependencies, timestamp, hints, interceptor);
     }
 
     public boolean areOutputFilesUpdated(UnixPath of) {

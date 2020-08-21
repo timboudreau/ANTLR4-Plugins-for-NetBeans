@@ -24,6 +24,8 @@ import org.nemesis.extraction.nb.api.AbstractFileObjectGrammarSourceImplementati
 import org.nemesis.source.api.GrammarSource;
 import org.nemesis.source.api.RelativeResolver;
 import org.nemesis.source.spi.GrammarSourceImplementation;
+import org.netbeans.modules.parsing.api.Snapshot;
+import org.netbeans.modules.parsing.api.Source;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -66,7 +68,14 @@ final class FileObjectGrammarSource extends AbstractFileObjectGrammarSourceImple
     @Override
     protected <R> R lookupImpl(Class<R> type) {
         if (File.class == type) {
-            return type.cast(FileUtil.toFile(file));
+            File f = FileUtil.toFile(file);
+            if (f != null) { // virtual filesystem
+                return type.cast(f);
+            }
+        } else if (Source.class == type) {
+            return type.cast(Source.create(file));
+        } else if (Snapshot.class == type) {
+            return type.cast(Source.create(file).createSnapshot());
         }
         return super.lookupImpl(type);
     }

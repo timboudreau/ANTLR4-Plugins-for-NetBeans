@@ -308,7 +308,7 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
                         errors = errorSupplier.get();
                         LOG.log( Level.FINEST, "PARSE GOT {0} errors from {1}", new Object[]{ errors.size(),
                             errorSupplier } );
-                        populate.setSyntaxErrors( errors, this );
+                        populate.addSyntaxErrors( errors, this );
                     }
                     // No sense in attaching error annotations unless there is a document to
                     // show them on

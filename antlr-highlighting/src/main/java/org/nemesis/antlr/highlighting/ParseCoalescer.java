@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.text.Document;
+import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
 import org.netbeans.modules.editor.NbEditorUtilities;
@@ -43,9 +44,10 @@ import org.openide.util.RequestProcessor;
  * There may be any number of registered highlighters for a given mime type; we
  * do not really want every single one of them to grab the parser manager lock
  * and pound on the parser infrastructure on every file change (yes, Source
- * caches results, but it is still not cheap) - so this allows all of the highlighters
- * for a particular document to react to a document change by enqueueing themselves
- * to receive the result of the next parse and ensuring that parse happens.
+ * caches results, but it is still not cheap) - so this allows all of the
+ * highlighters for a particular document to react to a document change by
+ * enqueueing themselves to receive the result of the next parse and ensuring
+ * that parse happens.
  *
  * @author Tim Boudreau
  */
@@ -68,6 +70,14 @@ final class ParseCoalescer {
     }
 
     void enqueueParse(Document doc, GeneralHighlighter<?> hl) {
+        if (true) {
+            threadPoolFor(doc).post(() -> {
+                Extraction ext = NbAntlrUtils.extractionFor(doc);
+                hl.refresh(doc, ext);
+            });
+            return;
+        }
+
         Set<GeneralHighlighter<?>> awaiting = pending.get(doc);
         awaiting.add(hl);
         RequestProcessor.Task delayedTask = tasks.computeIfAbsent(doc, d -> {
@@ -104,7 +114,6 @@ final class ParseCoalescer {
                 Parser.Result result = ri.getParserResult();
                 Extraction ext = ExtractionParserResult.extraction(result);
                 if (ext != null) {
-                    Set<GeneralHighlighter<?>> hlsx = pending.get(doc);
                     for (Set<GeneralHighlighter<?>> hls = pending.get(doc); !hls.isEmpty(); hls = pending.get(doc)) {
                         Set<GeneralHighlighter<?>> toNotify;
                         synchronized (hls) {
@@ -112,7 +121,11 @@ final class ParseCoalescer {
                             hls.clear();
                         }
                         for (GeneralHighlighter<?> hl : toNotify) {
-                            hl.refresh(doc, ext);
+                            try {
+                                hl.refresh(doc, ext);
+                            } catch (Exception | Error ex) {
+                                Exceptions.printStackTrace(ex);
+                            }
                         }
                     }
                 }
@@ -126,11 +139,12 @@ final class ParseCoalescer {
         @Override
         public void run() {
             Document doc = docRef.get();
-            if (doc != null && enqueued.compareAndSet(false, true)) {
+            if (doc != null /*&& enqueued.compareAndSet(false, true)*/) {
                 Source src = Source.create(doc);
                 Future<?> lt = lastTask;
                 try {
-                    if (lt != null) {
+                    if (lt != null && !lt.isDone()) {
+                        System.out.println("  parse collision for " + src);
 //                        lt.cancel(false);
                     }
                     lastTask = ParserManager.parseWhenScanFinished(Collections.singleton(src), this);

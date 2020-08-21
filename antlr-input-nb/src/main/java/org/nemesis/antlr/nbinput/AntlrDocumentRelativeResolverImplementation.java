@@ -95,6 +95,7 @@ public class AntlrDocumentRelativeResolverImplementation extends RelativeResolve
                                     }
                                 }
                             }
+                            return gs.lookup(type);
                         } catch (IOException ex) {
                             Logger.getLogger(
                                     AntlrDocumentRelativeResolverImplementation.class.getName())

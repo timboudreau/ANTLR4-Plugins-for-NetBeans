@@ -252,9 +252,6 @@ public final class GrammarSource<T> implements Serializable {
 
     private static String hashString(String str) {
         try {
-            // XXX to do this more flexibly and correctly, hash the *tokens*
-            // after alpha-sorting the rules - that would be whitespace and
-            // rule order independent
             // Now we hash the project path in a string of constant length
             MessageDigest digest1 = MessageDigest.getInstance("SHA-256");
             byte[] hash1 = digest1.digest(str.getBytes("UTF-8"));
@@ -325,8 +322,8 @@ public final class GrammarSource<T> implements Serializable {
         }
 
         @Override
-        public <T> T computeId() {
-            return (T) "NONE";
+        public String computeId() {
+            return "NONE";
         }
     }
 

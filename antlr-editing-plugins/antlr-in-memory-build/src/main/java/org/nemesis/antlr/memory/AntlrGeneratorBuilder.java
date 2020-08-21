@@ -24,6 +24,7 @@ import java.util.function.Supplier;
 import javax.tools.JavaFileManager;
 import javax.tools.JavaFileManager.Location;
 import javax.tools.StandardLocation;
+import org.nemesis.antlr.memory.AntlrGenerator.RerunInterceptor;
 import org.nemesis.antlr.memory.util.RandomPackageNames;
 import org.nemesis.jfs.JFS;
 
@@ -52,6 +53,7 @@ public final class AntlrGeneratorBuilder<T> {
     String tokensHash;
     private final Function<? super AntlrGeneratorBuilder<T>, T> convert;
     JFSPathHints pathHints = JFSPathHints.NONE;
+    RerunInterceptor interceptor;
 
     AntlrGeneratorBuilder(Supplier<JFS> jfs, Function<? super AntlrGeneratorBuilder<T>, T> convert) {
         this.jfs = jfs;
@@ -62,15 +64,24 @@ public final class AntlrGeneratorBuilder<T> {
         this.convert = convert;
     }
 
+    public AntlrGeneratorBuilder<T> withInterceptor(RerunInterceptor icept) {
+        this.interceptor = interceptor;
+        return this;
+    }
+
     static AntlrGeneratorBuilder<AntlrGenerationResult> fromGenerator(AntlrGenerator res) {
         AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfs,
                 (AntlrGeneratorBuilder<AntlrGenerationResult> bldr) -> bldr.building(res.sourcePath(), res.importDir()));
+        result.interceptor = res.interceptor;
+        result.pathHints = res.hints();
         return result;
     }
 
     static AntlrGeneratorBuilder<AntlrGenerationResult> fromResult(AntlrGenerationResult res) {
         AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfsSupplier,
                 (AntlrGeneratorBuilder<AntlrGenerationResult> bldr) -> bldr.building(res.sourceDir(), res.importDir()));
+        result.pathHints = res.hints;
+        result.interceptor = res.interceptor;
         return result;
     }
 

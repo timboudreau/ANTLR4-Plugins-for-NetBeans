@@ -72,6 +72,7 @@ public final class AntlrGenerator {
     private final Path originalFile;
     private final String originalTokensHash;
     private JFSPathHints pathHints;
+    final RerunInterceptor interceptor;
 
     static AntlrGenerator fromResult(AntlrGenerationResult result) {
         return new AntlrGenerator(AntlrGeneratorBuilder.fromResult(result));
@@ -80,7 +81,7 @@ public final class AntlrGenerator {
     public AntlrGenerator(Charset grammarEncoding, boolean generateAll, String packageName,
             Supplier<JFS> jfs, JavaFileManager.Location grammarSourceLocation, UnixPath virtualSourcePath,
             UnixPath virtualImportDir, JavaFileManager.Location outputLocation,
-            Path originalFile, String originalTokensHash, JFSPathHints pathHints) {
+            Path originalFile, String originalTokensHash, JFSPathHints pathHints, RerunInterceptor interceptor) {
         this.grammarEncoding = grammarEncoding;
         this.generateAll = generateAll;
         this.packageName = packageName;
@@ -92,6 +93,7 @@ public final class AntlrGenerator {
         this.originalFile = notNull("originalFile", originalFile);
         this.originalTokensHash = originalTokensHash;
         this.pathHints = pathHints == null ? JFSPathHints.NONE : pathHints;
+        this.interceptor = interceptor;
     }
 
     public JFSPathHints hints() {
@@ -112,7 +114,7 @@ public final class AntlrGenerator {
         }
         return new AntlrGenerator(grammarEncoding, generateAll,
                 packageName, jfs, grammarSourceLocation, virtualSourcePath,
-                virtualImportDir, outputLocation, originalFile, originalTokensHash, pathHints);
+                virtualImportDir, outputLocation, originalFile, originalTokensHash, pathHints, interceptor);
     }
 
     public JavaFileManager.Location sourceLocation() {
@@ -209,6 +211,7 @@ public final class AntlrGenerator {
         this.originalTokensHash = b.tokensHash;
         this.originalFile = notNull("b.originalFile", b.originalFile);
         this.pathHints = b.pathHints;
+        this.interceptor = b.interceptor;
     }
 
     public static <T> AntlrGeneratorBuilder<T> builder(Supplier<JFS> jfs, Function<? super AntlrGeneratorBuilder<T>, T> func) {
@@ -266,7 +269,25 @@ public final class AntlrGenerator {
         return sb.toString();
     }
 
+    public interface ReRunner {
+
+        AntlrGenerationResult run(String grammarFileName, PrintStream logStream, boolean generate);
+    }
+
+    public interface RerunInterceptor {
+
+        AntlrGenerationResult rerun(String grammarFileName, PrintStream logStream, boolean generate, AntlrGenerator originator, ReRunner localRerunner);
+    }
+
     public AntlrGenerationResult run(String grammarFileName, PrintStream logStream, boolean generate) {
+        if (interceptor == null) {
+            return internalRun(grammarFileName, logStream, generate);
+        } else {
+            return interceptor.rerun(grammarFileName, logStream, generate, this, this::internalRun);
+        }
+    }
+
+    private AntlrGenerationResult internalRun(String grammarFileName, PrintStream logStream, boolean generate) {
 //        System.out.println("RUN " + grammarFileName);
 //        System.out.println(listJFS());
         return Debug.runObject(this, "Generate " + grammarFileName + " - " + generate, () -> {
@@ -424,7 +445,7 @@ public final class AntlrGenerator {
                     this.opts, this.grammarEncoding, originalTokensHash,
                     originalFile, this.jfs, outputFiles.get(), inputFiles.get(),
                     primaryInputFileForGrammarName.get(), dependencies.get(),
-                    timestamp.get(), pathHints);
+                    timestamp.get(), pathHints, interceptor);
         });
     }
 
@@ -438,7 +459,7 @@ public final class AntlrGenerator {
 
     private void generateAllGrammars(MemoryTool tool, Grammar g,
             Set<String> seen, boolean generate, Set<Grammar> grammars, JFS jfs) {
-        if (!seen.contains(keyFor(g))) {
+        if (g != null && !seen.contains(keyFor(g))) {
             LOG.log(Level.FINEST, "MemoryTool generating {0}", g.fileName);
             seen.add(keyFor(g));
             if (g.implicitLexer != null) {
@@ -460,6 +481,9 @@ public final class AntlrGenerator {
                 String lexer = g.name + suffix + ".g4";
                 UnixPath srcPath = packagePath().resolve(lexer);
                 JFSFileObject lexerFo = jfs.get(grammarSourceLocation, srcPath);
+                if (lexerFo == null) {
+                    pathHints.firstPathForRawName(g.name, "g4", "g");
+                }
                 if (lexerFo == null) {
                     lexer = g.name + suffix + ".g";
                     srcPath = packagePath().resolve(lexer);

@@ -15,6 +15,10 @@
  */
 package org.nemesis.extraction.attribution;
 
+import java.lang.ref.WeakReference;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.text.Document;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.Extractors;
@@ -34,6 +38,22 @@ public interface ImportBasedResolver<K extends Enum<K>> extends SimpleRegisterab
         // XXX use ParserManager?
         GrammarSource<?> g = in.resolveRelative(name);
         if (g != null) {
+            // Try doing this the cheaper way
+            Optional<Document> docOpt = g.lookup(Document.class);
+            if (docOpt != null) {
+                AtomicReference<WeakReference<Extraction>> ref
+                        = (AtomicReference<WeakReference<Extraction>>) docOpt.get()
+                                .getProperty("_ext");
+                if (ref != null) {
+                    WeakReference<Extraction> wr = ref.get();
+                    if (wr != null) {
+                        Extraction result = wr.get();
+                        if (result != null && !result.isSourceProbablyModifiedSinceCreation()) {
+                            return result;
+                        }
+                    }
+                }
+            }
             Class<? extends ParserRuleContext> ruleType = in.documentRootType();
             return Extractors.getDefault().extract(in.mimeType(), g, ruleType);
         }

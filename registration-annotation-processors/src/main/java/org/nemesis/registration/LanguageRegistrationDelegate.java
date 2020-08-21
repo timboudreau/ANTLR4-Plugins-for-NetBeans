@@ -82,6 +82,7 @@ import static org.nemesis.registration.typenames.JdkTypes.ACTION;
 import static org.nemesis.registration.typenames.JdkTypes.ARRAYS;
 import static org.nemesis.registration.typenames.JdkTypes.ARRAY_LIST;
 import static org.nemesis.registration.typenames.JdkTypes.ATOMIC_BOOLEAN;
+import static org.nemesis.registration.typenames.JdkTypes.ATOMIC_REFERENCE;
 import static org.nemesis.registration.typenames.JdkTypes.BI_CONSUMER;
 import static org.nemesis.registration.typenames.JdkTypes.BI_PREDICATE;
 import static org.nemesis.registration.typenames.JdkTypes.BOOLEAN_SUPPLIER;
@@ -102,6 +103,7 @@ import static org.nemesis.registration.typenames.JdkTypes.SUPPLIER;
 import static org.nemesis.registration.typenames.JdkTypes.SUPPRESS_WARNINGS;
 import static org.nemesis.registration.typenames.JdkTypes.TEXT_ACTION;
 import static org.nemesis.registration.typenames.JdkTypes.WEAK_HASH_MAP;
+import static org.nemesis.registration.typenames.JdkTypes.WEAK_REFERENCE;
 import org.nemesis.registration.typenames.KnownTypes;
 import static org.nemesis.registration.typenames.KnownTypes.ABSTRACT_ANTLR_LIST_NAVIGATOR_PANEL;
 import static org.nemesis.registration.typenames.KnownTypes.ABSTRACT_LOOKUP;
@@ -1210,22 +1212,44 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
             cl.field("UNIT_TEST", fb -> {
                 fb.docComment("There is a bug workaround in NbEditorDocument which causes a background "
                         + "thread to try to initialize the entire module system, which will wreak "
-                        + "havoc in a unit test.  So set a system property in your unit test runner "
-                        + "to avoid this problem.");
+                        + "havoc in a unit test.  So set the system property 'unit.test' in your unit test runner "
+                        + "to avoid this problem (e.g. in the systemPropertyVariables configuration subsection of "
+                        + "the maven surefire plugin).");
                 fb.withModifier(PRIVATE, STATIC, FINAL)
                         .initializedFromInvocationOf("getBoolean").withStringLiteral("unit.test").on("Boolean").ofType("boolean");
             });
-            cl.importing(DOCUMENT.qname()).overridePublic("createDefaultDocument", mb -> {
-                mb.returning(DOCUMENT.simpleName()).body(bb -> {
-                    bb.iff(ifb -> {
-                        ClassBuilder.IfBuilder<?> ib = ifb.booleanExpression("UNIT_TEST");
-                        ib.returningNew()
-                                .withStringLiteral(mimeType).ofType("AvoidInitializingModuleSystemDocument");
+            cl.importing(DOCUMENT.qname(), ATOMIC_REFERENCE.qname(), WEAK_REFERENCE.qname(), EXTRACTION.qname())
+                    .overridePublic("createDefaultDocument", mb -> {
+                        mb.withModifier(FINAL).returning(DOCUMENT.simpleName()).body(bb -> {
+                            bb.declare("result").as(DOCUMENT.simpleName());
+                            bb.iff(ifb -> {
+                                ClassBuilder.IfBuilder<?> ib = ifb.booleanExpression("UNIT_TEST");
+                                ib.lineComment("There is a workaround for a bug in NbEditorDocument in the NetBeans editor API");
+                                ib.lineComment("which tries to aggresively initialize some information related to ");
+                                ib.lineComment("indenting, as soon as document properties are initialized, calling");
+                                ib.lineComment("IndentUtils.indentLevelSize ( NbEditorDocument. this).");
+                                ib.blankLine();
+                                ib.lineComment("When that code runs in a unit test, it has the effect of trying to initialize");
+                                ib.lineComment("the module system and launch entire IDE, which wreaks all sorts of havoc.");
+                                ib.lineComment("So, when in a unit test, use an alternate implementation of Document.");
+                                ib.assign("result").toNewInstance().withStringLiteral(mimeType)
+                                        .ofType("AvoidInitializingModuleSystemDocument")
+                                        .orElse()
+                                        .assign("result")
+                                        .toInvocation("createDefaultDocument").on("super")
+                                        .endIf();
+                            });
+                            bb.lineComment("Used by NbAntlrUtils.extractionFor(), which allows the caller to");
+                            bb.lineComment("get the most recent Extraction for a document without calling into");
+                            bb.lineComment("ParserManager unless it is out-of-date.");
+                            bb.invoke("putProperty").withStringLiteral("_ext")
+                                    .withNewInstanceArgument(nb -> {
+                                        nb.ofType(ATOMIC_REFERENCE.parametrizedName(WEAK_REFERENCE.parametrizedName(EXTRACTION.simpleName())));
+                                    }).on("result");
+                            bb.returning("result");
+                        });
                     });
-                    bb.returningInvocationOf("createDefaultDocument").on("super");
-                });
-            });
-            cl.importing(NB_EDITOR_DOCUMENT.qname(), "java.util.Dictionary")
+            cl.importing(NB_EDITOR_DOCUMENT.qname(), JdkTypes.DICTIONARY.qname())
                     .innerClass("AvoidInitializingModuleSystemDocument", ic -> {
                         ic.withModifier(PRIVATE, STATIC, FINAL)
                                 .extending(NB_EDITOR_DOCUMENT.simpleName())

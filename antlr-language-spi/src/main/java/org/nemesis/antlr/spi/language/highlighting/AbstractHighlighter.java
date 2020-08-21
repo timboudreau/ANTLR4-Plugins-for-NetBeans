@@ -25,6 +25,7 @@ import java.beans.PropertyChangeListener;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -44,12 +45,14 @@ import org.netbeans.spi.editor.highlighting.HighlightsSequence;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
+import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 
 import static com.mastfrog.util.preconditions.Checks.notNull;
+import static javax.swing.text.Document.StreamDescriptionProperty;
 
 /**
  * A generic highlighter or error annotator, which correctly implements several
@@ -85,6 +88,7 @@ public abstract class AbstractHighlighter {
     private final LazyHighlightsContainer lazy = new LazyHighlightsContainer( this );
     protected final HighlightsLayerFactory.Context ctx;
     private final CompL compl = new CompL();
+    private final Object bagLock = new Object();
     private OffsetsBag theBag;
     private final boolean mergeHighlights;
     protected final Logger LOG;
@@ -154,11 +158,14 @@ public abstract class AbstractHighlighter {
     private OffsetsBag bag( boolean create ) {
         OffsetsBag result = null;
         if ( !create ) {
-            synchronized ( this ) {
+            // Do not synchronize on "this" or another externally visible
+            // field - subclasses may use it for
+            // their own purposes (ex. AntlrRuntimeErrorsHighlighter)
+            synchronized ( bagLock ) {
                 result = theBag;
             }
         } else if ( isActive() ) {
-            synchronized ( this ) {
+            synchronized ( bagLock ) {
                 if ( theBag == null && create ) {
                     Document doc = ctx.getDocument();
                     if ( doc != null ) {
@@ -170,6 +177,10 @@ public abstract class AbstractHighlighter {
             }
         }
         return result;
+    }
+
+    protected static OffsetsBag bag( AbstractHighlighter other ) {
+        return other.bag( false );
     }
 
     /**
@@ -232,6 +243,26 @@ public abstract class AbstractHighlighter {
      */
     protected final RequestProcessor threadPool() {
         return threadPool( getClass() );
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "(" + id() + ")";
+    }
+
+    private String id() {
+        Object o = ctx.getDocument().getProperty( StreamDescriptionProperty );
+        String fileName;
+        if ( o instanceof DataObject ) {
+            fileName = ( ( DataObject ) o ).getName();
+        } else if ( o instanceof FileObject ) {
+            fileName = ( ( FileObject ) o ).getName();
+        } else {
+            fileName = Objects.toString( o );
+        }
+        JTextComponent editor = ctx.getComponent();
+        int h = editor == null ? 0 : System.identityHashCode( editor );
+        return fileName + "-" + h;
     }
 
     @SuppressWarnings( "DoubleCheckedLocking" )

@@ -16,6 +16,7 @@
 package org.nemesis.antlr.spi.language;
 
 import java.io.IOException;
+import java.util.Collection;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import java.util.List;
 import java.util.Optional;
@@ -54,9 +55,13 @@ public abstract class ParseResultContents {
 
     abstract void setSyntaxErrors(List<? extends SyntaxError> errors, NbParserHelper helper);
 
+    abstract void addSyntaxErrors(Collection<? extends SyntaxError> errors, NbParserHelper helper);
+
     abstract void addSyntaxError(SyntaxError err);
 
     abstract <T> Optional<T> _get(AntlrParseResult.Key<T> key);
+
+    public abstract void replaceErrors(ParseResultContents replacements);
 
     /**
      * Put a value, using a key obtained from AntlrParseResult.key() which
@@ -98,8 +103,19 @@ public abstract class ParseResultContents {
         static Empty INSTANCE = new Empty();
 
         @Override
+        public void replaceErrors(
+                ParseResultContents other ) {
+        }
+
+        @Override
         public ParseResultContents addErrorDescription(ErrorDescription err) {
             return this;
+        }
+
+        @Override
+        void addSyntaxErrors(
+                Collection<? extends SyntaxError> errors, NbParserHelper helper ) {
+            // do nothing
         }
 
         @Override

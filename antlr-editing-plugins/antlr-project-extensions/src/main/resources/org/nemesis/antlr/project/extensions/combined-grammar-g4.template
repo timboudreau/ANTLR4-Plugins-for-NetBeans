@@ -7,14 +7,13 @@ grammar ${name};
 
 // TODO:  Add your lexer and parser rules here
 
-// Example rules
+// A top level rule the ends with EOF to guarantee the WHOLE file is parsed
 compilation_unit
-    : array
-    | number
-    ;
+    : ( array
+      | number ) EOF;
 
 array
-    : OpenBrace number (Comma number)+ Closebrace;
+    : OpenBrace number (Comma number)+ CloseBrace;
 
 number
     : Integer;
@@ -29,7 +28,7 @@ Comment
     : OPEN_COMMENT.*? CLOSE_COMMENT -> channel(1);
 
 Whitespace
-    : (' ' | '\t' | '\n' | '\r')+ -> channel(2);
+    : [ \t\n\r] -> channel(2);
 
 Comma
     : ',';

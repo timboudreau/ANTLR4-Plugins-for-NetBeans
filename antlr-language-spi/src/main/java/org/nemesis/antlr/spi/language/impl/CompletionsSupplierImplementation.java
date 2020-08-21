@@ -40,7 +40,7 @@ public final class CompletionsSupplierImplementation extends CompletionsSupplier
         String mime = ( String ) document.getProperty( "mimeType" );
         if ( mime != null && AntlrMimeTypeRegistration.isDefaultCompletionSupplierEnabled( mime ) ) {
             try {
-                Extraction ext = NbAntlrUtils.parseImmediately( document );
+                Extraction ext = NbAntlrUtils.extractionFor( document );
                 if ( ext != null ) {
                     return new CP( ext );
                 } else {

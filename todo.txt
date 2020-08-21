@@ -1,4 +1,6 @@
 
+RebuildSubscriptions should pass a callback which does regeneration, so it can notify other interested parties when it happpens.
+
 Fix or-indenting - parenthesized ors should be indented more, first after ( should be on a new line
 
 In a parser grammar, parser rule completions is not showing imported rules.  It should.

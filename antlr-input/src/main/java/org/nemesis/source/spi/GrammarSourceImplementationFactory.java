@@ -110,6 +110,7 @@ public abstract class GrammarSourceImplementationFactory<T> {
             return new AdaptedGrammarSourceImplementation<>(toT, res, type());
         }
 
+        @Override
         public String toString() {
             return orig + " -> " + type().getSimpleName();
         }

@@ -50,6 +50,7 @@ import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.Subscriber;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.AntlrGenerator;
+import org.nemesis.antlr.memory.AntlrGenerator.RerunInterceptor;
 import org.nemesis.antlr.memory.AntlrGeneratorBuilder;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.antlr.project.Folders;
@@ -67,10 +68,15 @@ import org.openide.util.Exceptions;
 import org.openide.util.RequestProcessor;
 
 /**
+ * Holds subscribers to Antlr generation for all files in a project, mapped to
+ * files, manages keeping all the Antlr files in the project mapped into the JFS
+ * for the project, and for calling those subscribers with synthetic
+ * AntlrGenerationResults when regeneration of a file the one they're listening
+ * on depends on has been regenerated.
  *
  * @author Tim Boudreau
  */
-final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLRv4Parser.GrammarFileContext> implements Subscribable<FileObject, Subscriber> {
+final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLRv4Parser.GrammarFileContext> implements Subscribable<FileObject, Subscriber>, RerunInterceptor {
 
     private static final Logger LOG = Logger.getLogger(AntlrGenerationSubscriptionsForProject.class.getName());
     private static final RequestProcessor svc = new RequestProcessor("antlr-project-events", 5);
@@ -85,6 +91,8 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     AntlrGenerationSubscriptionsForProject(Project project, JFSManager jfses, Runnable onProjectDeleted) {
         super(ANTLRv4Parser.GrammarFileContext.class);
         mappingManager = new PerProjectJFSMappingManager(project, jfses, onProjectDeleted, this::onFileReplaced);
+        // This gets us a Subscribable, which manages the set of subscribers mapped to
+        // individual files
         SubscribableBuilder.SubscribableContents<FileObject, FileObject, Subscriber, AntlrRegenerationEvent> sinfo
                 = // need a defensive copy
                 SubscribableBuilder.withKeys(FileObject.class).withEventApplier((FileObject fo, AntlrRegenerationEvent rebuildInfo, Collection<? extends Subscriber> subscribers) -> {
@@ -95,8 +103,13 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                         rebuildInfo.accept(s);
                     }
                 }).storingSubscribersIn(SetFactories.ORDERED_HASH).threadSafe()
-                        .withCoalescedAsynchronousEventDelivery(EventQueue::isDispatchThread, svc, MapFactories.EQUALITY,
-                                2, TimeUnit.SECONDS).build();
+                        // If on the event thread, use the background thread pool so we don't
+                        // block doing unknown amounts of IO in the event thread; otherwise
+                        // run synchronously
+                        .withCoalescedAsynchronousEventDelivery(EventQueue::isDispatchThread, svc, MapFactories.EQUALITY, 2, TimeUnit.SECONDS)
+                        //                        .withCoalescedAsynchronousEventDelivery(() -> true, svc, MapFactories.EQUALITY, 2, TimeUnit.SECONDS)
+                        //                        .withSynchronousEventDelivery()
+                        .build();
         subscribableDelegate = sinfo.subscribable;
         dispatcher = sinfo.eventInput;
         subscribersStore = sinfo.store;
@@ -232,8 +245,8 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     protected void onReparse(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
         BrokenSourceThrottle throttle = AntlrGenerationSubscriptionsImpl.throttle();
         if (throttle.isThrottled(extraction)) {
-            LOG.log(Level.INFO, "Throttling known-bad tokens hash for {0}", extraction.tokensHash());
-            return;
+//            LOG.log(Level.INFO, "Throttling known-bad tokens hash for {0}", extraction.tokensHash());
+//            return;
         }
         // Check extraction against tokens hash
         // Keep set of paths where building another file in the same project
@@ -249,7 +262,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                 // Don't pass a generation result to subsscribers twice in one reentrant session
                 if (context.wasRegenerationEventAlreadyDelivered(fo)) {
                     LOG.log(Level.FINEST, "Regeneration event already delivered for {0} {1}",
-                            new Object[] {extraction.source(), extraction.tokensHash()});
+                            new Object[]{extraction.source(), extraction.tokensHash()});
                     return;
                 }
                 // See if we have a cached result
@@ -411,6 +424,13 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         });
     }
     private final ThreadLocal<ReentrantAntlrGenerationContext> ctx = new ThreadLocal();
+
+    @Override
+    public AntlrGenerationResult rerun(String grammarFileName, PrintStream logStream, boolean generate, AntlrGenerator originator, AntlrGenerator.ReRunner localRerunner) {
+        AntlrGenerationResult res = localRerunner.run(grammarFileName, logStream, generate);
+
+        return res;
+    }
 
     /**
      * Reentrant scope for triggering regeneration / reevaluation of

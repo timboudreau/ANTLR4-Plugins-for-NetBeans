@@ -17,11 +17,17 @@ package org.nemesis.antlr.error.highlighting;
 
 import org.nemesis.antlr.spi.language.highlighting.AbstractHighlighter;
 import com.mastfrog.function.state.Bool;
+import com.mastfrog.util.collections.MapFactories;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import javax.swing.text.Document;
 import static javax.swing.text.Document.StreamDescriptionProperty;
+import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.ANTLRv4Parser;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.error.highlighting.spi.AntlrHintGenerator;
@@ -35,8 +41,11 @@ import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.api.editor.mimelookup.MimeRegistrations;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
+import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.ZOrder;
+import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
+import org.openide.loaders.DataObject;
 
 /**
  * Implements error highlighting and hints, using the error output from Antlr
@@ -54,8 +63,22 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
     }
 
     public String toString() {
-        return "ARErrorsHighlight(" + ctx.getDocument().getProperty(StreamDescriptionProperty)
-                + ")";
+        return "ErrHl(" + id() + ")";
+    }
+
+    private String id() {
+        Object o = ctx.getDocument().getProperty(StreamDescriptionProperty);
+        String fileName;
+        if (o instanceof DataObject) {
+            fileName = ((DataObject) o).getName();
+        } else if (o instanceof FileObject) {
+            fileName = ((FileObject) o).getName();
+        } else {
+            fileName = Objects.toString(o);
+        }
+        JTextComponent editor = ctx.getComponent();
+        int h = editor == null ? 0 : System.identityHashCode(editor);
+        return fileName + "-" + h;
     }
 
     @Override
@@ -79,46 +102,104 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
     private final AtomicInteger uses = new AtomicInteger();
     private volatile String currentTokensHash;
 
+    static Map<En, AntlrRuntimeErrorsHighlighter> ENTRY = MapFactories.EQUALITY_CONCURRENT.createMap(8, true);
+
+    static final class En {
+
+        private final int docId;
+        private final int compId;
+        private final String hash;
+        private final Thread thread = Thread.currentThread();
+        final int runIndex;
+        final Fixes fixes;
+
+        En(Context ctx, String hash, int runIndex, Fixes fixes) {
+            this.runIndex = runIndex;
+            Document d = ctx.getDocument();
+            docId = d == null ? 0 : System.identityHashCode(d);
+            this.hash = hash;
+            JTextComponent jtc = ctx.getComponent();
+            compId = jtc == null ? 0 : System.identityHashCode(jtc);
+            this.fixes = fixes;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 5;
+            hash = 43 * hash + this.docId;
+            hash = 43 * hash + this.compId;
+            hash = 43 * hash + Objects.hashCode(this.hash);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final En other = (En) obj;
+            if (this.docId != other.docId) {
+                return false;
+            }
+            if (this.compId != other.compId) {
+                return false;
+            }
+            return Objects.equals(this.hash, other.hash);
+        }
+
+        @Override
+        public String toString() {
+            return docId + ":" + compId + ":" + hash + "-" + runIndex
+                    + " " + thread.getName();
+        }
+    }
+
     @Override
     public void onRebuilt(ANTLRv4Parser.GrammarFileContext tree,
             String mimeType, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes) {
+
         // Once late addition of hints is working without clobbering things,
         // this should be the way it is done.
         // This code currently runs on every single parser result creation,
         // and for every change, multiple threads do reparses, so while
         // it is very fast, it should run once per flurry-of-parses, delayed
         // and coalesced
-
 //        coa.coalesce(tree, extraction, res, populate, fixes);
 //    }
 //    public void internalOnRebuilt(GrammarFileContext tree,
 //            String mimeType, Extraction extraction,
 //            AntlrGenerationResult res, ParseResultContents populate,
 //            Fixes fixes) {
-        if (res == null || !fixes.active() || !isActive()) {
+        if (res == null || !fixes.active() || !isActive() || extraction == null) {
             LOG.log(Level.FINER, "no result? {0}; fixes inactive? {1}, or inactive? {2}. Skip hints for : {3}",
                     new Object[]{(res == null), !fixes.active(), !isActive(), extraction == null
                         ? "null" : extraction.source().name()});
             return;
         }
 
-        LOG.log(Level.FINE, "onRebuilt {0}", extraction.source().name());
+        LOG.log(Level.FINE, "onRebuilt {0} in {1}", new Object[]{extraction.source().name(), this});
         Optional<Document> doc = extraction.source().lookup(Document.class);
         if (!doc.isPresent()) {
-            LOG.log(Level.FINE, "Doc not present from source {0}", extraction.source());
+            LOG.log(Level.FINE, "Doc not present from source {0} for {1}",
+                    new Object[]{extraction.source().name(), this});
             return;
         }
         Document d = doc.get();
         if (!d.equals(ctx.getDocument())) {
-            LOG.log(Level.INFO, "Called with wrong extraction: {0} expecting {1}",
-                    new Object[]{d, ctx.getDocument()});
+            LOG.log(Level.INFO, "Called {0} with extraction of wrong doc: {1}",
+                    new Object[]{this, d});
             // Currently we can be notified about any document in the
             // project
             return;
         }
-        int runIndex = uses.getAndIncrement();
         try {
             long lm = extraction.source().lastModified();
             if (extraction.isSourceProbablyModifiedSinceCreation()) {
@@ -140,30 +221,87 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
 //            return;
 //        }
         currentTokensHash = extraction.tokensHash();
-        updateHighlights(brandNewBag -> {
-            Bool anyHighlights = Bool.create();
-            boolean usingResults = true;
-            for (AntlrHintGenerator gen : AntlrHintGenerator.all()) {
-                try {
-                    boolean highlightsAdded = gen.generateHints(tree,
-                            extraction, res, populate, fixes, d, positions, brandNewBag);
-                    if (highlightsAdded) {
-                        LOG.log(Level.FINEST, "{0} added highlights", gen);
-                        anyHighlights.set();
+        En en = new En(ctx, extraction.tokensHash(), uses.get(), fixes);
+        AntlrRuntimeErrorsHighlighter other = null;
+        synchronized (this) {
+            List<En> keys = new ArrayList<>(ENTRY.keySet());
+            other = ENTRY.put(en, this);
+            if (other != this && other != null) {
+                int ix = keys.indexOf(en);
+                if (ix >= 0) {
+                    En en1 = keys.get(ix);
+                    System.out.println("HAVE A PRESENT DOOHICKY " + en1 + " and " + en);
+                    Thread.yield();
+                    if (other.runIndex() > en1.runIndex) {
+                        OffsetsBag b = bag(this);
+                        if (b != null) {
+                            System.out.println("   DO THE OTHER THING " + en1 + " -> " + en);
+                            OffsetsBag otherBag = bag(other);
+                            b.setHighlights(otherBag);
+                            fixes.copyFrom(en1.fixes);
+                            return;
+                        }
                     }
-                } catch (Exception | Error ex) {
-                    LOG.log(Level.SEVERE, "Checking extraction up to date for "
-                            + extraction.source().name(), ex);
                 }
+            }
+        }
+        try {
+            updateHighlights(brandNewBag -> {
+                Bool anyHighlights = Bool.create();
+                boolean usingResults = true;
+                for (AntlrHintGenerator gen : AntlrHintGenerator.all()) {
+                    try {
+                        boolean highlightsAdded = gen.generateHints(tree,
+                                extraction, res, populate, fixes, d, positions, brandNewBag);
+                        if (highlightsAdded) {
+                            LOG.log(Level.FINEST, "{0} added highlights", gen);
+                            anyHighlights.set();
+                        }
+                    } catch (Exception | Error ex) {
+                        LOG.log(Level.SEVERE, "Checking extraction up to date for "
+                                + extraction.source().name(), ex);
+                    }
 //                if (runIndex != uses.get()) {
 //                    LOG.log(Level.INFO, "Not finishing hint run due to reentry of {0} with {1}",
 //                            new Object[]{extraction.source(), extraction.tokensHash()});
 //                    usingResults = false;
 //                    break;
 //                }
+                }
+                synchronized (this) {
+                    AntlrRuntimeErrorsHighlighter hl = ENTRY.get(en);
+                    if (hl != null && hl != this) {
+                        List<En> keys = new ArrayList<>(ENTRY.keySet());
+                        int ix = keys.indexOf(en);
+                        if (ix >= 0) {
+                            En en1 = keys.get(ix);
+                            int ri = en1.runIndex;
+                            for (int i = 0; i < 30; i++) {
+                                if (hl.runIndex() > ri) {
+                                    System.out.println("DO THE THING!!!! "
+                                            + en1 + " and " + en);
+                                    OffsetsBag newerBag = bag(hl);
+                                    brandNewBag.setHighlights(newerBag);
+                                    fixes.copyFrom(en1.fixes);
+                                } else {
+                                    Thread.yield();
+                                }
+                            }
+                        }
+                    }
+                }
+                return usingResults && anyHighlights.getAsBoolean();
+            });
+        } finally {
+            uses.getAndIncrement();
+            synchronized (this) {
+                ENTRY.remove(en);
             }
-            return usingResults && anyHighlights.getAsBoolean();
-        });
+        }
+    }
+
+    int runIndex() {
+        return uses.get();
     }
 
     @MimeRegistrations({
@@ -172,7 +310,7 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
     })
     public static HighlightsLayerFactory factory() {
         return AbstractHighlighter.factory("antlr-runtime-errors",
-                ZOrder.SYNTAX_RACK,
+                ZOrder.CARET_RACK,
                 ctx -> new AntlrRuntimeErrorsHighlighter(ctx), true);
     }
 

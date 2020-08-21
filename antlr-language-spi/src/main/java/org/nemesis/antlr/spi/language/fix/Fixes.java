@@ -73,8 +73,9 @@ public abstract class Fixes {
         } else {
             return doc.get();
         }
-
     }
+
+    public abstract void copyFrom(Fixes other);
 
     abstract StyledDocument document();
 
@@ -1576,6 +1577,11 @@ public abstract class Fixes {
 
         public boolean ifUnusedErrorId( String id, DocumentRunnable run ) throws BadLocationException {
             return true;
+        }
+
+        @Override
+        public void copyFrom( Fixes other ) {
+            // do nothing
         }
     }
 }

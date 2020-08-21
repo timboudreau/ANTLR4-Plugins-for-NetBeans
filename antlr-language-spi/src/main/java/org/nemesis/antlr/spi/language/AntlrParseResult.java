@@ -18,6 +18,7 @@ package org.nemesis.antlr.spi.language;
 import java.io.IOException;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import org.antlr.v4.runtime.Vocabulary;
@@ -36,6 +39,9 @@ import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.hints.ErrorDescription;
+import org.openide.util.RequestProcessor;
+
+import static org.nemesis.antlr.spi.language.SyntaxError.FIX_COMPUTATION;
 
 /**
  *
@@ -45,19 +51,20 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
 
     private final Map<Key<?>, Object> pairs = new HashMap<>();
     private final Extraction extraction;
-    private final List<SyntaxError> syntaxErrors = new ArrayList<>();
+    private final Set<SyntaxError> syntaxErrors = new TreeSet<>();
     private BiFunction<Snapshot, SyntaxError, ErrorDescription> errorConverter;
-    private final List<ErrorDescription> addedErrorDescriptions = new ArrayList<>( 25 );
+    private final List<ErrorDescription> addedErrorDescriptions = Collections.synchronizedList( new ArrayList<>( 25 ) );
     private static volatile long IDS;
     private final long id = IDS++;
     private final Vocabulary lexerVocabulary;
     private NbParserHelper helper;
     private volatile boolean wasInvalidated;
-//    volatile boolean fullyProcessed;
+    volatile boolean fullyProcessed;
 
     AntlrParseResult( NbLexerAdapter<?, ?> adapter, Snapshot _snapshot, Extraction extraction,
             Consumer<ParseResultContents> inputConsumer ) {
         super( _snapshot );
+        NbAntlrUtils.storeExtraction( _snapshot, extraction );
         this.lexerVocabulary = adapter.vocabulary();
         this.extraction = extraction;
         inputConsumer.accept( input() );
@@ -66,6 +73,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
     AntlrParseResult( Vocabulary lexerVocabulary, Snapshot _snapshot, Extraction extraction,
             Consumer<ParseResultContents> inputConsumer ) {
         super( _snapshot );
+        NbAntlrUtils.storeExtraction( _snapshot, extraction );
         this.lexerVocabulary = lexerVocabulary;
         this.extraction = extraction;
         inputConsumer.accept( input() );
@@ -102,8 +110,8 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
      * @see getErrorDescriptions()
      * @return A list of syntax errors
      */
-    public List<? extends SyntaxError> syntaxErrors() {
-        return Collections.unmodifiableList( syntaxErrors );
+    public Set<? extends SyntaxError> syntaxErrors() {
+        return Collections.unmodifiableSet( syntaxErrors );
     }
 
     /**
@@ -201,7 +209,8 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
      * provide input to ui components such as error highlighting or
      * navigator panels.
      */
-    final class ParseResultInput extends ParseResultContents /* implements Runnable */{
+    final class ParseResultInput extends ParseResultContents implements Runnable {
+        private Fixes fixes;
 
         @Override
         <T> Optional<T> _get( Key<T> key ) {
@@ -215,7 +224,19 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
 
         @Override
         void setSyntaxErrors( List<? extends SyntaxError> errors, NbParserHelper helper ) {
-            syntaxErrors.addAll( errors );
+            if ( helper.isDefaultErrorHandlingEnabled() ) {
+                syntaxErrors.clear();
+                syntaxErrors.addAll( errors );
+            }
+            AntlrParseResult.this.helper = helper;
+        }
+
+        @Override
+        void addSyntaxErrors(
+                Collection<? extends SyntaxError> errors, NbParserHelper helper ) {
+            if ( helper.isDefaultErrorHandlingEnabled() ) {
+                syntaxErrors.addAll( errors );
+            }
             AntlrParseResult.this.helper = helper;
         }
 
@@ -224,12 +245,41 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
             return AntlrParseResult.this.toString();
         }
 
+        int errorCount() {
+            return addedErrorDescriptions.size();
+        }
+
+        List<ErrorDescription> errors() {
+            return addedErrorDescriptions;
+        }
+
+        @Override
+        public void replaceErrors(
+                ParseResultContents otherContents ) {
+            if ( otherContents.getClass() != ParseResultInput.class ) {
+                return;
+            }
+            ParseResultInput pri = ( ParseResultInput ) otherContents;
+            if ( pri.errorCount() == 0 && !addedErrorDescriptions.isEmpty() ) {
+                return;
+            }
+            addedErrorDescriptions.clear();
+            addedErrorDescriptions.addAll( pri.errors() );
+            if ( wasInvalidated ) {
+                enqueueLateHintAdditions();
+            }
+        }
+
         @Override
         public final ParseResultContents addErrorDescription( ErrorDescription err ) {
+            if ( wasInvalidated ) {
+                System.out.println( " hint add after invalidation " + err );
+//                return this;
+            }
             addedErrorDescriptions.add( err );
-//            if ( fullyProcessed ) {
-//                enqueueLateHintAdditions();
-//            }
+            if ( fullyProcessed ) {
+                enqueueLateHintAdditions();
+            }
             return this;
         }
 
@@ -240,9 +290,8 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
 
         @Override
         Fixes fixes() throws IOException {
-            return Fixes.create( extraction, this );
+            return fixes == null ? fixes = Fixes.create( extraction, this ) : fixes;
         }
-/*
         // This needs timestamp checking or similar, or ordering issues
         // cause late-added empty sets of hints to clobber valid ones
         private RequestProcessor.Task lateFixAdditionUpdaterTask;
@@ -258,18 +307,9 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         public void run() {
             List<? extends ErrorDescription> errors = getErrorDescriptions();
             Snapshot snapshot = getSnapshot();
-            Document doc = snapshot.getSource().getDocument( false );
-            String mime = snapshot.getMimeType();
-            if ( doc != null ) {
-                HintsController.setErrors( doc, "errors-" + mime.replace( '/', '-' ), errors );
-            } else {
-                FileObject fo = snapshot.getSource().getFileObject();
-                if ( fo != null ) {
-                    HintsController.setErrors( fo, "errors-" + mime.replace( '/', '-' ), errors );
-                }
-            }
+            System.out.println( "UPDATE " + snapshot + " with " + errors.size() + " hints" );
+            AntlrInvocationErrorHighlighter.updateErrors( snapshot, errors );
         }
-        */
     }
 
     public static final class Key<T> {

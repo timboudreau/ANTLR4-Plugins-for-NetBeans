@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.memory.output;
 
+import com.mastfrog.util.collections.IntIntMap;
 import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -29,7 +30,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Wraps an Antlr syntax error, so that if Antlr classes were loaded in an
+ * Wraps an Antlr emitted error, so that if Antlr classes were loaded in an
  * isolating classloader, we do not leak types that were created by it and
  * inadvertently keep it alive.
  *
@@ -56,6 +57,17 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
         this.message = message;
     }
 
+    /**
+     * An ID which identifies this error such that in the same document, if it
+     * has not been edited above the position of this error, the same error will
+     * have the same id across multiple parses.
+     *
+     * @return An error code
+     */
+    public String id() {
+        return fileOffset + ":" + endOffset() + ":" + (message == null ? 0 : message.hashCode());
+    }
+
     public <T> ParsedAntlrError setInfo(T info) {
         if (this.info != null) {
             throw new IllegalStateException("Set info twice");
@@ -77,9 +89,6 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
      * @param length The length of the region in error
      */
     public void setFileOffsetAndLength(int offset, int length) {
-        if (offset == 955) {
-            new Exception("Got " + offset + " " + length + ": " + message).printStackTrace();
-        }
         this.fileOffset = offset;
         this.length = length;
     }
@@ -100,40 +109,40 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
     public boolean equals(Object obj) {
         if (this == obj) {
             return true;
-        }
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
+        } else if (!(obj instanceof ParsedAntlrError)) {
             return false;
         }
         final ParsedAntlrError other = (ParsedAntlrError) obj;
         if (this.error != other.error) {
             return false;
-        }
-        if (this.errorCode != other.errorCode) {
+        } else if (this.errorCode != other.errorCode) {
+            return false;
+        } else if (this.lineNumber != other.lineNumber) {
+            return false;
+        } else if (this.lineOffset != other.lineOffset) {
+            return false;
+        } else if (!Objects.equals(this.message, other.message)) {
             return false;
         }
-        if (this.lineNumber != other.lineNumber) {
-            return false;
-        }
-        if (this.lineOffset != other.lineOffset) {
-            return false;
-        }
-        if (!Objects.equals(this.message, other.message)) {
-            return false;
-        }
-        if (!Objects.equals(this.path, other.path)) {
-            return false;
-        }
-        return true;
+        return Objects.equals(this.path, other.path);
     }
 
     @Override
     public String toString() {
+        boolean hasSaneLineInfo = lineNumber >= 0 && lineOffset >= 0;
         StringBuilder sb = new StringBuilder();
         sb.append(path.toString())
-                .append('(').append(lineNumber).append(',').append(lineOffset).append(')')
+                .append('(');
+        // Emulate the behavior of Antlr vs-2005 formatting - negative line
+        // info gives you (,) in the message
+        if (hasSaneLineInfo) {
+            sb.append(lineNumber);
+        }
+        sb.append(',');
+        if (hasSaneLineInfo) {
+            sb.append(lineOffset);
+        }
+        sb.append(')')
                 .append(" : ").append(error ? "error" : "warning").append(' ').append(errorCode)
                 .append(" : ").append(message);
         if (fileOffset != -1) {
@@ -211,31 +220,71 @@ public final class ParsedAntlrError implements Comparable<ParsedAntlrError> {
         return Collections.emptyList();
     }
 
+    /**
+     * Antlr errors by default do not have file offsets, only line number and
+     * position in line; this method allows for efficiently bulk updating the
+     * file offset information in a collection of errors at once - offsets are
+     * needed for error highlighting.
+     *
+     * @param errors A collection of errors
+     * @param fileReader A function that will fetch the lines of a file.
+     */
     public static void computeFileOffsets(Iterable<? extends ParsedAntlrError> errors, Function<Path, List<String>> fileReader) {
-        Map<Path, List<String>> linesForPath = new HashMap<>(3);
+        // Cache the file info so we only read and split it once
+        // A map to cache the start position of each line
+        Map<Path, IntIntMap> lineOffsets = new HashMap<>(5);
+//        Map<Path, IntIntMap> lineLengths = new HashMap<>(5);
+        // A map to cache the lines of the file
+        Map<Path, List<String>> linesForPath = new HashMap<>(5);
         for (ParsedAntlrError err : errors) {
             if (err.fileOffset == -1) {
                 Path path = err.path();
                 List<String> lines = linesForPath.get(path);
+                IntIntMap map;
                 if (lines == null) {
+                    // Build our caches
                     lines = fileReader.apply(UnixPath.get(path));
                     linesForPath.put(path, lines);
-                }
-                for (int currLineNumber = 0; currLineNumber < lines.size(); currLineNumber++) {
-                    String line = lines.get(currLineNumber);
-                    if (currLineNumber == err.lineNumber()) {
-                        err.fileOffset += err.lineOffset;
-                        err.length = 1;
-                        for (int i = err.lineOffset + 1; i < line.length(); i++) {
-                            if (!Character.isWhitespace(line.charAt(i))) {
-                                err.length++;
-                            } else {
-                                break;
-                            }
-                        }
-                        break;
+                    map = IntIntMap.create(lines.size());
+                    lineOffsets.put(path, map);
+                    int pos = 0;
+                    for (int i = 0; i < lines.size(); i++) {
+                        String line = lines.get(i);
+                        int end = pos + line.length() + 1;
+                        map.put(i, pos);
+                        pos += end;
                     }
-                    err.fileOffset += line.length();
+                } else {
+                    map = lineOffsets.get(path);
+                }
+                // Empty file, something wrong, and we dare not set an error
+                // endpoint > 0 in an empty document
+                if (lines.isEmpty() || lines.size() == 1 && lines.get(0).isEmpty()) {
+                    err.fileOffset = 0;
+                    err.length = 0;
+                    continue;
+                }
+                int eof = map.get(map.greatestKey())
+                        + lines.get(lines.size() - 1).length();
+                if (err.lineNumber < 0 || !map.containsKey(err.lineNumber)) {
+                    // A few Antlr errors output garbage line offsets, like left recursion -
+                    // finding and dealing with them slowly in MemoryTool
+                    err.fileOffset = 0;
+                    err.length = Math.min(1, eof);
+                } else {
+                    // Find the start character index of the line in question
+                    int lineStart = map.get(err.lineNumber);
+
+                    err.fileOffset = lineStart + err.lineOffset;
+                    String line = lines.get(err.lineNumber);
+                    if (err.lineOffset < line.length()) {
+                        err.length = Math.max(1, line.length() - lineStart);
+                    } else {
+                        err.length = 1;
+                        if (err.length + err.fileOffset > eof) {
+                            err.fileOffset = Math.max(0, eof - 2);
+                        }
+                    }
                 }
             }
         }

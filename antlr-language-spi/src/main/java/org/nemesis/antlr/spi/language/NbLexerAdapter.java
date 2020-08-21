@@ -74,8 +74,9 @@ public abstract class NbLexerAdapter<T extends TokenId, L extends org.antlr.v4.r
      */
     protected abstract T tokenId(int ordinal);
 
-    protected final void createParseResult(Snapshot snapshot, Extraction extraction, BiConsumer<AntlrParseResult, ParseResultContents> receiver) {
-        ParseResultContents[] cts = new ParseResultContents[1];
+    protected final void createParseResult( Snapshot snapshot, Extraction extraction,
+            BiConsumer<AntlrParseResult, ParseResultContents> receiver ) {
+        ParseResultContents[] cts = new ParseResultContents[ 1 ];
         AntlrParseResult res = new AntlrParseResult(vocabulary(), snapshot, extraction, input -> {
             cts[0] = input;
         });

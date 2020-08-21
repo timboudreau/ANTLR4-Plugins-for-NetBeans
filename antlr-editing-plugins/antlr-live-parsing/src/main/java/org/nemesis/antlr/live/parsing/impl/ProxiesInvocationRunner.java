@@ -322,7 +322,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 EditorCookie ck = DataObject.find(fo).getLookup().lookup(EditorCookie.class);
                 Document doc = ck == null ? null : ck.getDocument();
                 NbAntlrUtils.invalidateSource(fo);
-                Extraction ext = doc == null ? NbAntlrUtils.parseImmediately(fo) : NbAntlrUtils.parseImmediately(doc);
+                Extraction ext = doc == null ? NbAntlrUtils.extractionFor(fo) : NbAntlrUtils.extractionFor(doc);
                 if (ext != null) {
                     try (PrintStream info = AntlrLoggers.getDefault().printStream(
                             res.grammarPath, AntlrLoggers.STD_TASK_GENERATE_ANALYZER)) {

@@ -69,6 +69,7 @@ public final class AntlrSnapshotRelativeResolver extends RelativeResolverImpleme
                 if (ofo.isPresent()) {
                     return Optional.of(Source.create(ofo.get()).createSnapshot());
                 }
+                return gs.lookup(Snapshot.class);
             }
             return Optional.empty();
         } finally {

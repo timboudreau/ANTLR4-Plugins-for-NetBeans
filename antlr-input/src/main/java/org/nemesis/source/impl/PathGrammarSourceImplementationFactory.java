@@ -76,5 +76,10 @@ public class PathGrammarSourceImplementationFactory extends GrammarSourceImpleme
         public Path source() {
             return source;
         }
+
+        @Override
+        public String computeId() {
+            return hashString(source.toString());
+        }
     }
 }

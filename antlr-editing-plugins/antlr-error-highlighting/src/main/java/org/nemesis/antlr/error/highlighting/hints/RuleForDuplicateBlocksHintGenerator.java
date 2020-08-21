@@ -42,7 +42,6 @@ import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.error.highlighting.HintsAndErrorsExtractors;
-import static org.nemesis.antlr.error.highlighting.hints.RemoveSuperfluousParenthesesHintGenerator.elidedContent;
 import org.nemesis.antlr.error.highlighting.hints.util.ExtractRule;
 import org.nemesis.antlr.error.highlighting.hints.util.RuleNamingConvention;
 import static org.nemesis.antlr.error.highlighting.hints.util.RuleNamingConvention.findGrammarType;

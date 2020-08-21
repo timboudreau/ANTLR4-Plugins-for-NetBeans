@@ -16,7 +16,9 @@
 package org.nemesis.antlr.spi.language;
 
 import com.mastfrog.util.collections.CollectionUtils;
+
 import static com.mastfrog.util.preconditions.Checks.notNull;
+
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -24,7 +26,6 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
@@ -32,8 +33,10 @@ import java.util.logging.Logger;
 import javax.swing.JEditorPane;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.Caret;
 import javax.swing.text.JTextComponent;
+import javax.swing.text.Position;
 import javax.swing.text.StyledDocument;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
@@ -44,25 +47,24 @@ import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
-import org.nemesis.extraction.ExtractionParserResult;
 import org.nemesis.extraction.UnknownNameReference;
 import org.nemesis.extraction.attribution.ImportFinder;
 import org.nemesis.extraction.attribution.ImportKeySupplier;
 import org.nemesis.extraction.key.NameReferenceSetKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.source.api.GrammarSource;
+import org.netbeans.api.annotations.common.NonNull;
 import org.netbeans.api.editor.EditorActionNames;
 import org.netbeans.api.editor.EditorRegistry;
+import org.netbeans.api.editor.caret.CaretInfo;
+import org.netbeans.api.editor.caret.CaretMoveContext;
+import org.netbeans.api.editor.caret.EditorCaret;
+import org.netbeans.api.editor.caret.MoveCaretsOrigin;
 import org.netbeans.editor.BaseAction;
 import org.netbeans.editor.BaseKit;
 import org.netbeans.editor.ext.ExtKit;
-import org.netbeans.modules.parsing.api.ParserManager;
-import org.netbeans.modules.parsing.api.ResultIterator;
-import org.netbeans.modules.parsing.api.Source;
-import org.netbeans.modules.parsing.api.UserTask;
-import org.netbeans.modules.parsing.spi.ParseException;
-import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.AbstractEditorAction;
+import org.netbeans.spi.editor.caret.CaretMoveHandler;
 import org.openide.cookies.EditorCookie;
 import org.openide.cookies.OpenCookie;
 import org.openide.filesystems.FileObject;
@@ -108,19 +110,11 @@ public final class AntlrGotoDeclarationAction extends AbstractEditorAction {
         LOGGER.log( Level.FINER, "Invoke {0} at {1}", new Object[]{ position,
             "AntlrGotoDeclarationAction" } );
 
-        try {
-            ParserManager.parse( Collections.singleton( Source.create( component.getDocument() ) ), new UserTask() {
-                             @Override
-                             public void run( ResultIterator resultIterator ) throws Exception {
-                                 Parser.Result res = resultIterator.getParserResult();
-                                 if ( res instanceof ExtractionParserResult ) {
-                                     Extraction ext = ( ( ExtractionParserResult ) res ).extraction();
-                                     navigateTo( evt, component, ext, position );
-                                 }
-                             }
-                         } );
-        } catch ( ParseException ex ) {
-            LOGGER.log( Level.SEVERE, "Thrown in extracting " + component.getDocument(), ex );
+        Extraction ext = NbAntlrUtils.extractionFor( component.getDocument() );
+        if ( ext != null ) {
+            navigateTo( evt, component, ext, position );
+        } else {
+            LOGGER.log( Level.INFO, "No extraction for {0}", component.getDocument() );
         }
     }
 
@@ -148,22 +142,22 @@ public final class AntlrGotoDeclarationAction extends AbstractEditorAction {
 
     private <K extends Enum<K>> boolean tryToResolve( NameReferenceSetKey<K> key, Extraction ext, int pos ) {
         Attributions<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K> at = ext.resolveAll( key );
-        LOGGER.log(Level.FINER, "Found attributions for {0}: {1}", new Object[] {key, at});
+        LOGGER.log( Level.FINER, "Found attributions for {0}: {1}", new Object[]{ key, at } );
         if ( at.hasResolved() ) {
-            LOGGER.log(Level.FINEST, "Has resolved items");
+            LOGGER.log( Level.FINEST, "Has resolved items" );
             SemanticRegions<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K>> att
                     = at.attributed();
-            LOGGER.log(Level.FINEST, "Have some resolved: {0}", att);
+            LOGGER.log( Level.FINEST, "Have some resolved: {0}", att );
             SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K>> referenced
                     = att.at( pos );
-            LOGGER.log(Level.FINER, "At position {0}", referenced);
+            LOGGER.log( Level.FINER, "At position {0}", referenced );
             if ( referenced != null ) {
                 AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K> info
                         = referenced.key();
                 NamedSemanticRegion<K> element = info.element();
                 GrammarSource<?> src = info.attributedTo().source();
 
-                LOGGER.log(Level.FINER, "References {0} in {1}", new Object[] {element, src});
+                LOGGER.log( Level.FINER, "References {0} in {1}", new Object[]{ element, src } );
             }
         }
         return false;
@@ -180,7 +174,7 @@ public final class AntlrGotoDeclarationAction extends AbstractEditorAction {
         }
 
         for ( NameReferenceSetKey<?> nrk : keys ) {
-            LOGGER.log( Level.FINE, "Try to resolve against {0}", nrk);
+            LOGGER.log( Level.FINE, "Try to resolve against {0}", nrk );
             if ( tryToResolve( nrk, extraction, position ) ) {
                 return;
             }
@@ -197,8 +191,6 @@ public final class AntlrGotoDeclarationAction extends AbstractEditorAction {
                     if ( nr == null ) {
                         continue;
                     }
-//                    extraction.res
-
                     // This is useless - we should not be passing the position of our token
                     // to look for an import key
                     for ( NamedSemanticRegion<?> reg : nr ) {
@@ -221,7 +213,7 @@ public final class AntlrGotoDeclarationAction extends AbstractEditorAction {
                             }
                             GrammarSource<?> fallback = extraction.source().resolveImport( name );
                             if ( fallback != null ) {
-                                LOGGER.log(Level.FINER, "Use fallback to open {0}", fallback);
+                                LOGGER.log( Level.FINER, "Use fallback to open {0}", fallback );
                                 openFileOf( fallback );
                                 return;
                             }
@@ -350,7 +342,7 @@ public final class AntlrGotoDeclarationAction extends AbstractEditorAction {
             throws DataObjectNotFoundException, IOException {
         SemanticRegions<UnknownNameReference<T>> unks = extraction.unknowns( key );
         SemanticRegion<UnknownNameReference<T>> reg = unks.at( position );
-        LOGGER.log(Level.FINE, "Check unknowns of {0}: {1} finding ", new Object[] {key, unks, reg});
+        LOGGER.log( Level.FINE, "Check unknowns of {0}: {1} finding ", new Object[]{ key, unks, reg } );
         if ( reg != null ) {
             Attributions<GrammarSource<?>, NamedSemanticRegions<T>, NamedSemanticRegion<T>, T> attr = extraction
                     .resolveAll( key );
@@ -378,13 +370,33 @@ public final class AntlrGotoDeclarationAction extends AbstractEditorAction {
     }
 
     private void navigateTo( JTextComponent component, int position ) {
+        Position pos;
+        try {
+            pos = component.getDocument().createPosition( position );
+        } catch ( BadLocationException ex ) {
+            LOGGER.log( Level.INFO, "Cannot move caret to " + position
+                                    + " in document of "
+                                    + component.getDocument().getLength(), ex );
+            return;
+        }
+        LOGGER.log( Level.FINER, "Setting caret to {0} in {1}", new Object[]{
+            position, component } );
         Mutex.EVENT.readAccess( () -> {
             Caret caret = component.getCaret();
             if ( caret != null ) {
-                LOGGER.log( Level.FINER, "Setting caret to {0} in {1}", new Object[]{
-                    position, component } );
-                resetCaretMagicPosition( component );
-                caret.setDot( position );
+                if ( caret instanceof EditorCaret ) {
+                    EditorCaret ec = ( EditorCaret ) caret;
+                    CaretInfo info = ec.getLastCaret();
+                    ec.moveCarets( new CaretMoveHandler() {
+                        public void moveCarets( @NonNull CaretMoveContext context ) {
+                            context.setDotAndMark( info, pos, Position.Bias.Forward, pos,
+                                                   Position.Bias.Backward );
+                        }
+                    }, MoveCaretsOrigin.DISABLE_FILTERS );
+                } else {
+                    resetCaretMagicPosition( component );
+                    caret.setDot( position );
+                }
             }
         } );
     }

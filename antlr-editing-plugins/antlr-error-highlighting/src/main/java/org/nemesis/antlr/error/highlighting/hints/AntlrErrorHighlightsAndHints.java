@@ -68,6 +68,7 @@ import org.openide.util.LookupEvent;
 import org.openide.util.LookupListener;
 import org.openide.util.NbBundle;
 import org.openide.util.NbBundle.Messages;
+import org.openide.util.Utilities;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
@@ -215,11 +216,12 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                 if (eps != null) {
                     epsilons.add(eps);
                     try {
-                        handleEpsilon(err, fixes, extraction, eps, brandNewBag, anyHighlights);
+                        if (handleEpsilon(err, fixes, extraction, eps, brandNewBag, anyHighlights)) {
+                            continue;
+                        }
                     } catch (Exception | Error ex) {
                         LOG.log(Level.SEVERE, "Handling epsilon in " + extraction.source().name(), ex);
                     }
-                    continue;
                 }
                 offsetsOf(doc, err, (startOffset, endOffset) -> {
                     if (startOffset == endOffset) {
@@ -242,7 +244,8 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                         }
                         if (!handleFix(err, fixes, extraction, doc, positions,
                                 brandNewBag, anyHighlights)) {
-                            String errId = err.lineNumber() + ";" + err.code() + ";" + err.lineOffset();
+//                            String errId = err.lineNumber() + ";" + err.code() + ";" + err.lineOffset();
+                            String errId = err.id();
                             if (!fixes.isUsedErrorId(errId)) {
                                 anyHighlights.set();
                                 brandNewBag.addHighlight(startOffset, Math.max(startOffset + err.length(), endOffset),
@@ -312,11 +315,19 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
             return handleEpsilon(err, fixes, ext, eps, brandNewBag, anyHighlights);
         }
         switch (err.code()) {
+            case 50 : // 'foo' came as a complete surprise to me
+                offsetsOf(doc, err, (start, end) -> {
+                    fixes.addError(err.id(), positions.range(start, end), stringifyUnexpectedTokenMessage(err.message()),
+                            () -> htmlifyUnexpectedTokenMessage(err.message()));
+                    brandNewBag.addHighlight(start, end, errors());
+                    anyHighlights.set();
+                });
+                return true;
             case 51: // rule redefinition
             case 52: // lexer rule in parser grammar
             case 53: // parser rule in lexer grammar
             case 184: // rule overlapped by other rule and will never be used
-                String errId = err.lineNumber() + ";" + err.code() + ";" + err.lineOffset();
+                String errId = err.id();
                 if (fixes.isUsedErrorId(errId)) {
                     return false;
                 }
@@ -361,25 +372,27 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                     String[] all = sub.split(",");
                     String first = all.length > 0 ? all[0].trim() : null;
                     if (first != null) {
-                        String eid = "left-re;" + sub + ";" + err.lineNumber() + ";" + err.lineOffset();
+                        String eid = err.id();
                         if (!fixes.isUsedErrorId(eid)) {
                             NamedSemanticRegion<RuleTypes> reg = regions.regionFor(first);
+                            String smsg = stringifyLeftRecursionMessage(err.message());
                             if (reg != null) {
                                 brandNewBag.addHighlight(reg.start(), reg.end(), errors());
                                 anyHighlights.set();
-                                fixes.addError(eid, reg, err.message());
+                                fixes.addError(eid, reg, smsg, () -> htmlifyLeftRecursionMessage(err.message()));
                                 res = true;
                             } else {
                                 LOG.log(Level.INFO, "Did not find a region for ''{0}'' in "
                                         + "{1}", new Object[]{first, err.message()});
                                 if (err.hasFileOffset()) {
                                     fixes.addError(eid, err.fileOffset(), err.fileOffset()
-                                            + err.length(), err.message());
+                                            + err.length(), smsg, () -> htmlifyLeftRecursionMessage(err.message()));
+                                    res = true;
                                 }
                             }
                         } else {
                             LOG.log(Level.FINEST, "Already handled eid {0} for {1}",
-                                    new Object[] { eid, first });
+                                    new Object[]{eid, first});
                         }
                     } else {
                         LOG.log(Level.FINER, "Did not find any rule names in {0}", err.message());
@@ -394,7 +407,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
             case 130: // Parser rule Label assigned to a block which is not a set
             case 201: // label in a lexer rule
 
-                String errId2 = err.code() + "-" + err.lineNumber() + "-" + err.lineOffset();
+                String errId2 = err.id();
                 if (!fixes.isUsedErrorId(errId2)) {
                     Bool added = Bool.create();
                     offsetsOf(doc, err, (start, end) -> {
@@ -470,7 +483,17 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
         void accept(int start, int end) throws BadLocationException;
     }
 
+    private static final boolean WIN = Utilities.isWindows();
     private int offsetsOf(Document doc, ParsedAntlrError error, BadLocationIntBiConsumer startEnd) throws BadLocationException {
+        if (!WIN && error.hasFileOffset()) {
+            // The updated and optimized line offset finding in MemoryTool seems
+            // to be working well enough to use it rather than not trusting it.
+            // Leaving it off on Windows for now, since \r's will probably
+            // screw up the line lengths
+
+            // Pending - left recursion items wind up spanning to the end of the file
+//            startEnd.accept(error.fileOffset(), error.fileOffset() + error.length());
+        }
         LineDocument lines = LineDocumentUtils.as(doc, LineDocument.class);
         if (lines != null) {
             int docLength = lines.getLength();
@@ -556,12 +579,14 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                 brandNewBag.addHighlight(vr.start(), vr.end(), warnings);
                 anyHighlights.set();
                 fixes.addWarning(victimErrId, vr.start(), vr.end(), eps.victimErrorMessage());
+                return true;
             }
             String culpritErrId = cr + "-" + err.code();
             if (!fixes.isUsedErrorId(culpritErrId)) {
                 brandNewBag.addHighlight(cr.start(), cr.end(), errors());
                 anyHighlights.set();
                 fixes.addWarning(culpritErrId, cr, eps.culpritErrorMessage());
+                return true;
             }
         }
         return false;
@@ -673,5 +698,61 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
             }
         }
         return result;
+    }
+
+    private static final Pattern SURPRISE_PATTERN = Pattern.compile("^.*?'(.*?)'.*");
+
+    @Messages({
+        "# {0} - token",
+        "unexpectedMsg=Bad syntax - unexpected token ''{0}''",
+        "# {0} - token",
+        "unexpectedMsgHtml=Bad syntax - unexpected token <i>{0}</i>",})
+    static String stringifyUnexpectedTokenMessage(String msg) {
+        Matcher m = SURPRISE_PATTERN.matcher(msg);
+        if (m.find()) {
+            return Bundle.unexpectedMsg(m.group(1));
+        }
+        return msg;
+    }
+
+    static String htmlifyUnexpectedTokenMessage(String msg) {
+        Matcher m = SURPRISE_PATTERN.matcher(msg);
+        if (m.find()) {
+            return Bundle.unexpectedMsgHtml(m.group(1));
+        }
+        return msg;
+    }
+
+    static String stringifyLeftRecursionMessage(String msg) {
+        Matcher m = LEFT_RECUR_PATTERN.matcher(msg);
+        if (m.find()) {
+            String[] parts = m.group(2).split(",");
+            StringBuilder sb = new StringBuilder(msg.length() + (parts.length * 4));
+            sb.append(m.group(1));
+            sb.append(' ');
+            for (int i = 0; i < parts.length; i++) {
+                sb.append(' ').append(i + 1).append(". ").append(parts[i]);
+            }
+            return sb.toString();
+        }
+        return msg;
+
+    }
+
+    private static final Pattern LEFT_RECUR_PATTERN = Pattern.compile("^(.*?)\\s*\\[(.*?)\\].*");
+
+    static String htmlifyLeftRecursionMessage(String msg) {
+        Matcher m = LEFT_RECUR_PATTERN.matcher(msg);
+        if (m.find()) {
+            StringBuilder sb = new StringBuilder("<html>");
+            sb.append(m.group(1));
+            String[] parts = m.group(2).split(",");
+            sb.append("<ul>");
+            for (String part : parts) {
+                sb.append("<li>").append(part).append("</li>");
+            }
+            return sb.append("</ul></html>").toString();
+        }
+        return msg;
     }
 }

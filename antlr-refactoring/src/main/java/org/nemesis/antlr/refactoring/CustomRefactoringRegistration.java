@@ -54,4 +54,6 @@ public @interface CustomRefactoringRegistration {
     String keybinding() default "";
 
     String languageHierarchyPackage() default "";
+
+    boolean publicRefactoringPluginClass() default false;
 }

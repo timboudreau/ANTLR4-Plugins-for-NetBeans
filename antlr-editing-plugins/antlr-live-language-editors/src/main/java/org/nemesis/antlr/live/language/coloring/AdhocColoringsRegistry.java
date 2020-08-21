@@ -49,6 +49,7 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.Optional;
 import javax.swing.UIManager;
+import javax.swing.text.Document;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
@@ -57,6 +58,7 @@ import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.language.ColorUtils;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
@@ -164,6 +166,19 @@ public final class AdhocColoringsRegistry {
             Path path = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
             if (path != null) {
                 GrammarSource<?> src = GrammarSource.find(path, ANTLR_MIME_TYPE);
+                Optional<Document> doc = src.lookup(Document.class);
+                if (doc.isPresent()) {
+                    Extraction ext = NbAntlrUtils.extractionFor(doc.get());
+                    if (ext != null) {
+                        colorings.clear();
+                        try {
+                            doUpdate(mimeType, ext);
+                            return colorings;
+                        } catch (IOException ex) {
+                            LOG.log(Level.SEVERE, src + "", ex);
+                        }
+                    }
+                }
                 if (src != null) {
                     Optional<Source> source = src.lookup(Source.class);
                     if (source.isPresent()) {

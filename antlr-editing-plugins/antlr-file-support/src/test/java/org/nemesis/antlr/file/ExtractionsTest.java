@@ -145,8 +145,8 @@ public class ExtractionsTest {
 
         @Override
         @SuppressWarnings("unchecked")
-        public <T> T computeId() {
-            return (T) (file.getClass().getName() + "." + file.fileName());
+        public String computeId() {
+            return (file.getClass().getName() + "." + file.fileName());
         }
 
         @Override

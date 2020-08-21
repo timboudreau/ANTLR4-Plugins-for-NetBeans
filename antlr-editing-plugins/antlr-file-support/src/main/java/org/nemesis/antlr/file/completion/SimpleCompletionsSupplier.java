@@ -22,7 +22,6 @@ import com.mastfrog.antlr.code.completion.spi.CompletionsSupplier;
 import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.strings.LevenshteinDistance;
 import com.mastfrog.util.strings.Strings;
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -84,26 +83,7 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
 
     @SuppressWarnings("unchecked")
     static Extraction extractionFor(Document doc) {
-        WeakReference<Extraction> cached = (WeakReference<Extraction>) doc.getProperty("_ext");
-        Extraction result = null;
-        if (cached != null) {
-            result = cached.get();
-            if (result != null) {
-                if (!result.isSourceProbablyModifiedSinceCreation()) {
-                    return result;
-                }
-            }
-        }
-        try {
-            result = NbAntlrUtils.parseImmediately(doc);
-            if (result != null) {
-                doc.putProperty("_ext", new WeakReference<>(result));
-            }
-
-        } catch (Exception ex) {
-            Exceptions.printStackTrace(ex);
-        }
-        return result;
+        return NbAntlrUtils.extractionFor(doc);
     }
 
     static class AntlrCompleter implements Completer {
@@ -252,6 +232,14 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
                     }
                     Source src = toSource(gs);
                     if (src != null) {
+                        Document doc = src.getDocument(false);
+                        if (doc != null) {
+                            Extraction ex = NbAntlrUtils.extractionFor(doc);
+                            if (ex != null && !ex.isPlaceholder() && !ex.isDisposed()) {
+                                c.accept(ex);
+                                return;
+                            }
+                        }
                         try {
                             ParserManager.parse(Collections.singleton(src), new UserTask() {
                                 @Override

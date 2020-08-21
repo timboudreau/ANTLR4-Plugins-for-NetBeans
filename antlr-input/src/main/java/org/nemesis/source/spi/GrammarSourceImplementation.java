@@ -142,7 +142,15 @@ public abstract class GrammarSourceImplementation<T> implements Serializable {
             if (a == this) { // GrammarSource.NONE
                 return b == this;
             }
-            return Objects.equals(source(), impl.source());
+            if (Objects.equals(source(), impl.source())) {
+                return true;
+            }
+            String aid = computeId();
+            String bid = impl.computeId();
+            if (Objects.equals(aid, bid)) {
+                return true;
+            }
+            return false;
         }
         return false;
     }
@@ -175,20 +183,32 @@ public abstract class GrammarSourceImplementation<T> implements Serializable {
 
     /**
      * Override this method to compute an id which is consistent when two
-     * grammar sources represent the same file.
+     * grammar sources represent the same file/thing even when the source object
+     * varies, such that an equality test of the ID of a File and that of a
+     * Document over that file are <code>equals()</code>.
      *
-     * @param <T> The type of source
-     * @return null by default (the path URL or bytes hash is used)
+     * @return Tries to lookup a Path instance on itself; if one is present,
+     * calls <code>hashString(path.toUri().toString());
+     * fails over to a base-36 string of the identity hash code of the source
+     * object.
      */
-    public <T> T computeId() {
+    private String id;
+    public String computeId() {
+        if (id != null) {
+            return id;
+        }
         Path op = lookup(Path.class);
         if (op != null) {
-            return (T) hashString(op.toUri().toString());
+            return id = hashString(op.toUri().toString());
         }
-        return (T) Integer.toString(System.identityHashCode(source()), 36);
+        Object source = source();
+        if (source == null) {
+            return id = "0";
+        }
+        return id = Integer.toString(System.identityHashCode(source), 36);
     }
 
-    protected final String hashString(String string) {
+    protected static final String hashString(String string) {
         return GSAccessor.getDefault().hashString(string);
     }
 }

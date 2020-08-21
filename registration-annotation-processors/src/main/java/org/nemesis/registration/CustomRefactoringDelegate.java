@@ -86,10 +86,10 @@ public class CustomRefactoringDelegate extends Delegate {
             mb.testMember("enabledOnTokens", mtb -> {
                 mtb.arrayValueMayNotBeEmpty().intValueMustBeGreaterThan(0);
             }).testMember("mimeType").addPredicate("Mime type", mir -> {
-                        Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(),  null, mir);
-                        String value = utils().annotationValue(mir, "mimeType", String.class);
-                        return mimeTest.test(value);
-                    })
+                Predicate<String> mimeTest = NameAndMimeTypeUtils.complexMimeTypeValidator(true, utils(), null, mir);
+                String value = utils().annotationValue(mir, "mimeType", String.class);
+                return mimeTest.test(value);
+            })
                     .build().testMember("name").stringValueMustNotBeEmpty().build()
                     .testMember("plugin", plug -> {
                         plug.asTypeSpecifier(tetb -> {
@@ -150,7 +150,7 @@ public class CustomRefactoringDelegate extends Delegate {
         }
         return null;
     }
-    
+
     private void generate(String mimeType, VariableElement var, AnnotationMirror mirror,
             LexerProxy lexer, String prefix, String targetPackage, ProcessingEnvironment processingEnv,
             String languageSupportPackage) throws IOException {
@@ -159,6 +159,7 @@ public class CustomRefactoringDelegate extends Delegate {
             utils().fail("Tokens list to activate refactoring is empty", var, mirror);
             return;
         }
+        boolean publicPlugin = utils().annotationValue(mirror, "publicRefactoringPluginClass", Boolean.class, Boolean.FALSE);
         String refactoringDisplayName = utils().annotationValue(mirror, "name", String.class);
 
         String displayNameAsVarName = displayNameAsVarName(refactoringDisplayName);
@@ -199,16 +200,12 @@ public class CustomRefactoringDelegate extends Delegate {
         ClassBuilder<String> customRefactoringFactory = ClassBuilder.forPackage(targetPackage)
                 .named(customRefactoringFactoryTypeName).withModifier(Modifier.FINAL, Modifier.PUBLIC)
                 .importing(MIME_REGISTRATION.qname(), CUSTOM_REFACTORING.qname(),
-                        EXTRACTION.qname(), POSITION_BOUNDS.qname())
-                .conditionally(refactoringTypeName != null, cbb -> {
-                    cbb.importing(refactoringClassName);
-                })
-                .conditionally(constructorMustBePublic, cbb -> {
-                    cbb.importing(refactoringPluginTypeName.toString());
-                })
-                .conditionally(refactoringConstructorArgumentTypeName.equals(ABSTRACT_REFACTORING.qname()), cbb -> {
-                    cbb.importing(ABSTRACT_REFACTORING.qname());
-                })
+                        EXTRACTION.qname(), POSITION_BOUNDS.qname()).conditionally(publicPlugin,
+                cbb -> cbb.withModifier(PUBLIC))
+                .conditionally(refactoringTypeName != null, cbb -> cbb.importing(refactoringClassName))
+                .conditionally(constructorMustBePublic, cbb -> cbb.importing(refactoringPluginTypeName.toString()))
+                .conditionally(refactoringConstructorArgumentTypeName.equals(ABSTRACT_REFACTORING.qname()),
+                        cbb -> cbb.importing(ABSTRACT_REFACTORING.qname()))
                 .extending(CUSTOM_REFACTORING.parametrizedName(refactoringClassNameSimple))
                 .annotatedWith(MIME_REGISTRATION.simpleName(), ab -> {
                     ab.addArgument("mimeType", mimeType)
@@ -217,7 +214,7 @@ public class CustomRefactoringDelegate extends Delegate {
                 })
                 .constructor(con -> {
                     con.setModifier(PUBLIC)
-                            .body().invoke("super").withArgument(refactoringClassNameSimple + ".class")
+                            .body().invoke("super").withClassArgument(refactoringClassNameSimple)
                             .inScope().endBlock();
                 })
                 .overridePublic("apply", mb -> {
@@ -267,7 +264,8 @@ public class CustomRefactoringDelegate extends Delegate {
             generatedRefactoring = ClassBuilder.forPackage(targetPackage)
                     .named(refactoringClassName)
                     .importing(ABSTRACT_REFACTORING.qname(), LOOKUP.qname())
-                    .importing("static " + varQn)
+                    .staticImport(varQn)
+//                    .importing("static " + varQn)
                     .extending(ABSTRACT_REFACTORING.simpleName())
                     .constructor(cb -> {
                         cb.setModifier(Modifier.PUBLIC).addArgument(LOOKUP.simpleName(), "lookup")

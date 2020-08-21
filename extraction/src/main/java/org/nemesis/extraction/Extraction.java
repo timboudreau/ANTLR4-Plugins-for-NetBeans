@@ -286,6 +286,10 @@ public final class Extraction implements Externalizable {
         return extractorsHash == null && source == null;
     }
 
+    public boolean isDisposed() {
+        return source == GrammarSource.none();
+    }
+
     public void dispose() {
         regions.clear();
         nameds.clear();

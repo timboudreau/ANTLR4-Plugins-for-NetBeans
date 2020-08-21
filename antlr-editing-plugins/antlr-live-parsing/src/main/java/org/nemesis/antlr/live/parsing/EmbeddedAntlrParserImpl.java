@@ -248,6 +248,8 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         // the list of token types)
         return Debug.runObjectThrowing(this, logName + "-" + environment.get().grammarTokensHash, () -> {
             Obj<EmbeddedAntlrParserResult> resHolder = Obj.create();
+            // We need to grab the parser manager lock for our mime type
+            // here, basically to keep everybody else out.
             ParserManager.parse(mimeType, new UserTask() {
                 // Seems we need to preemptively acquire the parser manager's
                 // lock, so as to avoid a deadlock

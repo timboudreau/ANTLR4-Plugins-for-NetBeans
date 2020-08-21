@@ -76,6 +76,15 @@ public class CharStreamGrammarSourceFactory extends GrammarSourceImplementationF
         public CharStream source() {
             return stream;
         }
+
+        @Override
+        public String computeId() {
+            String name = stream.getSourceName();
+            if (name != null) {
+                return hashString(name);
+            }
+            return Integer.toString(stream.hashCode());
+        }
     }
 
     @ServiceProvider(service = GrammarSourceImplementationFactory.class)

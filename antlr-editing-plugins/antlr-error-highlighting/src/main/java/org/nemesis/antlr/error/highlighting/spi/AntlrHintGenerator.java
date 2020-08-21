@@ -31,6 +31,7 @@ import org.openide.util.Lookup;
 import org.openide.util.NbPreferences;
 
 /**
+ * SPI for hint generators for Antlr files.
  *
  * @author Tim Boudreau
  */
@@ -53,11 +54,31 @@ public abstract class AntlrHintGenerator {
     protected AntlrHintGenerator() {
     }
 
-    protected final boolean isEnabled() {
+    public final boolean isEnabled() {
         return NbPreferences.forModule(getClass()).getBoolean("enable-" + getClass().getSimpleName(), true);
     }
 
-    public boolean generateHints(ANTLRv4Parser.GrammarFileContext tree,
+    public final void setEnabled(boolean val) {
+        NbPreferences.forModule(getClass()).putBoolean("enable-" + getClass().getSimpleName(), val);
+    }
+
+    /**
+     * Called to apply hints to the document.
+     *
+     * @param tree The parse tree
+     * @param extraction The extraction
+     * @param res The Antlr generation result
+     * @param populate Parser result contents
+     * @param fixes Fixes which can have errors and hints added to them
+     * @param doc The document
+     * @param positions Factory for edit-surviving position ranges to store in
+     * hints, so even if the document is updated, the hint can still be applied
+     * to the right offsets
+     * @param highlights Highlights in the document to add to
+     * @return true if highlights were added, false if not
+     * @throws BadLocationException If something goes wrong
+     */
+    public final boolean generateHints(ANTLRv4Parser.GrammarFileContext tree,
             Extraction extraction, AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes, Document doc, PositionFactory positions, OffsetsBag highlights) throws BadLocationException {
         if (isEnabled()) {
@@ -66,7 +87,40 @@ public abstract class AntlrHintGenerator {
         return false;
     }
 
+    /**
+     * Called after the enablement check, to determine if this hint should be
+     * enabled.
+     *
+     * @param tree The parse tree
+     * @param extraction The extraction
+     * @param res The Antlr generation result
+     * @param populate Parser result contents
+     * @param fixes Fixes which can have errors and hints added to them
+     * @param doc The document
+     * @param positions Factory for edit-surviving position ranges to store in
+     * hints, so even if the document is updated, the hint can still be applied
+     * to the right offsets
+     * @param highlights Highlights in the document to add to
+     * @return true if highlights were added, false if not
+     * @throws BadLocationException If something goes wrong
+     */
     protected abstract boolean generate(ANTLRv4Parser.GrammarFileContext tree,
             Extraction extraction, AntlrGenerationResult res, ParseResultContents populate,
             Fixes fixes, Document doc, PositionFactory positions, OffsetsBag highlights) throws BadLocationException;
+
+    /**
+     * Turns length text into "head...tail".
+     *
+     * @param content Some text
+     * @return An elided version of the string
+     */
+    protected static String elidedContent(String content) {
+        content = content.replaceAll("\\s+", " ");
+        if (content.length() <= 21) {
+            return content;
+        }
+        String head = content.substring(0, 10).replace("\\s+", " ");
+        String tail = content.substring(content.length() - 10).replace("\\s+", " ");
+        return head + "\u2026" + tail; // ellipsis
+    }
 }

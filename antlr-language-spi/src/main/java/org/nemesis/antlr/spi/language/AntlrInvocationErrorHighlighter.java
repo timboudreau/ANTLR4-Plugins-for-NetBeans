@@ -45,12 +45,16 @@ final class AntlrInvocationErrorHighlighter extends ParserResultTask<AntlrParseR
     private final String id;
 
     AntlrInvocationErrorHighlighter( String mimeType ) {
-        id = "errors-" + mimeType.replace( '/', '-' );
+        id = errorsId( mimeType );
     }
 
     @Override
     public String toString() {
         return id;
+    }
+
+    static String errorsId( String mimeType ) {
+        return "errors-" + mimeType.replace( '/', '-' );
     }
 
     static TaskFactory factory( String mimeType ) {
@@ -88,18 +92,30 @@ final class AntlrInvocationErrorHighlighter extends ParserResultTask<AntlrParseR
 //        }
         List<? extends ErrorDescription> errors = t.getErrorDescriptions();
         LOG.log( Level.FINEST, "Syntax errors in {0}: {1}", new Object[]{ t, errors } );
-//        t.fullyProcessed = true;
+        new Exception( "Set " + errors.size() + " hints on " + t.getSnapshot() ).printStackTrace();
+        t.fullyProcessed = true;
         setForSnapshot( t.getSnapshot(), errors );
     }
 
     private void setForSnapshot( Snapshot snapshot, List<? extends ErrorDescription> errors ) {
-        Document doc = snapshot.getSource().getDocument( false );
-        if ( doc != null ) {
-            HintsController.setErrors( doc, id, errors );
-        } else {
-            FileObject fo = snapshot.getSource().getFileObject();
-            if ( fo != null ) {
-                HintsController.setErrors( fo, id, errors );
+        setErrors( id, snapshot, errors );
+    }
+
+    static void updateErrors( Snapshot snapshot, List<? extends ErrorDescription> errors ) {
+        String id = errorsId( snapshot.getMimeType() );
+        setErrors( id, snapshot, errors );
+    }
+
+    static void setErrors( String id, Snapshot snapshot, List<? extends ErrorDescription> errors ) {
+        if ( NbAntlrUtils.isPostprocessingEnabled() ) {
+            Document doc = snapshot.getSource().getDocument( false );
+            if ( doc != null ) {
+                HintsController.setErrors( doc, id, errors );
+            } else {
+                FileObject fo = snapshot.getSource().getFileObject();
+                if ( fo != null ) {
+                    HintsController.setErrors( fo, id, errors );
+                }
             }
         }
     }
