@@ -16,6 +16,7 @@
 package org.nemesis.jfs.nio;
 
 import java.io.IOException;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -52,6 +53,7 @@ abstract class ByteBufferAllocator implements AutoCloseable {
 
     int[] last = new int[3];
     Exception lastCall;
+
     public synchronized void move(int oldStart, int length, int newStart) throws IOException {
         if (oldStart == last[0] && newStart == last[2]) {
             IOException ex = new IOException("Duplicate move call", lastCall);
@@ -60,7 +62,7 @@ abstract class ByteBufferAllocator implements AutoCloseable {
             System.out.flush();
             throw ex;
         }
-        lastCall =new Exception();
+        lastCall = new Exception();
         lastCall.fillInStackTrace();
         last[0] = oldStart;
         last[1] = length;
@@ -84,10 +86,17 @@ abstract class ByteBufferAllocator implements AutoCloseable {
             ops().set("alloc-copy-with-overlap {0} bytes from {1} to {2}", length, oldStart, newStart);
             curr = curr.duplicate();
             byte[] bytes = new byte[length];
-            curr.position(oldStart);
-            curr.get(bytes);
-            curr.position(newStart);
-            curr.put(bytes);
+            try {
+                curr.limit(Math.max(oldStart + length, newStart+length));
+                curr.position(oldStart);
+                curr.get(bytes);
+                curr.position(newStart);
+                curr.put(bytes);
+            } catch (BufferUnderflowException ex) {
+                throw new IOException("Underflow fetching " + length + " bytes "
+                    + " at " + oldStart + " to move to " + newStart + " in buffer pos "
+                    + curr.position() + " limit " + curr.limit() + " cap " + curr.capacity(), ex);
+            }
         }
     }
 
@@ -165,15 +174,30 @@ abstract class ByteBufferAllocator implements AutoCloseable {
         ByteBuffer buf = current().duplicate();
         int oldLimit = buf.limit();
         int oldPos = buf.position();
+        IllegalArgumentException thrown = null;
         try {
             buf.position(position);
             buf.limit(limit);
             return consumer.apply(buf);
         } catch (IllegalArgumentException e) {
-            throw wrapException(buf, oldLimit, oldPos, limit, position, e);
+            thrown = wrapException(buf, oldLimit, oldPos, limit, position, e);
+            throw thrown;
         } finally {
-            buf.position(oldPos);
-            buf.limit(oldLimit);
+            // XXX since we're duplicating the buffer, this block is not really
+            // needed, but possibly still somewhat informative when debugging
+//            try {
+//                buf.limit(oldLimit);
+//                buf.position(oldPos);
+//            } catch (Exception ex) {
+//                IllegalArgumentException ex3 = new IllegalArgumentException("Exception restoring buffer's limit to "
+//                        + oldLimit + " when it has been changed to " + limit
+//                        + " - current state pos " + buf.position() + " limit " + buf.limit()
+//                        + " capacity " + buf.capacity());
+//                if (thrown != null) {
+//                    ex3.initCause(thrown);
+//                }
+//                throw ex3;
+//            }
         }
     }
 

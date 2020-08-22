@@ -59,7 +59,7 @@ final class NioBytesStorageAllocator implements JFSStorageAllocator<NioBytesStor
 
     NioBytesStorageAllocator(int blockSize, int initialBlockCount, BlockStorageKind kind) throws IOException {
         // XXX shouldn't this be kind.create()???
-        storage = BlockStorageKind.OFF_HEAP.create(blockSize, initialBlockCount);
+        storage = kind.create(blockSize, initialBlockCount);
     }
 
     NioBytesStorageAllocator(BlockStorageKind kind) throws IOException {
