@@ -17,7 +17,8 @@ package org.nemesis.antlrformatting.api;
 
 /**
  * Builder for criteria that activate a rule only if a value extracted into the
- * lexing state matches a desired value.
+ * lexing state matches a desired value, or the value of another key from the
+ * lexing state.
  *
  * @see org.nemesis.antlrformatting.api.FormattingRule
  * @author Tim Boudreau
@@ -28,6 +29,8 @@ public abstract class LexingStateCriteriaBuilder<T extends Enum<T>, R> {
 
     }
 
+    public abstract R isNotEqualTo(T key);
+
     public abstract R isGreaterThan(int value);
 
     public abstract R isGreaterThanOrEqualTo(int value);
@@ -35,6 +38,16 @@ public abstract class LexingStateCriteriaBuilder<T extends Enum<T>, R> {
     public abstract R isLessThan(int value);
 
     public abstract R isLessThanOrEqualTo(int value);
+
+    public abstract R isGreaterThan(T key);
+
+    public abstract R isGreaterThanOrEqualTo(T key);
+
+    public abstract R isEqualTo(T key);
+
+    public abstract R isLessThan(T key);
+
+    public abstract R isLessThanOrEqualTo(T key);
 
     public abstract R isEqualTo(int value);
 

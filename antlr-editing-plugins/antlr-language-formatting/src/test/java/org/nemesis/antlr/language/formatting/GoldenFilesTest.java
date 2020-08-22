@@ -241,6 +241,21 @@ public class GoldenFilesTest {
     }
 
     @Test
+    public void testOrFormattingAlignFloating() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
+        MockPreferences prefs = MockPreferences.of(
+                AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_BEFORE,
+                AntlrFormatterConfig.KEY_FLOATING_INDENT, true,
+                AntlrFormatterConfig.KEY_SEMICOLON_ON_NEW_LINE, false,
+                AntlrFormatterConfig.KEY_BLANK_LINE_BEFORE_RULES, true,
+                AntlrFormatterConfig.KEY_SPACES_INSIDE_PARENS, false,
+                AntlrFormatterConfig.KEY_WRAP, true,
+                AntlrFormatterConfig.KEY_OR_HANDLING, ALIGN_WITH_PARENTHESES,
+                AntlrFormatterConfig.KEY_MAX_LINE, 80
+        );
+        testOne(AntlrSampleFiles.RUST_PARSER, prefs);
+    }
+
+    @Test
     public void testOrFormattingIndent() throws IOException, DiffException, org.antlr.runtime.RecognitionException {
         MockPreferences prefs = MockPreferences.of(
                 AntlrFormatterConfig.KEY_COLON_HANDLING, ColonHandling.NEWLINE_BEFORE,

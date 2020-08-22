@@ -30,6 +30,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
@@ -224,6 +225,13 @@ public class FormattingHarness<E extends Enum<E>> {
     public FormattingHarness<E> debugLogOn(int... toks) {
         Criterion c = criteria.anyOf(toks);
         return debugLogOn(c.toTokenPredicate());
+    }
+
+    public FormattingHarness<E> debugLogOn(IntPredicate pred) {
+        debugLogOn((Token tok) -> {
+            return pred.test(tok.getType());
+        });
+        return this;
     }
 
     /**

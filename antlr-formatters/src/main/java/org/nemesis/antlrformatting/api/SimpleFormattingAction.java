@@ -137,6 +137,7 @@ public enum SimpleFormattingAction implements FormattingAction {
         @Override
         public void accept(Token token, FormattingContext ctx, LexingState state) {
             if (amount <= 0) {
+                base.accept(token, ctx, state);
                 return;
             }
             switch (base) {

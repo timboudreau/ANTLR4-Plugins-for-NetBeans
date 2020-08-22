@@ -21,8 +21,12 @@ import static org.nemesis.antlr.language.formatting.AntlrCounters.COLON_POSITION
 import org.nemesis.antlr.language.formatting.config.AntlrFormatterConfig;
 import com.mastfrog.antlr.utils.Criteria;
 import com.mastfrog.antlr.utils.Criterion;
+import java.util.function.ToIntFunction;
+import static org.nemesis.antlr.language.formatting.AntlrCounters.LEFT_PAREN_POS;
+import static org.nemesis.antlr.language.formatting.AntlrCounters.PARENS_DEPTH;
 import org.nemesis.antlrformatting.api.FormattingAction;
 import org.nemesis.antlrformatting.api.FormattingRules;
+import org.nemesis.antlrformatting.api.LexingState;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_NEWLINE_AND_DOUBLE_INDENT;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_NEWLINE_AND_INDENT;
@@ -100,11 +104,44 @@ abstract class AbstractFormatter {
                     .bySpaces(config.getIndent() + 1, COLON_POSITION);
 
             if (config.isWrap()) {
-                indentCurrent = PREPEND_NEWLINE_AND_INDENT
-                        .bySpaces(1, COLON_POSITION)
-                        .wrappingLines(config.getMaxLineLength(), doubleIndentForWrappedLines);
-                spaceOrWrap = PREPEND_SPACE.wrappingLines(config.getMaxLineLength(),
-                        doubleIndentForWrappedLines);
+                switch (config.getOrHandling()) {
+                    case INDENT: {
+                        ToIntFunction<LexingState> wrapIt = state -> {
+                            return Math.max(2, state.get(PARENS_DEPTH));
+                        };
+                        spaceOrWrap = PREPEND_SPACE.wrappingLines(false, config.getMaxLineLength(), wrapIt);
+                        indentCurrent = PREPEND_NEWLINE_AND_INDENT
+                                .by(1, PARENS_DEPTH).wrappingLines(false, config.getMaxLineLength(), wrapIt);
+                        break;
+                    }
+                    case ALIGN_WITH_PARENTHESES: {
+                        ToIntFunction<LexingState> wrapIt = state -> {
+                            int cp = Math.max(0, state.get(COLON_POSITION));
+                            int pp = Math.max(0, state.get(LEFT_PAREN_POS));
+                            int pd = Math.max(0, state.get(PARENS_DEPTH));
+                            if (pd > 0) {
+                                pd++;
+                            }
+                            if (pp == 0 && pd == 0) {
+                                return config.getIndent();
+                            }
+                            return cp + pp + (pd * config.getIndent());
+                        };
+
+                        spaceOrWrap = PREPEND_SPACE.wrappingLines(true, config.getMaxLineLength(), wrapIt);
+                        indentCurrent = PREPEND_NEWLINE_AND_INDENT
+                                .bySpaces(config.getIndent() * 2, PARENS_DEPTH)
+                                .wrappingLines(true, config.getMaxLineLength(), wrapIt);
+                        break;
+                    }
+                    default:
+                        indentCurrent = PREPEND_NEWLINE_AND_INDENT
+                                .bySpaces(1, COLON_POSITION)
+                                .wrappingLines(config.getMaxLineLength(), doubleIndentForWrappedLines);
+                        spaceOrWrap = PREPEND_SPACE.wrappingLines(config.getMaxLineLength(),
+                                doubleIndentForWrappedLines);
+                        break;
+                }
             } else {
                 spaceOrWrap = PREPEND_SPACE;
                 indentCurrent = PREPEND_NEWLINE_AND_INDENT
@@ -119,11 +156,42 @@ abstract class AbstractFormatter {
             appendDoubleIndent = APPEND_NEWLINE_AND_DOUBLE_INDENT
                     .bySpaces(config.getIndent() * 2);
             if (config.isWrap()) {
-                indentCurrent = PREPEND_NEWLINE_AND_INDENT
-                        .bySpaces(config.getIndent())
-                        .wrappingLines(config.getMaxLineLength(), doubleIndentForWrappedLines);
-                spaceOrWrap = PREPEND_SPACE.wrappingLines(config.getMaxLineLength(),
-                        doubleIndentForWrappedLines);
+                switch (config.getOrHandling()) {
+                    case INDENT: {
+                        ToIntFunction<LexingState> wrapIt = state -> {
+                            return Math.max(1, state.get(PARENS_DEPTH));
+                        };
+                        spaceOrWrap = PREPEND_SPACE.wrappingLines(false, config.getMaxLineLength(), wrapIt);
+                        indentCurrent = PREPEND_NEWLINE_AND_INDENT
+                                .by(1, PARENS_DEPTH).wrappingLines(false, config.getMaxLineLength(), wrapIt);
+                        break;
+                    }
+                    case ALIGN_WITH_PARENTHESES: {
+                        ToIntFunction<LexingState> wrapIt = state -> {
+//                        int cp = Math.max(0, state.get(COLON_POSITION));
+                            int pp = Math.max(0, state.get(LEFT_PAREN_POS));
+                            int pd = Math.max(0, state.get(PARENS_DEPTH));
+                            if (pd > 0) {
+                                pd++;
+                            }
+                            if (pp == 0 && pd == 0) {
+                                return config.getIndent();
+                            }
+                            return pp + (pd * config.getIndent());
+                        };
+                        spaceOrWrap = PREPEND_SPACE.wrappingLines(true, config.getMaxLineLength(), wrapIt);
+                        indentCurrent = PREPEND_NEWLINE_AND_INDENT
+                                .bySpaces(config.getIndent() * 2, PARENS_DEPTH).wrappingLines(false, config.getMaxLineLength(), wrapIt);
+                        break;
+                    }
+                    default:
+                        indentCurrent = PREPEND_NEWLINE_AND_INDENT
+                                .bySpaces(config.getIndent())
+                                .wrappingLines(config.getMaxLineLength(), doubleIndentForWrappedLines);
+                        spaceOrWrap = PREPEND_SPACE.wrappingLines(config.getMaxLineLength(),
+                                doubleIndentForWrappedLines);
+                        break;
+                }
             } else {
                 spaceOrWrap = PREPEND_SPACE;
                 indentCurrent = PREPEND_NEWLINE_AND_INDENT

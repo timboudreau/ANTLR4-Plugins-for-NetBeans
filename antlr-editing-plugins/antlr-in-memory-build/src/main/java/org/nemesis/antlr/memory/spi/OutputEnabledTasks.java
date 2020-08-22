@@ -28,6 +28,8 @@ import org.openide.util.Lookup;
 public abstract class OutputEnabledTasks {
 
     private static OutputEnabledTasks INSTANCE;
+    private static boolean DEFAULT_OUTPUT_ENABLED
+            = Boolean.getBoolean("antlr.output.enabled");
 
     static final boolean isOutputEnabled(Path path, String task) {
         if (INSTANCE == null) {
@@ -47,7 +49,7 @@ public abstract class OutputEnabledTasks {
 
         @Override
         protected boolean outputEnabled(Path path, String task) {
-            return true;
+            return DEFAULT_OUTPUT_ENABLED ;
         }
     }
 }

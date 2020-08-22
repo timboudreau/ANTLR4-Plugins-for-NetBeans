@@ -35,6 +35,7 @@ import org.nemesis.antlrformatting.api.FormattingAction;
 import org.nemesis.antlrformatting.api.FormattingRules;
 import org.nemesis.antlrformatting.api.LexingStateBuilder;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_NEWLINE;
+import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_NEWLINE_AND_INDENT;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.APPEND_SPACE;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_DOUBLE_NEWLINE;
 import static org.nemesis.antlrformatting.api.SimpleFormattingAction.PREPEND_NEWLINE;
@@ -240,7 +241,7 @@ public class BasicFormatting extends AbstractFormatter {
                 .wherePreviousTokenType(RBRACE, RPAREN, END_ACTION, SEMI)
                 .whereNotFirstTokenInSource()
                 .named("offset-line-comments-by-one-space-when-inline")
-                .ifPrecededByNewline(false).format(PREPEND_SPACE);
+                .ifPrecededByNewline(false).format(PREPEND_SPACE.and(APPEND_NEWLINE_AND_INDENT));
 
         rules.onTokenType(STRING_LITERAL)
                 .named("space-or-wrap-on-string-literal-after-ebnf")

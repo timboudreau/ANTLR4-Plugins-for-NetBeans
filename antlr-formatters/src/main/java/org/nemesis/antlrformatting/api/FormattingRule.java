@@ -159,6 +159,10 @@ public final class FormattingRule implements Comparable<FormattingRule> {
         addStateCriterion(new StateCriterion<>(key, test));
     }
 
+    <T extends Enum<T>> void addMultiStateCriterion(T key1, T key2, IntBiPredicate test) {
+        addStateCriterion(new MultiStateCriterion<>(key1, key2, test));
+    }
+
     void addStateCriterion(Predicate<LexingState> pred) {
         if (stateCriteria == null) {
             stateCriteria = new LinkedList<>();
@@ -1097,6 +1101,29 @@ public final class FormattingRule implements Comparable<FormattingRule> {
             return key + "" + criterion;
         }
     }
+
+    private static class MultiStateCriterion<T extends Enum<T>> implements Predicate<LexingState> {
+
+        private final T key1;
+        private final T key2;
+        private final IntBiPredicate criterion;
+
+        MultiStateCriterion(T key1, T key2, IntBiPredicate criterion) {
+            this.key1 = key1;
+            this.key2 = key2;
+            this.criterion = criterion;
+        }
+
+        public boolean test(LexingState state) {
+            return criterion.test(state.get(key1), state.get(key2));
+        }
+
+        @Override
+        public String toString() {
+            return key1 + "/" + key2 + ":" + criterion;
+        }
+    }
+
 
     static IntPredicate mode(String[] allNames, String... names) {
         return modeNames(allNames, false, names);

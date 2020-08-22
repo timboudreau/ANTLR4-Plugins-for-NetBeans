@@ -16,6 +16,7 @@
 package org.nemesis.antlrformatting.api;
 
 import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 import org.antlr.v4.runtime.Token;
 
 /**
@@ -262,6 +263,35 @@ public interface FormattingAction {
             public String toString() {
                 return FormattingAction.this.toString() + "-wrap-at-" + limit
                         + "-with-" + wrapAction;
+            }
+        };
+    }
+
+    default FormattingAction wrappingLines(boolean spaces, int limit, ToIntFunction<LexingState> computeIndent) {
+        return new FormattingAction() {
+            @Override
+            public void accept(Token token, FormattingContext ctx, LexingState state) {
+                if (ctx.charPositionInLine(token) + token.getText().length() > limit) {
+                    int indent = computeIndent.applyAsInt(state);
+                    if (indent <= 0) {
+                        indent = 1;
+                    }
+                    if (spaces) {
+                        SimpleFormattingAction.PREPEND_NEWLINE_AND_INDENT.bySpaces(indent)
+                                .accept(token, ctx, state);
+                    } else {
+                        SimpleFormattingAction.PREPEND_NEWLINE_AND_INDENT.by(indent)
+                                .accept(token, ctx, state);
+                    }
+                } else {
+                    FormattingAction.this.accept(token, ctx, state);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return FormattingAction.this.toString() + "-wrap-by-state-" + limit
+                        + "-with-" + computeIndent;
             }
         };
     }

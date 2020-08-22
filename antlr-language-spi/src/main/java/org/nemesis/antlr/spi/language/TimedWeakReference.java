@@ -30,7 +30,7 @@ import org.openide.util.Utilities;
  */
 final class TimedWeakReference<T> extends WeakReference<T> implements Runnable {
 
-    private static final long DELAY = 5000;
+    private static final long DELAY = 15000;
     private volatile T strong;
     private volatile long expiry = System.currentTimeMillis() + DELAY;
     private static final List<TimedWeakReference<?>> INSTANCES

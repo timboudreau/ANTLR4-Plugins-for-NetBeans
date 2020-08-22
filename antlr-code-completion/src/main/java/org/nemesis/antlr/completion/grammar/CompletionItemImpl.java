@@ -119,14 +119,19 @@ final class CompletionItemImpl implements SortableCompletionItem {
         }
     }
 
+    boolean dismissed;
     @Override
     public void processKeyEvent(KeyEvent ke) {
+        if (dismissed) {
+            return;
+        }
         if (keyHandler != null) {
             keyHandler.accept(ke);
         } else {
             switch(ke.getKeyCode()) {
                 case KeyEvent.VK_RIGHT :
                 case KeyEvent.VK_LEFT :
+                    dismissed = true;
                     Completion.get().hideAll();
             }
         }

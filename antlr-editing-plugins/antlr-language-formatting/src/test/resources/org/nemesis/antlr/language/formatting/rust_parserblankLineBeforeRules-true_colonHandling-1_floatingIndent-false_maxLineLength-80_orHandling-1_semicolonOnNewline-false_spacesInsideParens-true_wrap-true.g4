@@ -14,19 +14,23 @@ compilation_unitx
     : items EOF;
 
 items
-    : ( use_statement
-    | extern_import_statement
-    | extern_block
-    | inner_attribute
-    | unsafe_block
-    | struct
-    | function
-    | mod )*;
+    : (
+        use_statement
+        | extern_import_statement
+        | extern_block
+        | inner_attribute
+        | unsafe_block
+        | struct
+        | function
+        | mod )*;
 
 mod
-    : doc=doc_comment? outer_attribute* Pub? Mod name=Ident ( LeftBrace ( mod
-        | use_statement
-        | function )* RightBrace )?;
+    : doc=doc_comment? outer_attribute* Pub? Mod name=Ident
+        ( LeftBrace
+            ( mod
+            | use_statement
+            | function )*
+        RightBrace )?;
 
 extern_import_statement
     : extern_import Semicolon;
@@ -45,10 +49,12 @@ unsafe_block
     : Unsafe block;
 
 block
-    : LeftBrace ( statement
-    | inner_attribute
-    | enclosing_doc_comment )* (ret=expression?
-    | pat=expression_pattern ) RightBrace;
+    : LeftBrace
+        ( statement
+        | inner_attribute
+        | enclosing_doc_comment )*
+        ( ret=expression?
+        | pat=expression_pattern ) RightBrace;
 
 statement
     : ( statement_body? Semicolon )
@@ -75,15 +81,20 @@ while_loop
     : While boolean_expression block;
 
 if_let
-    : If Let exp=expression Equals var=variable_name ( statement
-    | block );
+    : If Let exp=expression Equals var=variable_name
+        ( statement
+        | block );
 
 for_loop
-    : ( For var=variable_name In range=( RangeExclusive
-        | RangeInclusive )( statement
-        | block )) #ForRanged
-    | ( For var=variable_name In expr=expression ( statement
-        | block )) #ForExpression;
+    : (
+        For var=variable_name In range=
+            ( RangeExclusive
+            | RangeInclusive)
+            ( statement
+            | block )) #ForRanged
+    | ( For var=variable_name In expr=expression
+            ( statement
+            | block )) #ForExpression;
 
 return_statement
     : Return exp=expression?;
@@ -91,12 +102,12 @@ return_statement
 variable_binding
     : ( Let props=variable_props name=variable_spec ) #UnassignedBinding
     | ( Let props=variable_props pattern=variable_pattern Equals
-        assignedToPattern=expression_pattern ) #PatternBinding
+    assignedToPattern=expression_pattern ) #PatternBinding
     | ( Let props=variable_props name=variable_spec Equals aprops=assignee_props
-        assignedTo=expression cast=variable_cast? ) #SingleBinding
+    assignedTo=expression cast=variable_cast? ) #SingleBinding
     | ( Let props=variable_props type_spec pattern=variable_pattern (( Equals
-        aprops=assignee_props name=variable_name )
-        | exp=expression )) #DestructuringLetBinding;
+            aprops=assignee_props name=variable_name)
+            | exp=expression )) #DestructuringLetBinding;
 
 variable_props
     : ref=Ref? mut=Mut?;
@@ -105,22 +116,24 @@ assignee_props
     : borrow=Ampersand? mutable=Mut?;
 
 variable_pattern
-    : LeftParen ( variable_spec ( Comma variable_spec )* Comma? ) RightParen;
+    : LeftParen ( variable_spec ( Comma variable_spec )*
+        Comma? ) RightParen;
 
 variable_spec
     : (name=variable_name ( Colon type=type_spec )? )
     | anon=Underscore;
 
 variable_cast
-    : As ( RawPointerMutable
-    | RawPointerConst ) type_spec;
+    : As
+        ( RawPointerMutable
+        | RawPointerConst ) type_spec;
 
 assignment_expression
     : variable_expression assignment_operator expression;
 
 variable_expression
     : borrow=Ampersand? deref=Asterisk? qualifier=path_head? variable_reference ( LeftBracket
-        index=expression RightBracket )?;
+    index=expression RightBracket )?;
 
 variable_reference
     : name=variable_name ( Dot variable_name )*;
@@ -130,44 +143,62 @@ variable_name
 
 array_literal
     : ( LeftBracket RightBracket ) #EmptyArray
-    | ( LeftBracket StringLiteral ( Comma StringLiteral )* RightBracket ) #StringArray
-    | ( LeftBracket int_literal ( Comma int_literal )* RightBracket ) #IntArray
-    | ( LeftBracket float_literal ( Comma float_literal )* RightBracket ) #FloatArray
-    | ( LeftBracket BooleanLiteral ( Comma BooleanLiteral )* RightBracket ) #BooleanArray
-    | ( LeftBracket ByteLiteral ( Comma ByteLiteral )* RightBracket ) #ByteArray
-    | ( LeftBracket expression ( Comma expression )* RightBracket ) #ExpressionArray;
+    | ( LeftBracket StringLiteral ( Comma StringLiteral )*
+        RightBracket ) #StringArray
+    | ( LeftBracket int_literal ( Comma int_literal )*
+        RightBracket ) #IntArray
+    | ( LeftBracket float_literal ( Comma float_literal )*
+        RightBracket ) #FloatArray
+    | ( LeftBracket BooleanLiteral ( Comma BooleanLiteral )*
+        RightBracket ) #BooleanArray
+    | ( LeftBracket ByteLiteral ( Comma ByteLiteral )*
+        RightBracket ) #ByteArray
+    | ( LeftBracket expression ( Comma expression )*
+        RightBracket ) #ExpressionArray;
 
 match
     : Match deref=Asterisk? var=expression match_block;
 
 match_block
     : LeftBrace (first=match_case ( Comma more=match_case )* )? defaultCase=default_match_case?
-        Comma? RightBrace;
+    Comma? RightBrace;
 
 match_case
-    : (first=literal ( Pipe more=literal )* FatArrow ( statement_body
-        | expression
-        | block )) #MultiCaseLiteral
-    | (range=RangeExclusive FatArrow ( statement_body
-        | expression
-        | block )) #ExclusiveRangeCase
-    | (range=MatchRangeInclusive FatArrow ( statement_body
-        | expression
-        | block )) #InclusiveRangeCase
-    | (var=variable_name_pattern If boolean_expression FatArrow ( statement_body
-        | expression
-        | block )) #PatternCase
-    | (exp=expression ( Pipe more=expression )* If boolean_expression FatArrow ( statement_body
-        | expression
-        | block )) #ExpressionCase
-    | (first=expression ( Pipe more=expression )* FatArrow ( statement_body
-        | expression
-        | block )) #MultiCaseExpression;
+    : (first=literal ( Pipe more=literal )*
+        FatArrow
+            ( statement_body
+            | expression
+            | block )) #MultiCaseLiteral
+        |
+        ( range=RangeExclusive FatArrow
+            ( statement_body
+            | expression
+            | block )) #ExclusiveRangeCase
+        |
+        ( range=MatchRangeInclusive FatArrow
+            ( statement_body
+            | expression
+            | block )) #InclusiveRangeCase
+        | (var=variable_name_pattern If boolean_expression FatArrow
+            ( statement_body
+            | expression
+            | block )) #PatternCase
+    | (exp=expression ( Pipe more=expression )*
+        If boolean_expression FatArrow
+            ( statement_body
+            | expression
+            | block )) #ExpressionCase
+    | (first=expression ( Pipe more=expression )*
+        FatArrow
+            ( statement_body
+            | expression
+            | block )) #MultiCaseExpression;
 
 default_match_case
-    : Comma? Underscore FatArrow ( statement_body
-    | expression
-    | block );
+    : Comma? Underscore FatArrow
+        ( statement_body
+        | expression
+        | block );
 
 expression
     : literal cast=variable_cast? #LiteralExpression
@@ -183,7 +214,7 @@ expression
     | exp=variable_expression Dot index=BareIntLiteral cast=variable_cast? #TupleFieldExpression
     | leftSide=expression arithmetic_operator rightSide=expression #ArithmeticExpression
     | Minus? LeftParen leftSide=expression arithmetic_operator rightSide=expression
-        RightParen #ParenthesizedArithmeticExpression
+    RightParen #ParenthesizedArithmeticExpression
     | leftSide=expression shift_operator rightSide=expression #ShiftExpression
     | leftSide=expression comparison_operator rightSide=expression #BooleanExpression
     | Bang? LeftParen ls=expression comparison_operator rs=expression RightParen #ParentheizedBooleanExpression;
@@ -193,13 +224,13 @@ unsafe_expression
 
 if_statement
     : If boolean_expression block ( Else If boolean_expression block )* ( Else
-        block )?;
+    block )?;
 
 function_invocation
     : (qualifier=path_head? func=Ident LeftParen invocation_args RightParen ) #UnqualifiedFunctionInvocation
     | (qualifier=path_head? func=Ident LeftParen invocation_args RightParen ) #QualifiedFunctionInvocation
     | (qualifier=type_hint? DoubleColon func=Ident LeftParen invocation_args
-        RightParen ) #TypeHintQualifiedFunctionInvocation;
+    RightParen ) #TypeHintQualifiedFunctionInvocation;
 
 type_hint
     : LeftAngleBracket type_spec As type_spec RightAngleBracket;
@@ -223,9 +254,13 @@ expression_pattern
     : LeftParen expression ( Comma expression )* RightParen;
 
 variable_name_pattern
-    : LeftParen (( Underscore
-        | variable_name )( Comma ( Underscore
-            | variable_name ))* )? RightParen;
+    : LeftParen
+        (
+            ( Underscore
+            | variable_name)
+        ( Comma
+                ( Underscore
+                | variable_name ))* )? RightParen;
 
 literal
     : float_literal #FloatLiteral
@@ -236,17 +271,25 @@ literal
     | array_literal #ArrayLiteral;
 
 int_literal
-    : (neg=Minus?? value=( BareIntLiteral
-        | FullIntLiteral ) type=signed_int_subtype? cast=int_cast? ) #SignedIntLiteral
-    | (value=( BareIntLiteral
-        | FullIntLiteral )(type=unsigned_int_subtype )? cast=int_cast ) #UnsignedIntLiteral;
+    : (
+        neg=Minus?? value=
+            ( BareIntLiteral
+            | FullIntLiteral)
+        type=signed_int_subtype? cast=int_cast? ) #SignedIntLiteral
+    |
+        ( value=
+            ( BareIntLiteral
+            | FullIntLiteral)
+        (type=unsigned_int_subtype )?
+        cast=int_cast ) #UnsignedIntLiteral;
 
 float_literal
     : value=FloatLiteral type=float_subtype? cast=float_cast;
 
 int_cast
-    : As ( signed_int_subtype
-    | unsigned_int_subtype );
+    : As
+        ( signed_int_subtype
+        | unsigned_int_subtype );
 
 float_cast
     : As float_subtype;
@@ -276,8 +319,8 @@ function
 
 function_spec
     : doc=doc_comment? attrs=outer_attribute* vis=visibility? Fn name=function_name
-        lifetimes=lifetime_spec? LeftParen params=parameter_list? RightParen
-        return_type?;
+    lifetimes=lifetime_spec? LeftParen params=parameter_list? RightParen
+    return_type?;
 
 function_name
     : Ident;
@@ -290,29 +333,38 @@ extern_function_statement
     : inner_attribute* attrs=outer_attribute* function_spec Semicolon;
 
 closure
-    : (attrs=outer_attribute* lifetimes=lifetime_spec? mv=Move? Pipe params=parameter_list?
-        Pipe return_type? (body=block
-        | expr=expression ))
-    | (attrs=outer_attribute* mv=Move? DoublePipe return_type? (body=block
-        | expr=expression ))
-    | (attrs=outer_attribute* mv=Move? Pipe Pipe return_type? (body=block
-        | expr=expression ));
+    : (
+        attrs=outer_attribute* lifetimes=lifetime_spec? mv=Move? Pipe params=parameter_list?
+    Pipe return_type?
+            ( body=block
+            | expr=expression ))
+        | (attrs=outer_attribute* mv=Move? DoublePipe return_type?
+            ( body=block
+            | expr=expression ))
+        | (attrs=outer_attribute* mv=Move? Pipe Pipe return_type?
+            ( body=block
+            | expr=expression ));
 
 struct
     : (doc=doc_comment? outer_attribute* Struct name=Ident lifetimes=lifetime_spec?
-        LeftBrace ( struct_item ( Comma struct_item )* Comma? )? RightBrace ) #PlainStruct
+    LeftBrace ( struct_item ( Comma struct_item )*
+            Comma? )?
+        RightBrace ) #PlainStruct
 
 // XXX could split this out and include it in statement_body - checking for Semicolon here may cause problems
     | (doc=doc_comment? outer_attribute* Struct name=Ident lifetimes=lifetime_spec?
-        LeftParen ( type_spec ( Comma type_spec )* Comma? )? RightParen Semicolon ) #TupleStruct;
+    LeftParen ( type_spec ( Comma type_spec )*
+            Comma? )?
+        RightParen Semicolon ) #TupleStruct;
 
 struct_item
     : (doc=doc_comment? outer_attribute* inner_attribute* name=Ident Colon props=param_props
-        type=type_spec );
+    type=type_spec );
 
 struct_instantiation
     : type=type_spec LeftBrace ( struct_instantiation_item ( Comma
-        struct_instantiation_item )* Comma? )? RightBrace;
+        struct_instantiation_item )*
+        Comma? )? RightBrace;
 
 struct_instantiation_item
     : (name=Ident Colon params=param_props expression ) #ExplictStructItem
@@ -340,7 +392,7 @@ visibility_restriction
 
 parameter_list
     : ( parameter_spec ( Comma parameter_spec )* )
-    | (selfref=Ampersand? self=SelfRef ( Comma parameter_spec )* );
+        | (selfref=Ampersand? self=SelfRef ( Comma parameter_spec )* );
 
 parameter_spec
     : props=param_props name=variable_name ( Colon Ampersand? life=lifetime? type=type_spec )?;
@@ -349,8 +401,9 @@ param_props
     : ref=Ampersand? life=lifetime? mutable=Mut? dynamic=Dyn?;
 
 return_type
-    : Arrow (type=type_spec
-    | typePattern=type_pattern );
+    : Arrow
+        ( type=type_spec
+        | typePattern=type_pattern );
 
 type_pattern
     : LeftParen type_spec ( Comma type_spec ) RightParen;
@@ -479,14 +532,16 @@ LineComment
     : LineCommentPrefix ~[\r\n]* -> channel ( 1 );
 
 BlockComment
-    : BlockCommentPrefix (~[*/]
-    | Slash* BlockComment
-    | Slash+ (~[*/] )
-    | Asterisk+ ~[*/] )* Asterisk+ Slash -> channel ( 2 );
+    : BlockCommentPrefix
+        ( ~[*/]
+        | Slash* BlockComment
+        | Slash+ (~[*/])
+        | Asterisk+ ~[*/] )* Asterisk+ Slash -> channel ( 2 );
 
 Lifetime
-    : SingleQuote ( IDENT
-    | Static );
+    : SingleQuote
+        ( IDENT
+        | Static );
 
 Whitespace
     : [ \t\r\n]+ -> channel ( 1 );
@@ -898,16 +953,18 @@ Ident
     : IDENT;
 
 CharLiteral
-    : SingleQuote ( CHAR
-    | Quote ) SingleQuote;
+    : SingleQuote
+        ( CHAR
+        | Quote ) SingleQuote;
 
 StringLiteral
     : Quote STRING_ELEMENT* Quote
     | 'r' RAW_STRING_BODY;
 
 ByteLiteral
-    : ByteLiteralPrefix ( BYTE
-    | Quote ) SingleQuote;
+    : ByteLiteralPrefix
+        ( BYTE
+        | Quote ) SingleQuote;
 
 ByteStringLiteral
     : ByteStringPrefix BYTE_STRING_ELEMENT* Quote
@@ -975,7 +1032,7 @@ fragment STRING_ELEMENT
 fragment RAW_CHAR
     : ~[\ud800-\udfff]// any BMP character
     | [\ud800-\udbff] [\udc00-\udfff]; // any non-BMP character (hack for Java)
-// Here we use a non-greedy match to implement the
+    // Here we use a non-greedy match to implement the
 // (non-regular) rules about raw string syntax.
 fragment RAW_STRING_BODY
     : Quote RAW_CHAR*? Quote

@@ -52,10 +52,11 @@ OpenHeading
     : POUND+ -> pushMode ( HEADING );
 
 OpenPara
-    : ( LETTER
-    | DIGIT
-    | OPEN_BRACE
-    | OPEN_PAREN ) -> more, pushMode ( PARAGRAPH );
+    : (
+        LETTER
+        | DIGIT
+        | OPEN_BRACE
+        | OPEN_PAREN ) -> more, pushMode ( PARAGRAPH );
 
 OpenBulletList
     : INLINE_WHITESPACE+ ASTERISK -> more, pushMode ( LIST );
@@ -74,10 +75,10 @@ Whitespace
 
 OpenHr
     : (( DASH DASH DASH+ )
-    | ( ASTERISK ASTERISK ASTERISK+ )
-    | ( DASH SPACE DASH SPACE ( DASH SPACE )+ )
-    | ( ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+ SPACE* )) { clearIndentDepth(); }
-        -> more, mode ( HR );
+        | ( ASTERISK ASTERISK ASTERISK+ )
+        | ( DASH SPACE DASH SPACE ( DASH SPACE )+ )
+        | ( ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+
+            SPACE* )) { clearIndentDepth(); } -> more, mode ( HR );
 
 
 mode PREFORMATTED;
@@ -98,10 +99,10 @@ mode HR;
 
 HorizontalRule
     : (( DASH DASH DASH+ )
-    | ( ASTERISK ASTERISK ASTERISK+ )
-    | ( DASH SPACE DASH SPACE ( DASH SPACE )+ )
-    | ( ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+ SPACE* ))
-        HorizontalRuleTail;
+        | ( ASTERISK ASTERISK ASTERISK+ )
+        | ( DASH SPACE DASH SPACE ( DASH SPACE )+ )
+        | ( ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+
+            SPACE* )) HorizontalRuleTail;
 
 HorizontalRuleTail
     : NEWLINE;
@@ -117,10 +118,10 @@ ParaLink
 
 ParaHorizontalRule
     : NEWLINE? (( DASH DASH DASH+ )
-    | ( ASTERISK ASTERISK ASTERISK+ )
-    | ( DASH SPACE DASH SPACE ( DASH SPACE )+ )
-    | ( ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+ SPACE* )) NEWLINE -> more,
-        mode ( HR );
+        | ( ASTERISK ASTERISK ASTERISK+ )
+        | ( DASH SPACE DASH SPACE ( DASH SPACE )+ )
+        | ( ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+
+            SPACE* )) NEWLINE -> more, mode ( HR );
 
 ParaBangBracket
     : BANG OPEN_BRACKET;
@@ -128,19 +129,21 @@ ParaBangBracket
 ParaWords
     : ( WORD_LIKE SAFE_PUNCTUATION? ( NEWLINE*? INLINE_WHITESPACE+ WORD_LIKE
         SAFE_PUNCTUATION? )* )
-    | ( WORD_LIKE SAFE_PUNCTUATION? ( INLINE_WHITESPACE*? WORD_LIKE
+        | ( WORD_LIKE SAFE_PUNCTUATION? ( INLINE_WHITESPACE*? WORD_LIKE
         SAFE_PUNCTUATION? )* )
-    | ( WORD_LIKE SAFE_PUNCTUATION? ( NEWLINE*? WORD_LIKE SAFE_PUNCTUATION? )* )
-    | ( SAFE_PUNCTUATION+? INLINE_WHITESPACE?? )
-    | ( INLINE_WHITESPACE DIGIT+? INLINE_WHITESPACE?? );
+        | ( WORD_LIKE SAFE_PUNCTUATION? ( NEWLINE*? WORD_LIKE SAFE_PUNCTUATION? )* )
+        | ( SAFE_PUNCTUATION+? INLINE_WHITESPACE?? )
+        | ( INLINE_WHITESPACE DIGIT+? INLINE_WHITESPACE?? );
 
 ParaTransitionToBulletListItem
-    : ( ParaDoubleNewline
-    | NEWLINE ) INLINE_WHITESPACE+ ASTERISK -> more, mode ( LIST );
+    : (
+        ParaDoubleNewline
+        | NEWLINE ) INLINE_WHITESPACE+ ASTERISK -> more, mode ( LIST );
 
 ParaTransitionToOrderedListItem
-    : ( ParaDoubleNewline
-    | NEWLINE ) INLINE_WHITESPACE+ DIGIT DOT -> more, mode ( ORDERED_LIST );
+    : (
+        ParaDoubleNewline
+        | NEWLINE ) INLINE_WHITESPACE+ DIGIT DOT -> more, mode ( ORDERED_LIST );
 
 ParaNewline
     : NEWLINE -> more, popMode;
@@ -156,7 +159,7 @@ ParaBreak
 
 ParaDoubleNewline
     : INLINE_WHITESPACE*? NEWLINE INLINE_WHITESPACE*? NEWLINE ( INLINE_WHITESPACE*?
-        NEWLINE )*?;
+    NEWLINE )*?;
 
 ParaInlineWhitespace
     : INLINE_WHITESPACE+;
@@ -199,39 +202,43 @@ BlockQuote
 
 BlockquoteDoubleNewline
     : INLINE_WHITESPACE* NEWLINE INLINE_WHITESPACE* NEWLINE ( INLINE_WHITESPACE*?
-        NEWLINE )* -> popMode;
+    NEWLINE )* -> popMode;
 
 
 mode ORDERED_LIST;
 
 NestedOrderedListPrologue
-    : (( DOUBLE_NEWLINE? INLINE_WHITESPACE )
-    | ( ParaDoubleNewline
-        | NEWLINE )? INLINE_WHITESPACE+ DIGIT DOT INLINE_WHITESPACE ) { updateIndentDepth() }?;
+    : (( DOUBLE_NEWLINE? INLINE_WHITESPACE)
+        | ( ParaDoubleNewline
+            | NEWLINE )?
+        INLINE_WHITESPACE+ DIGIT DOT INLINE_WHITESPACE ) { updateIndentDepth() }?;
 
 ReturningOrderedListPrologue
-    : (( DOUBLE_NEWLINE? INLINE_WHITESPACE )
-    | ( ParaDoubleNewline
-        | NEWLINE )? INLINE_WHITESPACE+ DIGIT DOT INLINE_WHITESPACE ) { lastIndentChangeWasNegative() }?;
+    : (( DOUBLE_NEWLINE? INLINE_WHITESPACE)
+        | ( ParaDoubleNewline
+            | NEWLINE )?
+        INLINE_WHITESPACE+ DIGIT DOT INLINE_WHITESPACE ) { lastIndentChangeWasNegative() }?;
 
 OrderedListPrologue
     : ( DOUBLE_NEWLINE? INLINE_WHITESPACE )
-    | ( ParaDoubleNewline
-    | NEWLINE )? INLINE_WHITESPACE+ DIGIT DOT INLINE_WHITESPACE;
+        | ( ParaDoubleNewline
+        | NEWLINE )? INLINE_WHITESPACE+ DIGIT DOT INLINE_WHITESPACE;
 
 OrderedListItem
-    : ( LETTER
-    | DIGIT ) -> more, pushMode ( PARAGRAPH );
+    : (
+        LETTER
+        | DIGIT ) -> more, pushMode ( PARAGRAPH );
 
 OrderedNestedListItemHead
     : ( INLINE_WHITESPACE+ DIGIT+ DOT ) INLINE_WHITESPACE;
 
 OrderedListHorizontalRule
     : NEWLINE? (( DASH DASH DASH+ )
-    | ( ASTERISK ASTERISK ASTERISK+ )
-    | ( DASH SPACE DASH SPACE ( DASH SPACE )+ NEWLINE )
-    | ( ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+ SPACE* )) NEWLINE -> more,
-        mode ( HR );
+        | ( ASTERISK ASTERISK ASTERISK+ )
+        | ( DASH SPACE DASH SPACE ( DASH SPACE )+
+            NEWLINE)
+        | ( ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+
+            SPACE* )) NEWLINE -> more, mode ( HR );
 
 CloseOrderedListItem
     : DOUBLE_NEWLINE { clearIndentDepth(); } -> popMode;
@@ -244,23 +251,25 @@ mode LIST;
 
 ListPrologue
     : ( DOUBLE_NEWLINE? INLINE_WHITESPACE )
-    | ( ParaDoubleNewline
-    | NEWLINE )? INLINE_WHITESPACE+ ASTERISK INLINE_WHITESPACE;
+        | ( ParaDoubleNewline
+        | NEWLINE )? INLINE_WHITESPACE+ ASTERISK INLINE_WHITESPACE;
 
 ListItem
-    : ( LETTER
-    | DIGIT ) -> more, pushMode ( PARAGRAPH );
+    : (
+        LETTER
+        | DIGIT ) -> more, pushMode ( PARAGRAPH );
 
 NestedListItemHead
-    : (( INLINE_WHITESPACE+ ASTERISK )
-    | ( INLINE_WHITESPACE+ DIGIT+ DOT )) INLINE_WHITESPACE;
+    : (( INLINE_WHITESPACE+ ASTERISK)
+        | ( INLINE_WHITESPACE+ DIGIT+ DOT )) INLINE_WHITESPACE;
 
 ListHorizontalRule
     : NEWLINE? (( DASH DASH DASH+ )
-    | ( ASTERISK ASTERISK ASTERISK+ )
-    | ( DASH SPACE DASH SPACE ( DASH SPACE )+ NEWLINE )
-    | ( ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+ SPACE* )) NEWLINE -> more,
-        mode ( HR );
+        | ( ASTERISK ASTERISK ASTERISK+ )
+        | ( DASH SPACE DASH SPACE ( DASH SPACE )+
+            NEWLINE)
+        | ( ASTERISK SPACE ASTERISK SPACE ( ASTERISK SPACE )+
+            SPACE* )) NEWLINE -> more, mode ( HR );
 
 CloseList
     : DOUBLE_NEWLINE -> popMode;
@@ -282,24 +291,28 @@ HeadingClose
 
 //    : NEWLINE NEWLINE*? -> mode ( DEFAULT_MODE );
 HeadingWordLike
-    : ( LETTER
-    | DIGIT
-    | PUNCTUATION )( LETTER
-    | DIGIT
-    | PUNCTUATION )*;
+    : (
+        LETTER
+        | DIGIT
+        | PUNCTUATION )
+        ( LETTER
+        | DIGIT
+        | PUNCTUATION )*;
 
 fragment WORDS
     : INLINE_WHITESPACE? WORD_LIKE PUNC2? INLINE_WHITESPACE??;
 
 fragment WORD_LIKE
-    : ( LETTER )( LETTER
-    | DIGIT
-    | PUNC2 )*;
+    : ( LETTER )
+        ( LETTER
+        | DIGIT
+        | PUNC2 )*;
 
 fragment WORD_OR_NUMBER_LIKE
-    : ( LETTER
-    | DIGIT
-    | PUNCTUATION )+;
+    : (
+        LETTER
+        | DIGIT
+        | PUNCTUATION )+;
 
 fragment SAFE_PUNCTUATION
     : [><{}/\\:;,+!@.,$%^&\-='"?¿¡];

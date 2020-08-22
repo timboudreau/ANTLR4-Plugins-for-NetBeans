@@ -58,7 +58,7 @@ public class LexingStateTest {
         // 38, 39
         // 72, 73
 
-        harn.debugLogOn(tok -> {
+        harn.debugLogOn((Token tok) -> {
             switch(tok.getTokenIndex()) {
                 case 5 :
                 case 6 :

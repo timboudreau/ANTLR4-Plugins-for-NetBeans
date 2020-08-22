@@ -38,7 +38,7 @@ public enum BlockStorageKind {
     OFF_HEAP;
 
     private static final int DEFAULT_BLOCK_SIZE = 256;
-    private static final int DEFAULT_INITIAL_BLOCKS = 4;
+    private static final int DEFAULT_INITIAL_BLOCKS = 128;
 
     public BlockStorage create() throws IOException {
         return create(DEFAULT_BLOCK_SIZE, DEFAULT_INITIAL_BLOCKS);

@@ -58,7 +58,8 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
     MARKDOWN_LEXER("MarkdownLexer.g4"),
     MARKDOWN_PARSER("MarkdownParser.g4"),
     RETURNS_TEST("ReturnsTest.g4"),
-    PROTOBUF_3("Protobuf3.g4");
+    PROTOBUF_3("Protobuf3.g4"),
+    MEGA_PARENTHESES("MegaParentheses.g4");
     private final String fileName;
 
     AntlrSampleFiles(String pathFromRoot) {

@@ -130,11 +130,16 @@ final class GCI implements SortableCompletionItem {
         return name.startsWith(text);
     }
 
+    private boolean dismissed;
     @Override
     public void processKeyEvent(KeyEvent evt) {
+        if (dismissed) {
+            return;
+        }
         switch (evt.getKeyCode()) {
             case KeyEvent.VK_RIGHT:
             case KeyEvent.VK_LEFT:
+                dismissed = true;
                 Completion.get().hideAll();
         }
     }

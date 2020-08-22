@@ -1,27 +1,15 @@
 
-RebuildSubscriptions should pass a callback which does regeneration, so it can notify other interested parties when it happpens.
-
-Fix or-indenting - parenthesized ors should be indented more, first after ( should be on a new line
-
-In a parser grammar, parser rule completions is not showing imported rules.  It should.
+With throttling on in RebuildSubscriptions, we lose error highlighting on invalid files after they pass the throttle threshold; without it, it is still possible to get into an endless-repeated-reparsing state
 
 Rewrite AntlrRunSubscriptions to use Subscribable.
-
-Rewrite GeneralHighlighter to use the general ComponentListener mechanism to attach and detach listeners and not listen on grammars so aggressively.
-
-GeneralHighlighter instances should coalesce reparse requests so we don't do a separate, unnecessary parse for each one listening.
 
 Separate Output out of live preview so it can be used independently, and add an action to show it by right clicking in a grammar.
 
 Rewrite AdhocHighlighterManager to extend AbstractHighlighter.
 
-
 Duplicate lexer rule hashing can now pick up the same block twice - need to filter those
-cases so we don't generate a hint suggesting to consolidate a single occurrenc.
-
-Errors without an endpoint such as 
-ava.lang.Exception: No qualified filename in ReturnsLabels.g4 - org.antlr.v4.tool.GrammarSemanticsMessage - 'Message{errorType=NONCONFORMING_LR_RULE, args=[e], e=null, fileName='ReturnsLabels.g4', line=23, charPosition=0}' currentFile ReturnsLabels.g4
-should get full line underline / interpret line end as error end.
+cases so we don't generate a hint suggesting to consolidate a single occurrence.
+Example: A rule like "mat: 'mat'" will get a hint "replace existing rule with mat" - caused by duplicate hashing of token groups.
 
 Need to elide TokenLabelType when generating the same way we do with "returns" statements.
 
@@ -44,7 +32,7 @@ Move annotations littered into SPI into their own package.
 
 KeyedSemanticRegion and friends with comparable and two type parameters?  Would be more flexible than NamedSemanticRegions for capturing information.  Still needs enum key field?
   - Attributions could probably be that and it would be more intuitive
-  - Will be needed for complex namespace matching, e.g. com.foo.bar.SomeName equals SomeName in another file - probably scoping is not enough.
+  - Will be needed for complex namespace matching, e.g. com.foo.bar.SomeName equals SomeName in another file - probably dot-scoping is not enough.
 
 AntlrKeys should probably be in its own module.  So should the key types in antlr-common - not needed for general Antlr modules, only for
 antlr language support.

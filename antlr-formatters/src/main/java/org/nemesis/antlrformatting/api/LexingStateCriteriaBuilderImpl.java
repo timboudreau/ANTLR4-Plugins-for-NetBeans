@@ -41,12 +41,60 @@ final class LexingStateCriteriaBuilderImpl<T extends Enum<T>, R> extends LexingS
         }
     }
 
-    void addConsumer(Consumer<FormattingRule> c) {
+    LexingStateCriteriaBuilderImpl<T, R> addConsumer(Consumer<FormattingRule> c) {
         if (consumer == null) {
             consumer = c;
         } else {
             consumer = consumer.andThen(c);
         }
+        return this;
+    }
+
+    @Override
+    public R isGreaterThan(T key) {
+        assert key != this.key : "Same key " + key;
+        return ret.apply(addConsumer(rule -> {
+            rule.addMultiStateCriterion(this.key, key, OP.GREATER);
+        }));
+    }
+
+    @Override
+    public R isGreaterThanOrEqualTo(T key) {
+        assert key != this.key : "Same key " + key;
+        return ret.apply(addConsumer(rule -> {
+            rule.addMultiStateCriterion(this.key, key, OP.GREATER_OR_EQUAL);
+        }));
+    }
+
+    @Override
+    public R isLessThan(T key) {
+        assert key != this.key : "Same key " + key;
+        return ret.apply(addConsumer(rule -> {
+            rule.addMultiStateCriterion(this.key, key, OP.LESS);
+        }));
+    }
+
+    @Override
+    public R isLessThanOrEqualTo(T key) {
+        assert key != this.key : "Same key " + key;
+        return ret.apply(addConsumer(rule -> {
+            rule.addMultiStateCriterion(this.key, key, OP.LESS_OR_EQUAL);
+        }));
+    }
+
+    @Override
+    public R isEqualTo(T key) {
+        return ret.apply(addConsumer(rule -> {
+            rule.addMultiStateCriterion(this.key, key, OP.EQUAL);
+        }));
+    }
+
+    @Override
+    public R isNotEqualTo(T key) {
+        assert key != this.key : "Same key " + key;
+        return ret.apply(addConsumer(rule -> {
+            rule.addMultiStateCriterion(this.key, key, OP.NOT_EQUAL);
+        }));
     }
 
     @Override

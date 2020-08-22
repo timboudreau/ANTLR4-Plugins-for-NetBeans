@@ -92,7 +92,6 @@ final class AntlrInvocationErrorHighlighter extends ParserResultTask<AntlrParseR
 //        }
         List<? extends ErrorDescription> errors = t.getErrorDescriptions();
         LOG.log( Level.FINEST, "Syntax errors in {0}: {1}", new Object[]{ t, errors } );
-        new Exception( "Set " + errors.size() + " hints on " + t.getSnapshot() ).printStackTrace();
         t.fullyProcessed = true;
         setForSnapshot( t.getSnapshot(), errors );
     }

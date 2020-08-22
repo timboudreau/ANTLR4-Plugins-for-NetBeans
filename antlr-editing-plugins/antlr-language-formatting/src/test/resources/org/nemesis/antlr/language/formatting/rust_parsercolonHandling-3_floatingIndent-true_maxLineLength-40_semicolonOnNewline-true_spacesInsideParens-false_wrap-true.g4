@@ -1366,7 +1366,7 @@ fragment RAW_CHAR :
                   | [\ud800-\udbff]
                       [\udc00-\udfff]
                   ; // any non-BMP character (hack for Java)
-// Here we use a non-greedy match to implement the
+    // Here we use a non-greedy match to implement the
 // (non-regular) rules about raw string syntax.
 fragment RAW_STRING_BODY :
                          Quote RAW_CHAR*?

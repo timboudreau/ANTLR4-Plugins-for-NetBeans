@@ -36,7 +36,7 @@ import org.nemesis.jfs.nio.BlockStorageKind;
 final class NioBytesStorageAllocator implements JFSStorageAllocator<NioBytesStorageAllocator.BytesStorageWrapper> {
 
     private static final int DEFAULT_BLOCK_SIZE = 256;
-    private static final int DEFAULT_INITIAL_BLOCKS = 8;
+    private static final int DEFAULT_INITIAL_BLOCKS = 32;
 
     private final BlockStorage storage;
 
@@ -58,6 +58,7 @@ final class NioBytesStorageAllocator implements JFSStorageAllocator<NioBytesStor
     }
 
     NioBytesStorageAllocator(int blockSize, int initialBlockCount, BlockStorageKind kind) throws IOException {
+        // XXX shouldn't this be kind.create()???
         storage = BlockStorageKind.OFF_HEAP.create(blockSize, initialBlockCount);
     }
 

@@ -365,8 +365,12 @@ public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
             if (expandBack) {
                 newEnd++;
             }
+            // XXX something wrong with one of the PositionRange impls
+//            result = PositionFactory.forDocument(range.document()).range(newStart, range.startBias(), newEnd - newStart, range.endBias());
             result = result.newRange(newStart, newEnd - newStart);
-            assert result.start() == newStart;
+            assert result.start() == newStart : "wrong start " + result.start() + " expected "
+                    + newStart + " original range " + range + " new range " + result
+                    + " expandFwd? " + expandFwd + " expandBwd? " + expandBack;
             assert result.end() == newEnd;
             return result;
         });

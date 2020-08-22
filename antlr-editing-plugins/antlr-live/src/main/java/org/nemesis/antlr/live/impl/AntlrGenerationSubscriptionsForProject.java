@@ -244,8 +244,12 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     @Override
     protected void onReparse(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
         BrokenSourceThrottle throttle = AntlrGenerationSubscriptionsImpl.throttle();
+        if (extraction == null) {
+            return;
+        }
         if (throttle.isThrottled(extraction)) {
-//            LOG.log(Level.INFO, "Throttling known-bad tokens hash for {0}", extraction.tokensHash());
+            LOG.log(Level.INFO, "Throttling known-bad tokens hash {0} for {1}",
+                    new Object[]{extraction.tokensHash(), extraction.source().name()});
 //            return;
         }
         // Check extraction against tokens hash

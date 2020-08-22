@@ -23,9 +23,9 @@ import java.util.function.Predicate;
 
 /**
  * Builder for FormattingRule test conditions that logically combine multiple
- * queries of the lexing state, to condition a rule's enablement on
- * particular combination of states configured in the StateBuilder
- * passed when configuring formatting.
+ * queries of the lexing state, to condition a rule's enablement on particular
+ * combination of states configured in the StateBuilder passed when configuring
+ * formatting.
  *
  * @see org.nemesis.antlrformatting.api.FormattingRule.whenCombinationOf
  * @see org.nemesis.antlrformatting.api.LexingStateBuilder
@@ -104,31 +104,6 @@ public final class LogicalLexingStateCriteriaBuilder<R> {
         return result;
     }
 
-    private enum OP {
-        GREATER(">"), GREATER_OR_EQUAL(">="), LESS("<"), LESS_OR_EQUAL("<="),
-        EQUAL("=="), UNSET("-unset"), TRUE("==true"), FALSE("==false"), NOT_EQUAL("!=");
-        private final String stringValue;
-
-        OP(String stringValue) {
-            this.stringValue = stringValue;
-        }
-
-        private boolean takesArgument() {
-            switch (this) {
-                case UNSET:
-                case FALSE:
-                case TRUE:
-                    return false;
-                default:
-                    return true;
-            }
-        }
-
-        public String toString() {
-            return stringValue;
-        }
-    }
-
     private static class LogicalBuilder<T extends Enum<T>, R> extends LexingStateCriteriaBuilder<T, LogicalLexingStateCriteriaBuilder<R>> {
 
         private final T key;
@@ -137,6 +112,7 @@ public final class LogicalLexingStateCriteriaBuilder<R> {
         private final LogicalLexingStateCriteriaBuilder<R> parent;
         private OP op;
         private int value = -1;
+        private T key2;
 
         LogicalBuilder(T key, boolean isAnd, boolean isNegated, LogicalLexingStateCriteriaBuilder<R> parent) {
             this.key = key;
@@ -146,24 +122,88 @@ public final class LogicalLexingStateCriteriaBuilder<R> {
         }
 
         Predicate<LexingState> build(Predicate<LexingState> prev) {
-            Predicate<LexingState> result = new LogicalComponentPredicate<T>(op, key, value);
-            if (isNegated) {
-                result = result.negate();
-            }
-            if (prev != null) {
-                if (isAnd) {
-                    result = prev.and(result);
-                } else {
-                    result = prev.or(result);
+            if (key2 != null) {
+                Predicate<LexingState> result
+                        = new LogicalMultiComponentPredicate<>(op, key, key2);
+                if (isNegated) {
+                    result = result.negate();
                 }
+                if (prev != null) {
+                    if (isAnd) {
+                        result = prev.and(result);
+                    } else {
+                        result = prev.or(result);
+                    }
+                }
+                return result;
+            } else {
+                Predicate<LexingState> result
+                        = new LogicalComponentPredicate<>(op, key, value);
+                if (isNegated) {
+                    result = result.negate();
+                }
+                if (prev != null) {
+                    if (isAnd) {
+                        result = prev.and(result);
+                    } else {
+                        result = prev.or(result);
+                    }
+                }
+                return result;
             }
-            return result;
+        }
+
+        @Override
+        public LogicalLexingStateCriteriaBuilder<R> isGreaterThan(T key) {
+            assert key != this.key : "Same key " + key;
+            op = OP.GREATER;
+            key2 = key;
+            return parent;
+        }
+
+        @Override
+        public LogicalLexingStateCriteriaBuilder<R> isGreaterThanOrEqualTo(T key) {
+            assert key != this.key : "Same key " + key;
+            op = OP.GREATER_OR_EQUAL;
+            key2 = key;
+            return parent;
+        }
+
+        @Override
+        public LogicalLexingStateCriteriaBuilder<R> isEqualTo(T key) {
+            op = OP.EQUAL;
+            key2 = key;
+            return parent;
+        }
+
+        @Override
+        public LogicalLexingStateCriteriaBuilder<R> isLessThan(T key) {
+            assert key != this.key : "Same key " + key;
+            op = OP.LESS;
+            key2 = key;
+            return parent;
+        }
+
+        @Override
+        public LogicalLexingStateCriteriaBuilder<R> isLessThanOrEqualTo(T key) {
+            assert key != this.key : "Same key " + key;
+            op = OP.EQUAL;
+            key2 = key;
+            return parent;
         }
 
         @Override
         public LogicalLexingStateCriteriaBuilder isGreaterThan(int value) {
             op = OP.GREATER;
             this.value = value;
+            return parent;
+        }
+
+        @Override
+        public LogicalLexingStateCriteriaBuilder<R> isNotEqualTo(T key) {
+            assert key != this.key : "Same key " + key;
+            op = OP.GREATER;
+            this.key2 = key;
             return parent;
         }
 
@@ -249,6 +289,73 @@ public final class LogicalLexingStateCriteriaBuilder<R> {
                 } else {
                     return a + " | " + b;
                 }
+            }
+        }
+
+        private static class LogicalMultiComponentPredicate<T extends Enum<T>> implements Predicate<LexingState> {
+
+            private final OP op;
+            private final T key;
+            private final T key2;
+
+            LogicalMultiComponentPredicate(OP op, T key, T key2) {
+                this.op = op;
+                this.key = key;
+                this.key2 = key2;
+            }
+
+            @Override
+            public Predicate<LexingState> or(Predicate<? super LexingState> other) {
+                return new LogicalConnector<>(this, other, false);
+            }
+
+            @Override
+            public Predicate<LexingState> and(Predicate<? super LexingState> other) {
+                return new LogicalConnector<>(this, other, true);
+            }
+
+            @Override
+            public boolean test(LexingState t) {
+                switch (op) {
+                    case EQUAL:
+                        return t.get(key) == t.get(key2);
+                    case GREATER:
+                        return t.get(key) > t.get(key2);
+                    case GREATER_OR_EQUAL:
+                        return t.get(key) >= t.get(key2);
+                    case LESS:
+                        return t.get(key) < t.get(key2);
+                    case LESS_OR_EQUAL:
+                        return t.get(key) <= t.get(key2);
+                    case TRUE:
+                        return t.getBoolean(key);
+                    case FALSE:
+                        return !t.getBoolean(key);
+                    case UNSET:
+                        return t.get(key) == -1;
+                    case NOT_EQUAL:
+                        return t.get(key) != t.get(key2);
+                    default:
+                        throw new AssertionError(op);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return key + op.toString() + (op.takesArgument() ? key2 : "");
+            }
+
+            public Predicate<LexingState> negate() {
+                return new Predicate<LexingState>() {
+                    @Override
+                    public boolean test(LexingState t) {
+                        return !LogicalMultiComponentPredicate.this.test(t);
+                    }
+
+                    public String toString() {
+                        return "!" + LogicalMultiComponentPredicate.this.toString();
+                    }
+                };
             }
         }
 
