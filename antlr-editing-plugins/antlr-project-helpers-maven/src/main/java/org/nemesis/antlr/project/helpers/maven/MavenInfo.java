@@ -222,8 +222,8 @@ final class MavenInfo {
         PomInfo pi = mi.createInfo();
         System.out.println("PI: " + pi); // println ok
         MavenAntlrConfiguration pluginInfo = mi.pluginInfo();
-        AntlrConfiguration config = FoldersHelperTrampoline.getDefault().newAntlrConfiguration(pluginInfo.antlrImportDir(), pluginInfo.antlrSourceDir(), pluginInfo.antlrOutputDir()
-                , pluginInfo.listener(), pluginInfo.visitor(), pluginInfo.atn(), pluginInfo.forceATN(), pluginInfo.includePattern(), pluginInfo.excludePattern(), pluginInfo.encoding(), pluginInfo.buildDir(), "Maven", pluginInfo.isGuessedConfig(), pluginInfo.buildOutput(), pluginInfo.testOutput(), pluginInfo.javaSources(), pluginInfo.testSources());
+        AntlrConfiguration config = FoldersHelperTrampoline.getDefault().newAntlrConfiguration(pluginInfo.antlrImportDir(), pluginInfo.antlrSourceDir(), pluginInfo.antlrOutputDir(),
+                 pluginInfo.listener(), pluginInfo.visitor(), pluginInfo.atn(), pluginInfo.forceATN(), pluginInfo.includePattern(), pluginInfo.excludePattern(), pluginInfo.encoding(), pluginInfo.buildDir(), "Maven", pluginInfo.isGuessedConfig(), pluginInfo.buildOutput(), pluginInfo.testOutput(), pluginInfo.javaSources(), pluginInfo.testSources());
 
         System.out.println("FINAL CONFIG:\n" + config); // println ok
     }
@@ -471,7 +471,9 @@ final class MavenInfo {
                                 if (!found) {
                                     PomFileResolver loc = PomFileResolver.localRepo();
                                     File parentPomFile = loc.resolve(parentGroup, parentArtifact, parentVersion);
-                                    parentPom = parentPomFile.toPath();
+                                    if (parentPomFile != null) {
+                                        parentPom = parentPomFile.toPath();
+                                    }
                                 }
                             } else {
                                 parentPom = "..".equals(parentRelativePath)
