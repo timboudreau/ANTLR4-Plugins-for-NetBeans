@@ -103,6 +103,14 @@ public class AntlrIconAnnotator implements ProjectIconAnnotator, Consumer<Path> 
         if (isInInitDelay()) {
             return original;
         }
+        // XXX with a lot of projects open, right after a git pull that
+        // changes a whole bunch of POM files, this is going to wind up
+        // recreating Antlrconfigurations for every project by reading
+        // every POM and all its dependencies.  What might be good:
+        // Create a tracking object that simply keeps a count of all calls
+        // to this method globally in the last several seconds, and if more
+        // than a threshold, returns the original and enqueues a delayed,
+        // staggered with random jitter, change to be fired later
         AntlrConfiguration config = AntlrConfiguration.forProject(p);
         if (config == null || config.isSpeculativeConfig()) {
             return original;
