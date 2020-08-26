@@ -174,7 +174,7 @@ public class RulePathStringifierImpl implements RulePathStringifier {
             if (el instanceof AntlrProxies.RuleNodeTreeElement) {
                 boolean sameSpan = ((AntlrProxies.RuleNodeTreeElement) el).isSameSpanAsParent();
                 if (i != count) {
-                    into.append(DELIM);
+                    into.append(html ? DELIM : " > ");
                 }
                 if (sameSpan) {
                     if (html) {
@@ -191,7 +191,7 @@ public class RulePathStringifierImpl implements RulePathStringifier {
                 distances.put(el.name(), i);
             } else if (el instanceof AntlrProxies.TerminalNodeTreeElement) {
                 if (i != count) {
-                    into.append(DELIM);
+                    into.append(html ? DELIM : " > ");
                 }
                 if (html) {
                     appendAttentionForeground(colorSource, into);
@@ -202,7 +202,7 @@ public class RulePathStringifierImpl implements RulePathStringifier {
                 }
             } else {
                 if (i != count) {
-                    into.append(DELIM);
+                    into.append(html ? DELIM : " > ");
                 }
                 if (html) {
                     String nm = el.name().replaceAll("<", "&lt;")

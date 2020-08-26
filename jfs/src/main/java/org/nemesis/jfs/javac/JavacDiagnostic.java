@@ -102,7 +102,9 @@ public final class JavacDiagnostic {
                 }
             }
         } catch (IOException ex) {
-            Logger.getLogger(JavacDiagnostic.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(JavacDiagnostic.class.getName()).log(Level.INFO,
+                    "File " + fo.path() + " may have been deleted before "
+                    + "trying to print diagnostics", ex);
         }
         return sb.toString();
     }

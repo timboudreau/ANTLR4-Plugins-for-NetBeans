@@ -155,6 +155,10 @@ public class JFSCompileBuilder {
         return this;
     }
 
+    public JavacOptions options() {
+        return options.copy();
+    }
+
     private List<File> classpath() {
         List<File> allFiles = new ArrayList<>(classpath.size());
         for (ClasspathEntry e : classpath) {

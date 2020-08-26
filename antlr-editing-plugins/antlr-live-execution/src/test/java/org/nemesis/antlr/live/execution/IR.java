@@ -106,7 +106,7 @@ public class IR extends InvocationRunner<Map, Void> {
     @Override
     protected Void onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res,
             Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName,
-            Consumer<Supplier<ClassLoader>> cs) throws IOException {
+            Consumer<Supplier<ClassLoader>> cs, Consumer<UnixPath> singleSource) throws IOException {
         gpn = grammarPackageName;
         compileConfigCount++;
         bldr.addToClasspath(CommonTokenStream.class);

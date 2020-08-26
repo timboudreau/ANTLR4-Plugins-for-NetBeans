@@ -366,7 +366,7 @@ final class AdhocHighlighterManager {
                 EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
                 CharSequence text = DocumentUtilities.getText(d);
                 try {
-                    synchronized (this) {
+//                    synchronized (this) {
                         EmbeddedAntlrParserResult result = parser.parse(text);
                         AntlrProxies.ParseTreeProxy prox = result.proxy();
                         if (prox.isUnparsed()) {
@@ -375,7 +375,7 @@ final class AdhocHighlighterManager {
                             Debug.success("Got parsed proxy", prox::loggingInfo);
                         }
                         lastParseInfo.set(new HighlightingInfo(d, prox));
-                    }
+//                    }
                     scheduleRepaint();
                 } catch (Exception ex) {
                     Exceptions.printStackTrace(ex);

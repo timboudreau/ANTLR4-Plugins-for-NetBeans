@@ -53,6 +53,11 @@ public abstract class AntlrMimeTypeRegistration {
         return getClass().getSimpleName() + '(' + mimeType() + ')';
     }
 
+    static NbParserHelper<?,?,?,?> helper(String mimeType) {
+        AntlrMimeTypeRegistration reg = registry().registrationFor( mimeType );
+        return reg == null ? null : reg.helper;
+    }
+
     final String mimeType() {
         return type;
     }

@@ -25,9 +25,7 @@ import java.util.HashSet;
 import java.util.Set;
 import javax.swing.text.BadLocationException;
 import javax.tools.StandardLocation;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.nemesis.antlr.memory.TokenVocabImportTest.loadRelativeDocument;
@@ -74,6 +72,9 @@ public class ElideReturnsAndActionsTest {
             String parserCode = parserResult.jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("com/woogle/ReturnsTestParser.java")).getCharContent(false).toString();
             assertFalse(parserCode.contains("parseInt"));
             System.out.println(parserCode);
+
+            assertSame(parserResult, parserResult.rebuild(false));
+            assertFalse(parserResult == parserResult.rebuild(true));
         } catch (Exception | Error ex) {
             String out = new String(baos.toByteArray(), UTF_8);
             AssertionError err = new AssertionError("Build output: " + out, ex);
@@ -82,7 +83,7 @@ public class ElideReturnsAndActionsTest {
     }
 
     @BeforeEach
-    public void setup() throws IOException, BadLocationException {
+    public void setup() throws IOException, BadLocationException, InterruptedException {
         JFS jfs = JFS.builder().build();
         jfs.masquerade(loadRelativeDocument(GRAMMAR_NAME), StandardLocation.SOURCE_PATH, GRAMMAR_PATH);
         bldr = AntlrGenerator.builder(() -> jfs)

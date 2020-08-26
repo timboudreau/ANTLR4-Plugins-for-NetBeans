@@ -17,6 +17,10 @@ package org.nemesis.antlr.error.highlighting.hints.util;
 
 import java.awt.Color;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.swing.text.AttributeSet;
@@ -41,8 +45,9 @@ public final class EditorAttributesFinder implements LookupListener, Function<St
     private FontColorSettings settings;
     private AttributeSet errors;
     private AttributeSet warnings;
+    private Map<String, AttributeSet> derived;
 
-    private FontColorSettings settings() {
+    private synchronized FontColorSettings settings() {
         if (settings != null) {
             return settings;
         }
@@ -66,10 +71,11 @@ public final class EditorAttributesFinder implements LookupListener, Function<St
     }
 
     @Override
-    public void resultChanged(LookupEvent le) {
+    public synchronized void resultChanged(LookupEvent le) {
         settings = null;
         errors = null;
         warnings = null;
+        derived = null;
     }
 
     private AttributeSet defaultErrors() {
@@ -85,9 +91,22 @@ public final class EditorAttributesFinder implements LookupListener, Function<St
     }
 
     private AttributeSet find(String... names) {
-        FontColorSettings colorings = settings();
+        FontColorSettings colorings;
+        Map<String, AttributeSet> derived;
+        synchronized (this) {
+            colorings = settings();
+            derived = this.derived;
+        }
         if (colorings == null) {
             return null;
+        }
+        if (derived != null) {
+            for (String name : names) {
+                AttributeSet result = derived.get(name);
+                if (result != null) {
+                    return result;
+                }
+            }
         }
         for (String nm : names) {
             AttributeSet attrs = colorings.getFontColors(nm);
@@ -101,16 +120,105 @@ public final class EditorAttributesFinder implements LookupListener, Function<St
         return null;
     }
 
+    /**
+     * Find an attribute set matching one of the passed names, using the
+     * failover supplier if none.
+     *
+     * @param failover The failover supplier if no coloring exists that
+     * matches any of the names
+     * @param names A list of names to look up in the FontColoringSettings for
+     * this mime type
+     * @return An attribute set
+     */
     public AttributeSet find(Supplier<AttributeSet> failover, String... names) {
         AttributeSet result = find(names);
         return result == null ? failover.get() : result;
     }
 
+    /**
+     * Get an attribute set with the
+     *
+     * @param t
+     * @return
+     */
     @Override
     public AttributeSet apply(String t) {
-        return find(SimpleAttributeSet::new, t);
+        return find(EMPTY_SUPPLIER, t);
     }
 
+    /**
+     * Create an attribute set that somehow munges colors from an original, and
+     * cache it under the name passed, clearing it if the global set of colors
+     * for this mime type changes.
+     *
+     * @param from The name
+     * @param func A function to process the original set
+     * @return A derived attribute set
+     */
+    public AttributeSet derive(String from, Function<AttributeSet, AttributeSet> func) {
+        Map<String, AttributeSet> derivedLocal;
+        synchronized (this) {
+            derivedLocal = this.derived;
+            if (derivedLocal == null) {
+                derivedLocal = this.derived = new HashMap<>();
+            }
+        }
+        AttributeSet result = derivedLocal.get(from);
+        if (result == null) {
+            result = func.apply(find(EMPTY_SUPPLIER, from));
+            if (result != null) {
+                derivedLocal.put(from, result);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Derive an attribute set with a tooltip from an original.
+     *
+     * @param orig The original set, or null if none
+     * @param tooltip The tool tip text
+     * @return A new attribute set
+     */
+    public AttributeSet withTooltip(AttributeSet orig, String tooltip) {
+        if (orig == null) {
+            SimpleAttributeSet res = new SimpleAttributeSet();
+            res.addAttribute(EditorStyleConstants.Tooltip, tooltip);
+            return res;
+        } else {
+            SimpleAttributeSet res = new SimpleAttributeSet();
+            res.addAttribute(EditorStyleConstants.Tooltip, tooltip);
+            return AttributesUtilities.createComposite(orig, res);
+        }
+    }
+
+    /**
+     * Defive an attribute set from the first one matching the passed array of
+     * names, adding the passed tool tip text to it.
+     *
+     * @param tooltip The tool tip text
+     * @param names A list of names to search the registered colorings for
+     * @return An attribute set containing the original colorings plus the tool
+     * tip
+     */
+    public AttributeSet withTooltip(String tooltip, String... names) {
+        AttributeSet result = find(names);
+        if (result == null) {
+            SimpleAttributeSet res = new SimpleAttributeSet();
+            res.addAttribute(EditorStyleConstants.Tooltip, tooltip);
+            return res;
+        } else {
+            SimpleAttributeSet res = new SimpleAttributeSet();
+            res.addAttribute(EditorStyleConstants.Tooltip, tooltip);
+            return AttributesUtilities.createComposite(result, res);
+        }
+    }
+
+    /**
+     * Get the standard coloring for errors.
+     *
+     * @return An attribute set
+     */
     public AttributeSet errors() {
         if (errors != null) {
             return errors;
@@ -122,14 +230,70 @@ public final class EditorAttributesFinder implements LookupListener, Function<St
         return errors = result;
     }
 
+    /**
+     * Get the standard coloring for warnings.
+     *
+     * @return An attribute set
+     */
     public AttributeSet warnings() {
         if (warnings != null) {
             return warnings;
         }
-        AttributeSet result = find("error", "errors");
+        AttributeSet result = find("warning", "warnings");
         if (result == null) {
             result = defaultWarnings();
         }
         return warnings = result;
+    }
+
+
+    private static final AttributeSet EMPTY = new EmptyAttributeSet();
+    static final Supplier<AttributeSet> EMPTY_SUPPLIER = () -> EMPTY;
+    private static final class EmptyAttributeSet implements AttributeSet {
+
+        @Override
+        public int getAttributeCount() {
+            return 0;
+        }
+
+        @Override
+        public boolean isDefined(Object o) {
+            return false;
+        }
+
+        @Override
+        public boolean isEqual(AttributeSet attr) {
+            return attr.getAttributeCount() == 0;
+        }
+
+        @Override
+        public AttributeSet copyAttributes() {
+            return this;
+        }
+
+        @Override
+        public Object getAttribute(Object o) {
+            return null;
+        }
+
+        @Override
+        public Enumeration<?> getAttributeNames() {
+            return Collections.emptyEnumeration();
+        }
+
+        @Override
+        public boolean containsAttribute(Object o, Object o1) {
+            return false;
+        }
+
+        @Override
+        public boolean containsAttributes(AttributeSet attributes) {
+            return false;
+        }
+
+        @Override
+        public AttributeSet getResolveParent() {
+            return null;
+        }
     }
 }

@@ -273,7 +273,6 @@ public class SequenceHighlightingTest {
         "org.nemesis.antlr.live.language.AdhocMimeDataProvider",
         "org.nemesis.antlr.live.language.AdhocLanguageFactory",
         "org.nemesis.antlr.live.language.AdhocReparseListeners",
-        "org.nemesis.antlr.live.JFSMapping",
         "org.nemesis.antlr.live.RebuildSubscriptions",
         "org.nemesis.antlr.live.execution.AntlrRunSubscriptions",
         "org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner",

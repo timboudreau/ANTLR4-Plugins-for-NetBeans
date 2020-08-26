@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -15,7 +15,9 @@
  */
 package org.nemesis.antlr.live.impl;
 
+import com.mastfrog.antlr.utils.CharSequenceCharStream;
 import com.mastfrog.graph.ObjectGraph;
+import com.mastfrog.subscription.EventApplier;
 import com.mastfrog.subscription.Subscribable;
 import com.mastfrog.subscription.SubscribableBuilder;
 import com.mastfrog.subscription.SubscribableNotifier;
@@ -25,25 +27,33 @@ import com.mastfrog.util.cache.MapCache;
 import com.mastfrog.util.collections.MapFactories;
 import com.mastfrog.util.collections.SetFactories;
 import com.mastfrog.util.path.UnixPath;
+import com.mastfrog.util.strings.Strings;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
 import javax.tools.StandardLocation;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.nemesis.antlr.ANTLRv4Lexer;
 import org.nemesis.antlr.ANTLRv4Parser;
+import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.common.AntlrConstants;
 import org.nemesis.antlr.live.BrokenSourceThrottle;
 import org.nemesis.antlr.live.ParsingUtils;
@@ -54,6 +64,7 @@ import org.nemesis.antlr.memory.AntlrGenerator.RerunInterceptor;
 import org.nemesis.antlr.memory.AntlrGeneratorBuilder;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.antlr.project.Folders;
+import org.nemesis.antlr.spi.language.AntlrParseResult;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
@@ -63,8 +74,11 @@ import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileModifications;
 import org.netbeans.api.project.Project;
+import org.netbeans.modules.parsing.api.Snapshot;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
+import org.openide.util.Pair;
 import org.openide.util.RequestProcessor;
 
 /**
@@ -76,7 +90,8 @@ import org.openide.util.RequestProcessor;
  *
  * @author Tim Boudreau
  */
-final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLRv4Parser.GrammarFileContext> implements Subscribable<FileObject, Subscriber>, RerunInterceptor {
+final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLRv4Parser.GrammarFileContext>
+        implements Subscribable<FileObject, Subscriber>, RerunInterceptor {
 
     private static final Logger LOG = Logger.getLogger(AntlrGenerationSubscriptionsForProject.class.getName());
     private static final RequestProcessor svc = new RequestProcessor("antlr-project-events", 5);
@@ -86,7 +101,10 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     private final PerProjectJFSMappingManager mappingManager;
     private final MapCache<FileObject, ObjectGraph<UnixPath>> dependencyGraphCache;
     private final MapCache<FileObject, GrammarFileHashAndTimestamp> tokenHashCache;
+    private final MapCache<FileObject, AntlrGenerator> generatorCache;
     private final SubscribersStoreController<FileObject, Subscriber> subscribersManager;
+    private final Map<FileObject, AntlrGenerationResult> resultCache
+            = MapFactories.WEAK_KEYS_AND_VALUES.createMap(32, true);
 
     AntlrGenerationSubscriptionsForProject(Project project, JFSManager jfses, Runnable onProjectDeleted) {
         super(ANTLRv4Parser.GrammarFileContext.class);
@@ -95,14 +113,8 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         // individual files
         SubscribableBuilder.SubscribableContents<FileObject, FileObject, Subscriber, AntlrRegenerationEvent> sinfo
                 = // need a defensive copy
-                SubscribableBuilder.withKeys(FileObject.class).withEventApplier((FileObject fo, AntlrRegenerationEvent rebuildInfo, Collection<? extends Subscriber> subscribers) -> {
-                    LOG.log(Level.FINER, "Publish regeneration of {0} to {1} subscribers", new Object[]{rebuildInfo, subscribers.size()});
-                    for (Subscriber s : subscribers.toArray(new Subscriber[0])) {
-                        // need a defensive copy
-                        LOG.log(Level.FINEST, "Publish regeneration of {0} to {1}", new Object[]{fo, s});
-                        rebuildInfo.accept(s);
-                    }
-                }).storingSubscribersIn(SetFactories.ORDERED_HASH).threadSafe()
+                SubscribableBuilder.withKeys(FileObject.class).withEventApplier(applier()).
+                        storingSubscribersIn(SetFactories.ORDERED_HASH).threadSafe()
                         // If on the event thread, use the background thread pool so we don't
                         // block doing unknown amounts of IO in the event thread; otherwise
                         // run synchronously
@@ -116,7 +128,151 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         subscribersManager = sinfo.subscribersManager;
         dependencyGraphCache = sinfo.caches.<ObjectGraph<UnixPath>>createCache(ObjectGraph.class, MapFactories.EQUALITY, fo -> null);
         tokenHashCache = sinfo.caches.<GrammarFileHashAndTimestamp>createCache(GrammarFileHashAndTimestamp.class, MapFactories.WEAK, fo -> null);
+        generatorCache = sinfo.caches.<AntlrGenerator>createCache(AntlrGenerator.class, MapFactories.WEAK, fo -> null);
     } // need a defensive copy
+
+    static final long INITIAL_LOAD;
+    static final long STARTUP_DELAY = 30000;
+
+    static {
+        long start = System.currentTimeMillis();
+        try {
+            start = ManagementFactory.getRuntimeMXBean().getUptime();
+        } catch (Exception ex) {
+            LOG.log(Level.WARNING, null, ex);
+        }
+        if (Boolean.getBoolean("unit.test")) {
+            start = 0;
+        }
+        INITIAL_LOAD = start;
+    }
+    static final long READY_TIME = INITIAL_LOAD + STARTUP_DELAY;
+
+    static boolean inStartupDelay() {
+        return System.currentTimeMillis() < READY_TIME;
+    }
+
+    static EventApplier<FileObject, AntlrRegenerationEvent, Subscriber> applier() {
+        if (inStartupDelay()) {
+            return new Applier();
+        } else {
+            return new UndelayedApplier();
+        }
+    }
+
+    static class Applier implements EventApplier<FileObject, AntlrRegenerationEvent, Subscriber> {
+
+        private final AtomicReference<EventApplier<FileObject, AntlrRegenerationEvent, Subscriber>> delegate
+                = new AtomicReference<>();
+
+        Applier() {
+            delegate.set(new DelayedApplier(delegate));
+        }
+
+        @Override
+        public void apply(FileObject key, AntlrRegenerationEvent event, Collection<? extends Subscriber> consumers) {
+            delegate.get().apply(key, event, consumers);
+        }
+    }
+
+    private static final class DelayedApplier implements EventApplier<FileObject, AntlrRegenerationEvent, Subscriber>, Runnable {
+
+        private final Map<FileObject, Entry> entries = new HashMap<>();
+        private final UndelayedApplier real = new UndelayedApplier();
+        private final AtomicReference<EventApplier<FileObject, AntlrRegenerationEvent, Subscriber>> ref;
+        private final AtomicBoolean wasRun = new AtomicBoolean();
+        private final RequestProcessor.Task releaseTask;
+
+        public DelayedApplier(AtomicReference<EventApplier<FileObject, AntlrRegenerationEvent, Subscriber>> ref) {
+            this.ref = ref;
+            releaseTask = svc.create(this);
+            int delay = (int) Math.max(100, System.currentTimeMillis() - READY_TIME);
+            releaseTask.schedule(delay);
+        }
+
+        @Override
+        public synchronized void apply(FileObject key, AntlrRegenerationEvent event, Collection<? extends Subscriber> consumers) {
+            Entry en = entries.get(key);
+            if (en != null) {
+                en.update(event, consumers);
+            } else {
+                entries.put(key, new Entry(event, consumers));
+            }
+            if (!inStartupDelay()) {
+                releaseTask.schedule(0);
+            }
+        }
+
+        @Override
+        public void run() {
+            // Ensure we are not run twice
+            if (wasRun.compareAndSet(false, true)) {
+                System.out.println("RELEASE THE CRACKEN! " + entries.keySet());
+                // Loop to ensure we don't miss and throw away entries added
+                // WHILE we are running here
+                Map<FileObject, Entry> copy;
+                do {
+                    synchronized (this) {
+                        copy = new HashMap<>(entries);
+                        entries.clear();
+                    }
+                    System.out.println("   HAVE " + copy.size());
+                    try {
+                        for (Map.Entry<FileObject, Entry> e : copy.entrySet()) {
+                            try {
+                                real.apply(e.getKey(), e.getValue().event, e.getValue().subscribers);
+                            } catch (Exception ex) {
+                                LOG.log(Level.SEVERE, "Delayed processing of "
+                                        + e.getKey() + " for " + e.getValue(), ex);
+                            }
+                        }
+                    } finally {
+                        boolean success = ref.compareAndSet(this, real);
+                        if (success) {
+                            System.out.println("  NOW USING REAL APPLIER");
+                        }
+                    }
+                } while (!copy.isEmpty());
+            }
+        }
+
+        private static final class Entry {
+
+            private AntlrRegenerationEvent event;
+            private Set<Subscriber> subscribers = new LinkedHashSet<>();
+
+            Entry(AntlrRegenerationEvent evt, Collection<? extends Subscriber> subscribers) {
+                event = evt;
+                this.subscribers.addAll(subscribers);
+            }
+
+            void update(AntlrRegenerationEvent evt, Collection<? extends Subscriber> subscribers) {
+                this.subscribers.addAll(subscribers);
+                if (!event.equals(evt) || evt.compareTo(event) > 0) {
+                    event = evt;
+                }
+            }
+
+            public String toString() {
+                return event + " for " + subscribers;
+            }
+        }
+
+    }
+
+    private static final class UndelayedApplier implements EventApplier<FileObject, AntlrRegenerationEvent, Subscriber> {
+
+        @Override
+        public void apply(FileObject fo, AntlrRegenerationEvent rebuildInfo, Collection<? extends Subscriber> subscribers) {
+            LOG.log(Level.FINER, "Publish regeneration of {0} to {1} subscribers", new Object[]{rebuildInfo, subscribers.size()});
+            for (Subscriber s : subscribers.toArray(new Subscriber[0])) {
+                // need a defensive copy
+                LOG.log(Level.FINEST, "Publish regeneration of {0} to {1}", new Object[]{fo, s});
+                rebuildInfo.accept(s);
+            }
+        }
+
+    }
 
     private void onFileReplaced(FileObject oldFile, FileObject newFile) {
         if (newFile == null && oldFile != null) {
@@ -141,7 +297,9 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         return mappingManager.project;
     }
 
-    private void forceParse(FileObject file) {
+    private void forceParse(FileObject file, String reason) {
+        LOG.log(Level.FINE, "Force parse {0} on {1} due to {2}",
+                new Object[]{file.getNameExt(), this, reason});
         Document doc = mappingManager.documentFor(file);
         try {
             if (doc == null) {
@@ -154,12 +312,41 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         }
     }
 
+    private void doFakeOnSubscribeParse(FileObject key) {
+        Extraction ext = NbAntlrUtils.extractionFor(key);
+        Snapshot snap = ext.source().lookup(Snapshot.class).get();
+        CharSequence seq = snap.getText();
+        ANTLRv4Lexer lex = new ANTLRv4Lexer(new CharSequenceCharStream(key.getPath(), seq));
+        lex.removeErrorListeners();
+        ANTLRv4Parser p = new ANTLRv4Parser(new CommonTokenStream(lex));
+        p.removeErrorListeners();
+        try {
+            GrammarFileContext ctx = p.grammarFile();
+            Pair<ParseResultContents, Fixes> pr = AntlrParseResult.simulateReparse(ctx, ext);
+            onReparse(ctx, key.getMIMEType(), ext, pr.first(), pr.second());
+        } catch (Exception ex) {
+            Exceptions.printStackTrace(ex);
+        }
+    }
+
     @Override
     public void subscribe(FileObject key, Subscriber consumer) {
+        boolean isNew = !subscribersStore.subscribedKeys().contains(key);
         subscribableDelegate.subscribe(key, consumer);
-        ParseResultHook.register(key, this);
+        if (isNew) {
+            ParseResultHook.register(key, this);
+        }
+//        if (isNew) {
+//            ParseResultHook.register(key, this);
+//            svc.submit(() -> {
         NbAntlrUtils.invalidateSource(key);
-        forceParse(key);
+        forceParse(key, "Subscribe " + consumer);
+//            });
+//        } else {
+//            svc.submit(() -> {
+//                doFakeOnSubscribeParse(key);
+//            });
+//        }
     }
 
     @Override
@@ -185,14 +372,6 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
             result = UnixPath.empty();
         }
         return result;
-    }
-
-    private boolean isAntlrFile(UnixPath path) {
-        return "g4".equals(path.extension()) || "g".equals(path.extension()) || "tokens".equals(path.extension());
-    }
-
-    private static boolean isJavaFile(UnixPath path) {
-        return "java".equals(path.extension());
     }
 
     private UnixPath jfsJavaSourcePathForGrammarFile(FileObject fo) {
@@ -241,6 +420,9 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         return jfsMappedGrammarFilePath;
     }
 
+    private final ThrashChecker<String> thrashChecker = new ThrashChecker<>(40, 40000);
+    private AntlrGenerator generator;
+
     @Override
     protected void onReparse(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
         BrokenSourceThrottle throttle = AntlrGenerationSubscriptionsImpl.throttle();
@@ -259,6 +441,11 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         // If the generation status is up to date, we shouldn't actually
         // run regenration again for that file
         extraction.source().lookup(FileObject.class, fo -> {
+
+            if (thrashChecker.isThrashing(fo.getPath())) {
+                new Exception("Thrashing builds of " + fo.getPath()).printStackTrace();
+            }
+
             tokenHashCache.put(fo, new GrammarFileHashAndTimestamp(extraction.sourceLastModifiedAtExtractionTime(), extraction.tokensHash()));
             // We may be reentrant - if we parsed, say, a lexer depended on by a
             ReentrantAntlrGenerationContext context = ctx.get();
@@ -298,18 +485,39 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                 Set<FileObject> siblings = mappingManager.siblingsOf(fo);
                 UnixPath parentPath = parentPath(jfsMappedGrammarFilePath.path());
                 // Run Antlr generation
-                AntlrGeneratorBuilder<AntlrGenerator> bldr = AntlrGenerator
-                        .builder(mappingManager::jfs)
-                        .withOriginalFile(originalFile)
-                        .withTokensHash(extraction.tokensHash())
-                        .grammarSourceInputLocation(jfsMappedGrammarFilePath.location())
-                        .withPathHints(mappingManager.mappings)
-                        .generateAllGrammars(true)
-                        .generateDependencies(true);
-                if (!parentPath.isEmpty()) {
-                    bldr.generateIntoJavaPackage(parentPath.toString('.'));
+
+                Optional<AntlrGenerator> gen = generatorCache.cachedValue(fo);
+//                Optional<AntlrGenerator> gen = Optional.ofNullable(this.generator);
+                AntlrGenerator generator;
+                // We need to cache the generator, because it remembers the timestamps
+                // and hashes of the previous build and can detect when it doesn't need
+                // to run again
+                if (!gen.isPresent()) {
+                    AntlrGeneratorBuilder<AntlrGenerator> bldr = AntlrGenerator
+                            .builder(mappingManager::jfs)
+                            .withOriginalFile(originalFile)
+                            .withTokensHash(extraction.tokensHash())
+                            .grammarSourceInputLocation(jfsMappedGrammarFilePath.location())
+                            .withPathHints(mappingManager.mappings)
+                            .generateAllGrammars(true)
+                            .generateDependencies(true);
+                    if (!parentPath.isEmpty()) {
+                        bldr.generateIntoJavaPackage(parentPath.toString('.'));
+                    }
+                    generator = bldr.building(parentPath, AntlrGenerationSubscriptionsImpl.IMPORTS);
+                    generatorCache.put(fo, generator);
+                    this.generator = generator;
+                } else {
+                    generator = gen.get();
+//                    String pkg = parentPath.toString('.');
+//                    if (!pkg.equals(generator.packageName())) {
+//                        AntlrGenerator g = generator.toBuilder().generateIntoJavaPackage(pkg)
+//
+//                                ;
+//                        this.generator = generator = g;
+//                    }
                 }
-                AntlrGenerator generator = bldr.building(parentPath, AntlrGenerationSubscriptionsImpl.IMPORTS);
+
                 String grammarName = jfsMappedGrammarFilePath.path().getFileName().toString();
                 FileObject foFinal = fo;
                 try {
@@ -323,8 +531,12 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                         AntlrGenerationResult result;
                         try (final PrintStream output = AntlrLoggers.getDefault().printStream(originalFile, AntlrLoggers.STD_TASK_GENERATE_ANTLR)) {
                             result = generator.run(grammarName, output, true);
+                            if (result.isUsable()) {
+                                resultCache.put(foFinal, result);
+                            }
                         }
-                        LOG.log(Level.FINEST, "Generation result for {0}: {1}", new Object[]{originalFile, result});
+                        LOG.log(Level.FINEST, "Generation result for {0}: success? {1} grammar {3}",
+                                new Object[]{originalFile, result.isSuccess(), result.grammarName});
                         // Update the state of throttling if the parse was unusable
                         throttle.incrementThrottleIfBad(extraction, result);
                         // We keep a cache of the file dependency graph - which files MemoryTool
@@ -431,8 +643,17 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
 
     @Override
     public AntlrGenerationResult rerun(String grammarFileName, PrintStream logStream, boolean generate, AntlrGenerator originator, AntlrGenerator.ReRunner localRerunner) {
+        FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(originator.originalFile().toFile()));
+        if (fo != null) {
+            AntlrGenerationResult oldRes = resultCache.get(fo);
+            if (oldRes != null && oldRes.isReusable()) {
+                return oldRes;
+            }
+        }
         AntlrGenerationResult res = localRerunner.run(grammarFileName, logStream, generate);
-
+        if (fo != null && res.isUsable()) {
+            resultCache.put(fo, res);
+        }
         return res;
     }
 
@@ -491,8 +712,11 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                 // Now explicitly generate the rest - since we're doiong it inside this context,
                 // we won't wind up accidentally doing it more than once
                 for (FileObject fo : notRegeneratedButNeedReparse) {
-                    if (!generationWasRunFor.containsKey(fo)) {
-                        forceParse(fo);
+                    if (!generationWasRunFor.containsKey(fo) && !fileStack.contains(fo)) {
+                        System.out.println("FORCE parse " + fo.getNameExt()
+                                + " stack " + Strings.join(',', fileStack, FileObject::getNameExt)
+                                + " for root " + root.getNameExt());
+                        forceParse(fo, "Regeneration of " + fileStack);
                     }
                 }
             } finally {
@@ -525,10 +749,12 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
             if (tokensHash == null) {
                 tokensHash = "-unknown-";
             }
-            AntlrGenerationResult xlate = generationResult.forSiblingGrammar(ParsingUtils.toPath(fo), coords.path(), tokensHash);
+            AntlrGenerationResult xlate = generationResult.forSiblingGrammar(ParsingUtils.toPath(fo),
+                    coords.path(), tokensHash);
             if (xlate != null) {
                 generationWasRunFor.put(fo, xlate);
-                forceParse(fo);
+                forceParse(fo, "Could not create sibling result " + fo.getNameExt()
+                        + " for " + generationResult.originalFilePath.getFileName());
                 return true;
             }
             return false;
@@ -554,7 +780,8 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
             ctx.set(context);
         }
         try {
-            context.enter(grammarFile, tree, extraction, alreadyRegenerated, notRegenerated, generationResult, jfs, notRegeneratedButNeedReparse);
+            context.enter(grammarFile, tree, extraction, alreadyRegenerated,
+                    notRegenerated, generationResult, jfs, notRegeneratedButNeedReparse);
         } finally {
             if (outer) {
                 ctx.remove();

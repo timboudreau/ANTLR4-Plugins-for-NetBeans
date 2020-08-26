@@ -16,6 +16,7 @@
 package org.nemesis.antlr.live.execution;
 
 import com.mastfrog.function.state.Bool;
+import com.mastfrog.function.state.Obj;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.path.UnixPath;
 import java.io.ByteArrayOutputStream;
@@ -69,6 +70,7 @@ import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
 import org.nemesis.jfs.javac.JavacDiagnostic;
+import org.nemesis.jfs.javac.JavacOptions;
 import org.nemesis.misc.utils.CachingSupplier;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Exceptions;
@@ -454,8 +456,12 @@ public class AntlrRunSubscriptions {
                                 LOG.log(Level.FINEST, "Need a new compile builder for {0}", extraction.source());
                                 created = true;
 
-//                                res.jfs().closeLocations(StandardLocation.CLASS_OUTPUT);
                                 JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfsSupplier);
+                                bldr.withMaxErrors(1).setOptions(
+                                        JavacOptions.fastDefaults()
+                                                .runAnnotationProcessors(false)
+                                                .withCharset(jfs.encoding())
+                                ).runAnnotationProcessors(false);
 
 //                                bldr.verbose().nonIdeMode().withMaxErrors(10)
 //                                        .withMaxWarnings(10); // XXX for debugging, will wreak havoc
@@ -464,10 +470,15 @@ public class AntlrRunSubscriptions {
                                     bldr.compilerOutput(writer);
 
                                     CSC csc = new CSC();
-                                    arg = runner.configureCompilation(tree, res, extraction, jfs, bldr, res.packageName(), csc);
+                                    Obj<UnixPath> singleSource = Obj.create();
+                                    arg = runner.configureCompilation(tree, res, extraction, jfs, bldr, res.packageName(), csc, singleSource);
 
                                     bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
+//                                    if (!singleSource.isSet()) {
                                     cr = jfs.whileWriteLocked(bldr::compile);
+//                                    } else {
+//                                        cr = jfs.whileWriteLocked(() -> bldr.compileSingle(singleSource.get()));
+//                                    }
 
                                     writer.write("Compile took " + cr.elapsedMillis() + "ms");
 
@@ -494,7 +505,7 @@ public class AntlrRunSubscriptions {
                                         }
                                     }
                                     AntlrGeneratorAndCompiler compiler = AntlrGeneratorAndCompiler.fromResult(
-                                            res, bldr);
+                                            res, bldr, cr);
 
                                     AntlrRunBuilder runBuilder = AntlrRunBuilder
                                             .fromGenerationPhase(compiler).isolated();
@@ -535,7 +546,10 @@ public class AntlrRunSubscriptions {
                             if (tokensHashChanged) {
                                 opts.add(GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES);
                             }
-                            if (!regenerated.getAsBoolean()) {
+//                            if (!regenerated.getAsBoolean()) {
+//                                opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
+//                            }
+                            if (regenerated.getAsBoolean() || tokensHashChanged) {
                                 opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
                             }
 
@@ -635,16 +649,17 @@ public class AntlrRunSubscriptions {
         }
 
         CompileResult analyzeAndLogCompileFailureAndMaybeRetry(final Writer writer, CompileResult cr, AntlrGenerationResult res, JFSCompileBuilder bldr, boolean rebuild, Bool regenerated) throws IOException {
-            PrintWriter pw = new PrintWriter(writer);
+            Consumer<String> pw = AntlrLoggers.isActive(writer) ? new PrintWriter(writer)::println
+                    : System.out::println;
             if (AntlrLoggers.isActive(writer)) {
-                pw.println("COMPILE RESULT: " + cr);
-                pw.println("GEN PACKAGE: " + res.packageName);
-                pw.println("GRAMMAR SRC LOC: " + res.grammarSourceLocation);
-                pw.println("SOURCE OUT LOC: " + res.javaSourceOutputLocation);
-                pw.println("ORIG FILE: " + res.originalFilePath);
-                pw.println("FULL JFS LISTING:");
+                pw.accept("COMPILE RESULT: " + cr);
+                pw.accept("GEN PACKAGE: " + res.packageName);
+                pw.accept("GRAMMAR SRC LOC: " + res.grammarSourceLocation);
+                pw.accept("SOURCE OUT LOC: " + res.javaSourceOutputLocation);
+                pw.accept("ORIG FILE: " + res.originalFilePath);
+                pw.accept("FULL JFS LISTING:");
                 res.jfs.listAll((loc, fo) -> {
-                    pw.println(" * " + loc + "\t" + fo);
+                    pw.accept(" * " + loc + "\t" + fo);
                 });
             }
             boolean foundCantResolveLocation = false;
@@ -655,14 +670,18 @@ public class AntlrRunSubscriptions {
                 printOneDiagnostic(pw, diag, res);
             }
             if (rebuild && foundCantResolveLocation) {
-                pw.println();
-                pw.println("Error may be due to old source files obsoleted by grammar changes.  Deleting all generated files and retrying.");
-                LOG.log(Level.FINE, "Compiler could not resolve files.  Deleting "
-                        + "generated code, regenerating and recompiling: {0}", cr.diagnostics());
+                if (AntlrLoggers.isActive(writer)) {
+                    pw.accept("");
+                    pw.accept("Error may be due to old source files obsoleted by grammar changes.  Deleting all generated files and retrying.");
+                    LOG.log(Level.FINE, "Compiler could not resolve files.  Deleting "
+                            + "generated code, regenerating and recompiling: {0}", cr.diagnostics());
+                }
                 JFS jfs = res.jfsSupplier.get();
                 if (!jfs.id().equals(res.jfs.id())) {
-                    LOG.log(Level.FINE, "JFS " + res.jfs.id() + " has been replaced with new JFS " + jfs.id());
+                    LOG.log(Level.FINE, "JFS {0} has been replaced with new JFS {1}", new Object[]{res.jfs.id(), jfs.id()});
                 }
+                bldr.setOptions(bldr.options().rebuildAllSources());
+
                 cr = jfs.whileWriteLocked(() -> {
 //                    jfs.list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
 //                        pw.println("Delete " + fo.getName());
@@ -677,14 +696,14 @@ public class AntlrRunSubscriptions {
             return cr;
         }
 
-        void printOneDiagnostic(PrintWriter pw, JavacDiagnostic diag, AntlrGenerationResult res) {
-            pw.println(diag.message() + " at " + diag.lineNumber() + ":" + diag.columnNumber() + " in " + diag.fileName());
+        void printOneDiagnostic(Consumer<String> pw, JavacDiagnostic diag, AntlrGenerationResult res) {
+            pw.accept(diag.message() + " at " + diag.lineNumber() + ":" + diag.columnNumber() + " in " + diag.fileName());
             JFSFileObject fo = res.jfs().get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(diag.sourceRootRelativePath()));
             if (fo == null) {
                 fo = res.jfs().get(StandardLocation.SOURCE_PATH, UnixPath.get(diag.sourceRootRelativePath()));
             }
             if (fo != null) {
-                pw.println(diag.context(fo));
+                pw.accept(diag.context(fo));
             }
         }
 

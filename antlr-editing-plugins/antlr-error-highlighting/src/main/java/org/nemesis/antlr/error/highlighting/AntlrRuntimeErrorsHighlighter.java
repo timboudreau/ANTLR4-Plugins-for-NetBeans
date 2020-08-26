@@ -310,7 +310,7 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
     })
     public static HighlightsLayerFactory factory() {
         return AbstractHighlighter.factory("antlr-runtime-errors",
-                ZOrder.CARET_RACK,
+                ZOrder.SYNTAX_RACK,
                 ctx -> new AntlrRuntimeErrorsHighlighter(ctx), true);
     }
 

@@ -21,6 +21,7 @@ import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import org.nemesis.antlr.ANTLRv4Parser;
+import org.nemesis.antlr.error.highlighting.hints.util.EditorAttributesFinder;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
@@ -39,10 +40,11 @@ public abstract class AntlrHintGenerator {
 
     @SuppressWarnings("NonConstantLogger")
     protected final Logger LOG = Logger.getLogger(getClass().getName());
+    private EditorAttributesFinder attrsFinder;
 
     static List<AntlrHintGenerator> all;
 
-    public static List<AntlrHintGenerator> all() {
+    public static synchronized List<AntlrHintGenerator> all() {
         if (all == null) {
             List<AntlrHintGenerator> result = new ArrayList<>();
             result.addAll(Lookup.getDefault().lookupAll(AntlrHintGenerator.class));
@@ -54,12 +56,42 @@ public abstract class AntlrHintGenerator {
     protected AntlrHintGenerator() {
     }
 
+    /**
+     * Get a utility object that can lookup colorings by name from
+     * FontColorSettings for the Antlr grammar mime type and listens correctly
+     * for changes.
+     *
+     * @return An EditorAttributesFinder which wil be cached for the lifetime of
+     * this object
+     */
+    protected final EditorAttributesFinder colorings() {
+        if (attrsFinder == null) {
+            attrsFinder = new EditorAttributesFinder();
+        }
+        return attrsFinder;
+    }
+
+    /**
+     * Set whether or not this highlighter / hint generator is enabled.
+     *
+     * @return If it is enabled
+     */
     public final boolean isEnabled() {
         return NbPreferences.forModule(getClass()).getBoolean("enable-" + getClass().getSimpleName(), true);
     }
 
-    public final void setEnabled(boolean val) {
-        NbPreferences.forModule(getClass()).putBoolean("enable-" + getClass().getSimpleName(), val);
+    /**
+     * Returns whether or not this highlighter / hint generator is enabled.
+     *
+     * @return If the value was changed by this call
+     */
+    public final boolean setEnabled(boolean val) {
+        boolean wasEnabled = isEnabled();
+        if (wasEnabled != val) {
+            NbPreferences.forModule(getClass()).putBoolean("enable-" + getClass().getSimpleName(), val);
+            return true;
+        }
+        return false;
     }
 
     /**

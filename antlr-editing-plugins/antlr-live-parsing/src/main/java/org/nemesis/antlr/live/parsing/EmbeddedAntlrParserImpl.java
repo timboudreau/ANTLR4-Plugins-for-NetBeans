@@ -145,9 +145,11 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             return false;
         }
         if (!info.isUpToDate() || info.parser instanceof DeadEmbeddedParser) {
-            LOG.log(Level.FINE, "{0} force reparse due to {1}",
-                    new Object[]{path.getFileName(), info});
-            forceGrammarFileReparse(info);
+            LOG.log(Level.FINE, "{0} force reparse due to {1} up to date? ",
+                    new Object[]{path.getFileName(), new Object[]{info, info.isUpToDate()}});
+            System.out.println("INFO UP TO DATE " + info.isUpToDate() + " is dead parser "
+                + (info.parser instanceof DeadEmbeddedParser) + ": " + info);
+//            forceGrammarFileReparse(info);
             return true;
         }
         return false;
@@ -318,6 +320,9 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         if (info.runResult != null && info.runResult.genResult() != null
                 && info.runResult.genResult().generationResult() != null) {
             AntlrGenerationResult toCheck = info.runResult.genResult().generationResult();
+            if (toCheck.isReusable()) {
+                return false;
+            }
             if (RebuildSubscriptions.isThrottled(toCheck)) {
                 return false;
             }
@@ -329,6 +334,10 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 LOG.log(Level.FINEST, "Invalidated Source for {0}", fo.getNameExt());
                 Source src = Source.create(fo);
                 ParserManager.parse(Collections.singleton(src), new UT());
+                EmbeddedParsingEnvironment currEnv = environment.get();
+                if (currEnv != null && currEnv != info) {
+                    currEnv.modifications.changesAndReset();
+                }
                 return true;
             } else {
                 EmbeddedAntlrParsers.onAtteptToParseNonExistentFile(this);
@@ -605,7 +614,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                     null, "-", grammarName);
             this.seq = "-";
         }
-        
+
         long tokenNamesChecksum() {
             return parserResult.proxy() == null || parserResult.proxy().isUnparsed()
                     ? 0 : parserResult.proxy().tokenNamesChecksum();

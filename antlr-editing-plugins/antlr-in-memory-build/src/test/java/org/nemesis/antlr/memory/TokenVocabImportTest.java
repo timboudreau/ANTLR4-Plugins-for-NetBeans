@@ -32,7 +32,10 @@ import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Document;
 import javax.tools.StandardLocation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -82,6 +85,26 @@ public class TokenVocabImportTest {
                     .building(PACKAGE_PATH, PACKAGE_PATH)
                     .run(PARSER_NAME, ps, true);
 
+            assertNotNull(parserResult.mainGrammar);
+            assertEquals("MarkdownParser", parserResult.mainGrammar.name);
+            assertEquals("com/poozle/MarkdownParser.g4", parserResult.mainGrammar.fileName);
+
+            AntlrGenerationResult sib = parserResult.forSiblingGrammar(Paths.get("something-else"), UnixPath.get("com/poozle/MarkdownLexer.g4"), "com.poozle");
+            assertNotNull(sib);
+            assertNotSame(parserResult.mainGrammar, sib.mainGrammar);
+            assertNotEquals(sib.grammarFileLastModified, parserResult.grammarFileLastModified);
+
+            System.out.println("DEP GRAPH: " + sib.dependencyGraph());
+            System.out.println("CLO: " + sib.dependencyGraph().closureOf(PARSER_PATH));
+            System.out.println("CLO2: " + sib.dependencyGraph().closureOf(LEXER_PATH));
+
+            System.out.println("\nFILE STAT " + sib.filesStatus);
+            System.out.println("\nGENFILES " + sib.newlyGeneratedFiles);
+
+            System.out.println("\nCHANGES " + sib.filesStatus.changes());
+
+            assertTrue(sib.filesStatus.changes().isUpToDate());
+
             assertNotNull(parserResult);
             assertTrue(parserResult.isSuccess(), parserResult::toString);
             JFSFileObject tokensFile = parserResult.jfs.get(StandardLocation.SOURCE_PATH,
@@ -123,6 +146,17 @@ public class TokenVocabImportTest {
             result2.rethrow();
             assertTrue(parserResult.areOutputFilesUpdated(UnixPath.get("com/poozle/MarkdownParser.g4")));
 
+            assertTrue(result2.filesStatus.changes().isUpToDate());
+            lexerDoc.insertString(lexerDoc.getLength()-1, " ", null);
+            assertFalse(result2.filesStatus.changes().isUpToDate());
+            lexerDoc.remove(lexerDoc.getLength()-2, 1);
+            assertTrue(result2.filesStatus.changes().isUpToDate(), "Hashing should result in no "
+                    + "modifications if a string is inserted then removed from a mapped document");
+
+            lexerDoc.insertString(lexerDoc.getLength()-1, "fragment WURB='blee';\n", null);
+            System.out.println("CHANGES NOW " + result2.filesStatus.changes());
+            assertFalse(result2.filesStatus.changes().isUpToDate());
+            assertTrue(result2.filesStatus.changes().modified().contains(LEXER_PATH));
         } catch (Exception ex) {
             String out = new String(baos.toByteArray(), UTF_8);
             AssertionError err = new AssertionError("Build output: " + out, ex);
@@ -130,11 +164,13 @@ public class TokenVocabImportTest {
         }
     }
 
+    Document lexerDoc;
+    Document parserDoc;
     @BeforeEach
-    public void setup() throws IOException, BadLocationException {
+    public void setup() throws IOException, BadLocationException, InterruptedException {
         JFS jfs = JFS.builder().build();
-        jfs.masquerade(loadRelativeDocument(LEXER_NAME), StandardLocation.SOURCE_PATH, LEXER_PATH);
-        jfs.masquerade(loadRelativeDocument(PARSER_NAME), StandardLocation.SOURCE_PATH, PARSER_PATH);
+        jfs.masquerade(lexerDoc = loadRelativeDocument(LEXER_NAME), StandardLocation.SOURCE_PATH, LEXER_PATH);
+        jfs.masquerade(parserDoc = loadRelativeDocument(PARSER_NAME), StandardLocation.SOURCE_PATH, PARSER_PATH);
         bldr = AntlrGenerator.builder(() -> jfs)
                 .withOriginalFile(Paths.get("path-to-nothing"))
                 .withTokensHash("xxxx")
@@ -143,11 +179,14 @@ public class TokenVocabImportTest {
                 .generateIntoJavaPackage(PKG);
     }
 
-    static Document loadRelativeDocument(String name) throws IOException, BadLocationException {
+    static Document loadRelativeDocument(String name) throws IOException, BadLocationException, InterruptedException {
         try (InputStream in = TokenVocabImportTest.class.getResourceAsStream(name)) {
             assertNotNull(in, name + " not adjacent to " + TokenVocabImportTest.class.getName() + " on classpath");
             DefaultStyledDocument doc = new DefaultStyledDocument();
             doc.insertString(0, Streams.readUTF8String(in), null);
+            // Just guarantee the files don't have the same millisecond timestamp - they could
+            // which could cause a test failure
+            Thread.sleep(2);
             return doc;
         }
     }

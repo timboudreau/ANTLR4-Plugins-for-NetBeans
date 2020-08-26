@@ -29,7 +29,7 @@ import org.nemesis.extraction.Extraction;
  * can be passed to the dispatcher for the Subscribable implementation maintained by
  * AntlrGenerationSubscriptionsImpl.
  */
-final class AntlrRegenerationEvent implements Consumer<Subscriber> {
+final class AntlrRegenerationEvent implements Consumer<Subscriber>, Comparable<AntlrRegenerationEvent> {
 
     final ANTLRv4Parser.GrammarFileContext tree;
     final Extraction extraction;
@@ -50,9 +50,28 @@ final class AntlrRegenerationEvent implements Consumer<Subscriber> {
         t.onRebuilt(tree, AntlrConstants.ANTLR_MIME_TYPE, extraction, res, populate, fixes);
     }
 
+    @Override
     public String toString() {
         return "Regen(" + (extraction == null ? "null " + tree
                 : (extraction.source() + " " + extraction.tokensHash()));
     }
 
+    public boolean equals(Object o) {
+        if (o == this) {
+            return true;
+        } else if (o == null || !(o instanceof AntlrRegenerationEvent)) {
+            return false;
+        }
+        AntlrRegenerationEvent other = (AntlrRegenerationEvent) o;
+        return res.originalFilePath.equals(other.res.originalFilePath);
+    }
+
+    public int hashCode() {
+        return res.originalFilePath.hashCode();
+    }
+
+    @Override
+    public int compareTo(AntlrRegenerationEvent o) {
+        return Long.compare(extraction.sourceLastModifiedAtExtractionTime(), o.extraction.sourceLastModifiedAtExtractionTime());
+    }
 }

@@ -15,8 +15,10 @@
  */
 package org.nemesis.antlr.highlighting;
 
+import java.awt.EventQueue;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.CaretEvent;
@@ -108,7 +110,9 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
         if (isActive()) {
             Document doc = ctx.getDocument();
             if (doc != null) {
-                ParseCoalescer.getDefault().enqueueParse(doc, this);
+                EventQueue.invokeLater(() -> {
+                    ParseCoalescer.getDefault().enqueueParse(doc, this);
+                });
             }
         }
     }
@@ -146,9 +150,11 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
         });
     }
 
-    static final class DocumentOriented<T> extends GeneralHighlighter<T> implements DocumentListener, LookupListener {
+    static final class DocumentOriented<T> extends GeneralHighlighter<T>
+            implements DocumentListener, LookupListener, Runnable {
 
         private Lookup.Result<FontColorSettings> res;
+        private AtomicBoolean pendingRefresh = new AtomicBoolean();
 
         @SuppressWarnings("LeakingThisInConstructor")
         public DocumentOriented(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
@@ -162,7 +168,7 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
             res.addLookupListener(this);
             res.allInstances();
             if (pane != null) {
-                scheduleRefresh();
+                enqueue();
             }
         }
 
@@ -178,12 +184,12 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
 
         @Override
         public final void insertUpdate(DocumentEvent e) {
-            scheduleRefresh();
+            enqueue();
         }
 
         @Override
         public final void removeUpdate(DocumentEvent e) {
-            scheduleRefresh();
+            enqueue();
         }
 
         @Override
@@ -193,7 +199,23 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
 
         @Override
         public void resultChanged(LookupEvent ev) {
-            scheduleRefresh();
+            enqueue();
+        }
+
+        void enqueue() {
+            // This ensures that we don't do our reparse BEFORE
+            // the current key/document event has been processed and
+            // wind up parsing the text of the file prior to the
+            // edit the user is doing right now
+            if (pendingRefresh.compareAndSet(false, true)) {
+                EventQueue.invokeLater(this);
+            }
+        }
+
+        public void run() {
+            if (pendingRefresh.compareAndSet(true, false)) {
+                scheduleRefresh();
+            }
         }
     }
 

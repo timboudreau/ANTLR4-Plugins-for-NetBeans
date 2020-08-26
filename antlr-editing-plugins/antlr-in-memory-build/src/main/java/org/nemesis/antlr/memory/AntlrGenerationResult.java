@@ -135,8 +135,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public AntlrGenerationResult cleanOldOutput() throws IOException {
         if (!jfs.isEmpty()) {
             jfs.whileWriteLocked(() -> {
-                Set<JFSCoordinates.Resolvable> all = new HashSet<>(newlyGeneratedFiles.size() +
-                        modifiedFiles.size());
+                Set<JFSCoordinates.Resolvable> all = new HashSet<>(newlyGeneratedFiles.size()
+                        + modifiedFiles.size());
                 all.addAll(newlyGeneratedFiles);
                 all.addAll(modifiedFiles.keySet());
                 Set<JFSFileObject> set = new HashSet<>();
@@ -238,11 +238,26 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return false;
     }
 
+    public boolean isUpToDate() {
+        return filesStatus.changes().isUpToDate();
+    }
+
+    public boolean isReusable() {
+        return isUsable() && exitCode() == 0 && isSuccess() && isUpToDate();
+    }
+
     public AntlrGenerator toGenerator() {
         return new AntlrGenerator(toBuilder());
     }
 
     public AntlrGenerationResult rebuild() {
+        return rebuild(false);
+    }
+
+    public AntlrGenerationResult rebuild(boolean force) {
+        if (!force && isReusable()) {
+            return this;
+        }
         try (PrintStream printStream = AntlrLoggers.getDefault().printStream(originalFilePath, AntlrLoggers.STD_TASK_GENERATE_ANTLR)) {
             return toGenerator().run(grammarName, printStream, true);
         }

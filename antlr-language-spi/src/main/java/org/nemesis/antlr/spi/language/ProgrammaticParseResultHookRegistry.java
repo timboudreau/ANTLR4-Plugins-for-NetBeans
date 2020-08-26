@@ -192,7 +192,13 @@ final class ProgrammaticParseResultHookRegistry {
     }
 
     <T extends ParserRuleContext> void _register(FileObject fo, ParseResultHook<T> hook) {
-        byFile.get(fo).add(new FileResultHookReference<>(hook, fo));
+        Set<ResultHookReference<?>> hooks = byFile.get(fo);
+        for (ResultHookReference r : hooks) {
+            if (r.get() == hook) {
+                return;
+            }
+        }
+        hooks.add(new FileResultHookReference<>(hook, fo));
     }
 
     <T extends ParserRuleContext> void _register(String mimeType, ParseResultHook<T> hook) {

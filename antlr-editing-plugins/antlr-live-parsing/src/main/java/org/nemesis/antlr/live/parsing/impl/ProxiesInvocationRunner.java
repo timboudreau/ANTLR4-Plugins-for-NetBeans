@@ -19,6 +19,7 @@ import com.mastfrog.function.throwing.ThrowingSupplier;
 import com.mastfrog.function.throwing.ThrowingTriFunction;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.MapFactories;
+import com.mastfrog.util.path.UnixPath;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.Closeable;
 import java.io.File;
@@ -201,7 +202,8 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
     @Override
     protected GenerationResult onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree,
             AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr,
-            String grammarPackageName, Consumer<Supplier<ClassLoader>> csc) throws IOException {
+            String grammarPackageName, Consumer<Supplier<ClassLoader>> csc,
+            Consumer<UnixPath> singleSource) throws IOException {
         return Debug.runObjectIO(this, "onBeforeCompilation", compileMessage(res, extraction, jfs, bldr, grammarPackageName), () -> {
             GrammarKind kind = GrammarKind.forTree(tree);
             Path path = res.originalFilePath;
@@ -228,6 +230,8 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                             genResult,
                             (extraction == null ? "" : extraction.tokensHash())
                         });
+
+                singleSource.accept(genResult.generatedFile().path());
 
                 bldr.verbose().withMaxErrors(10).withMaxWarnings(10).nonIdeMode().abortOnBadClassFile();
 

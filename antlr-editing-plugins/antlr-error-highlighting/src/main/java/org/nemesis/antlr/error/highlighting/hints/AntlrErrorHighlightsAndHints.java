@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -15,17 +15,14 @@
  */
 package org.nemesis.antlr.error.highlighting.hints;
 
+import org.nemesis.antlr.error.highlighting.spi.BadLocationIntBiConsumer;
 import org.nemesis.antlr.error.highlighting.spi.AntlrHintGenerator;
 import com.mastfrog.function.state.Bool;
-import com.mastfrog.function.state.Int;
 import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
 import com.mastfrog.util.path.UnixPath;
-import static com.mastfrog.util.strings.Strings.capitalize;
-import java.awt.Color;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
@@ -34,40 +31,25 @@ import java.util.regex.Pattern;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-import javax.swing.text.Segment;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.ANTLRv4Parser;
-import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
-import org.nemesis.antlr.common.extractiontypes.RuleTypes;
-import org.nemesis.antlr.file.AntlrKeys;
+import org.nemesis.antlr.error.highlighting.spi.ErrorHintGenerator;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.memory.tool.ext.EpsilonRuleInfo;
 import org.nemesis.antlr.memory.tool.ext.ProblematicEbnfInfo;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
-import org.nemesis.data.named.NamedSemanticRegion;
-import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.editor.position.PositionRange;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
-import org.netbeans.api.editor.mimelookup.MimeLookup;
-import org.netbeans.api.editor.mimelookup.MimePath;
-import org.netbeans.api.editor.settings.AttributesUtilities;
-import org.netbeans.api.editor.settings.EditorStyleConstants;
-import org.netbeans.api.editor.settings.FontColorSettings;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
 import org.openide.text.NbDocument;
-import org.openide.util.Exceptions;
-import org.openide.util.Lookup;
-import org.openide.util.LookupEvent;
-import org.openide.util.LookupListener;
 import org.openide.util.NbBundle;
-import org.openide.util.NbBundle.Messages;
 import org.openide.util.Utilities;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -78,95 +60,16 @@ import org.openide.util.lookup.ServiceProvider;
 @NbBundle.Messages({
     "# {0} - unresolvable imported grammar name",
     "unresolved=Unresolvable import: {0}",
-    "capitalize=Capitalize name to make this a lexer rule",
-    "illegalLabel=Cannot use a label here.  Remove?",})
+})
 @ServiceProvider(service = AntlrHintGenerator.class)
-public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator implements LookupListener {
-
-    private Lookup.Result<FontColorSettings> settingsResult;
-    private FontColorSettings settings;
-    private AttributeSet errors;
-    private AttributeSet warnings;
-
-    private FontColorSettings settings() {
-        if (settings != null) {
-            return settings;
-        }
-        if (settingsResult != null) {
-            Collection<? extends FontColorSettings> all = settingsResult.allInstances();
-            if (!all.isEmpty()) {
-                return settings = all.iterator().next();
-            } else {
-                return null;
-            }
-        }
-        Lookup lookup = MimeLookup.getLookup(MimePath.parse(ANTLR_MIME_TYPE));
-        FontColorSettings result = null;
-        settingsResult = lookup.lookupResult(FontColorSettings.class);
-        Collection<? extends FontColorSettings> all = settingsResult.allInstances();
-        if (!all.isEmpty()) {
-            result = all.iterator().next();
-        }
-        settingsResult.addLookupListener(this);;
-        return settings = result;
-    }
-
-    @Override
-    public void resultChanged(LookupEvent le) {
-        settings = null;
-        errors = null;
-        warnings = null;
-    }
-
-    private AttributeSet defaultErrors() {
-        return AttributesUtilities.createImmutable(
-                EditorStyleConstants.WaveUnderlineColor,
-                Color.RED.darker());
-    }
-
-    private AttributeSet defaultWarnings() {
-        return AttributesUtilities.createImmutable(
-                EditorStyleConstants.WaveUnderlineColor,
-                Color.ORANGE);
-    }
-
-    private AttributeSet find(String... names) {
-        FontColorSettings colorings = settings();
-        if (colorings == null) {
-            return null;
-        }
-        for (String nm : names) {
-            AttributeSet attrs = colorings.getFontColors(nm);
-            if (attrs == null) {
-                attrs = colorings.getTokenFontColors(nm);
-            }
-            if (attrs != null) {
-                return attrs;
-            }
-        }
-        return null;
-    }
+public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator {
 
     private AttributeSet errors() {
-        if (errors != null) {
-            return errors;
-        }
-        AttributeSet result = find("error", "errors");
-        if (result == null) {
-            result = defaultErrors();
-        }
-        return errors = result;
+        return super.colorings().errors();
     }
 
     private AttributeSet warnings() {
-        if (warnings != null) {
-            return warnings;
-        }
-        AttributeSet result = find("error", "errors");
-        if (result == null) {
-            result = defaultWarnings();
-        }
-        return warnings = result;
+        return super.colorings().warnings();
     }
 
     @Override
@@ -242,14 +145,14 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
                                     + " from {2} to {3}", new Object[]{err.length(), err, startOffset, endOffset});
                             return;
                         }
-                        if (!handleFix(err, fixes, extraction, doc, positions,
-                                brandNewBag, anyHighlights)) {
+                        boolean handled = ErrorHintGenerator.handleError(tree, err, fixes, extraction, doc, positions, brandNewBag, anyHighlights, this::colorings);
+                        if (!handled) {
 //                            String errId = err.lineNumber() + ";" + err.code() + ";" + err.lineOffset();
                             String errId = err.id();
+                            anyHighlights.set();
+                            brandNewBag.addHighlight(startOffset, Math.max(startOffset + err.length(), endOffset),
+                                    err.isError() ? errors() : warnings());
                             if (!fixes.isUsedErrorId(errId)) {
-                                anyHighlights.set();
-                                brandNewBag.addHighlight(startOffset, Math.max(startOffset + err.length(), endOffset),
-                                        err.isError() ? errors() : warnings());
                                 if (err.isError()) {
                                     LOG.log(Level.FINEST, "Add error for {0} offsets {1}:{2}",
                                             new Object[]{err, startOffset, endOffset});
@@ -292,198 +195,8 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
         }
     }
 
-    /**
-     * Recognize the error code, and if it's one we can provide a fix for, do
-     * that, rather than using the stock highlighting.
-     *
-     * @param err The error
-     * @param fixes The fixes
-     * @param ext The extraction
-     * @param doc The document
-     * @param positions The position factory
-     * @return True if the error was handled
-     * @throws BadLocationException
-     */
-    @Messages({
-        "# {0} - reason",
-        "deleteRuleForReason=Delete rule? {0}"
-    })
-    boolean handleFix(ParsedAntlrError err, Fixes fixes, Extraction ext,
-            Document doc, PositionFactory positions, OffsetsBag brandNewBag, Bool anyHighlights) throws BadLocationException {
-        EpsilonRuleInfo eps = err.info(EpsilonRuleInfo.class);
-        if (eps != null) {
-            return handleEpsilon(err, fixes, ext, eps, brandNewBag, anyHighlights);
-        }
-        switch (err.code()) {
-            case 50 : // 'foo' came as a complete surprise to me
-                offsetsOf(doc, err, (start, end) -> {
-                    fixes.addError(err.id(), positions.range(start, end), stringifyUnexpectedTokenMessage(err.message()),
-                            () -> htmlifyUnexpectedTokenMessage(err.message()));
-                    brandNewBag.addHighlight(start, end, errors());
-                    anyHighlights.set();
-                });
-                return true;
-            case 51: // rule redefinition
-            case 52: // lexer rule in parser grammar
-            case 53: // parser rule in lexer grammar
-            case 184: // rule overlapped by other rule and will never be used
-                String errId = err.id();
-                if (fixes.isUsedErrorId(errId)) {
-                    return false;
-                }
-                Bool handled = Bool.create();
-                offsetsOf(doc, err, (start, end) -> {
-                    NamedSemanticRegion<RuleTypes> region = ext.namedRegions(AntlrKeys.RULE_BOUNDS).at(start);
-                    if (region == null) {
-                        LOG.log(Level.FINER, "No region at {0} for {1}", new Object[]{start, err});
-                        return;
-                    }
-                    PositionRange pr = positions.range(region);
-                    fixes.addError(errId, region.start(), region.end(), err.message(), fixConsumer -> {
-                        if (err.code() == 53) {
-                            String name = findRuleNameInErrorMessage(err.message());
-                            if (name != null) {
-                                try {
-                                    PositionRange rng = positions.range(start, end);
-                                    brandNewBag.addHighlight(start, end, errors());
-                                    anyHighlights.set();
-                                    fixConsumer.addFix(Bundle.capitalize(), bag -> {
-                                        bag.replace(rng, capitalize(name));
-                                    });
-                                } catch (BadLocationException ex) {
-                                    Exceptions.printStackTrace(ex);
-                                }
-                            }
-                        }
-                        fixConsumer.addFix(Bundle.deleteRuleForReason(err.message()),
-                                bag -> bag.delete(pr));
-                        handled.set(true);
-                    });
-                });
-                return handled.get();
-            case 119:
-                // e.g., "The following sets of rules are mutually left-recursive [foo, baz, koog]"
-                int bstart = err.message().lastIndexOf('[') + 1;
-                int bend = err.message().lastIndexOf(']') + 1;
-                boolean res = false;
-                if (bend > bstart + 1 && bstart > 0) {
-                    String sub = err.message().substring(bstart, bend - 1);
-                    NamedSemanticRegions<RuleTypes> regions = ext.namedRegions(AntlrKeys.RULE_NAMES);
-                    String[] all = sub.split(",");
-                    String first = all.length > 0 ? all[0].trim() : null;
-                    if (first != null) {
-                        String eid = err.id();
-                        if (!fixes.isUsedErrorId(eid)) {
-                            NamedSemanticRegion<RuleTypes> reg = regions.regionFor(first);
-                            String smsg = stringifyLeftRecursionMessage(err.message());
-                            if (reg != null) {
-                                brandNewBag.addHighlight(reg.start(), reg.end(), errors());
-                                anyHighlights.set();
-                                fixes.addError(eid, reg, smsg, () -> htmlifyLeftRecursionMessage(err.message()));
-                                res = true;
-                            } else {
-                                LOG.log(Level.INFO, "Did not find a region for ''{0}'' in "
-                                        + "{1}", new Object[]{first, err.message()});
-                                if (err.hasFileOffset()) {
-                                    fixes.addError(eid, err.fileOffset(), err.fileOffset()
-                                            + err.length(), smsg, () -> htmlifyLeftRecursionMessage(err.message()));
-                                    res = true;
-                                }
-                            }
-                        } else {
-                            LOG.log(Level.FINEST, "Already handled eid {0} for {1}",
-                                    new Object[]{eid, first});
-                        }
-                    } else {
-                        LOG.log(Level.FINER, "Did not find any rule names in {0}", err.message());
-                    }
-                } else {
-                    LOG.log(Level.FINER, "Err message not parseable - bracket "
-                            + "start {0} bracket end {1}",
-                            new Object[]{bstart, bend});
-                }
-                return res;
-            // error 130 : label str assigned to a block which is not a set
-            case 130: // Parser rule Label assigned to a block which is not a set
-            case 201: // label in a lexer rule
-
-                String errId2 = err.id();
-                if (!fixes.isUsedErrorId(errId2)) {
-                    Bool added = Bool.create();
-                    offsetsOf(doc, err, (start, end) -> {
-                        if (end > start) {
-                            PositionRange pbr = positions.range(start, end);
-                            fixes.addError(pbr, err.message(), Bundle::illegalLabel, fixen -> {
-                                Int realEnd = Int.of(-1);
-                                boolean docFound = ext.source().lookup(Document.class, d -> {
-                                    d.render(() -> {
-                                        Segment seg = new Segment();
-                                        int len = d.getLength();
-                                        if (len > pbr.end()) {
-                                            try {
-                                                d.getText(pbr.end(), len - pbr.end(), seg);
-                                                for (int i = 0; i < seg.length(); i++) {
-                                                    if ('=' == seg.charAt(i)) {
-                                                        realEnd.set(i + 1);
-                                                        return;
-                                                    }
-                                                }
-                                            } catch (BadLocationException ex) {
-                                                LOG.log(Level.SEVERE, null, ex);
-                                            }
-                                        }
-                                    });
-                                });
-                                if (!docFound) {
-                                    LOG.log(Level.FINER, "No doc");
-                                }
-                                if (realEnd.getAsInt() > pbr.start()) {
-                                    brandNewBag.addHighlight(start, end, errors());
-                                    anyHighlights.set();
-                                    fixen.addFix(Bundle.illegalLabel(), bag -> {
-                                        bag.delete(pbr);
-                                    });
-                                    added.set();
-                                } else {
-                                    LOG.log(Level.FINER, "Start end mismatch {0} vs {1}",
-                                            new Object[]{pbr.start(), realEnd.getAsInt()});
-                                }
-                            });
-                        }
-                    });
-                    return added.get();
-                }
-            default:
-                return false;
-        }
-    }
-
-    private static String findRuleNameInErrorMessage(String msg) {
-        String msgStart = "parser rule ";
-        // parser rule
-        if (msg.startsWith(msgStart) && msg.length() > msgStart.length()) {
-            StringBuilder sb = new StringBuilder();
-            for (int i = msgStart.length(); i < msg.length(); i++) {
-                char c = msg.charAt(i);
-                if (Character.isLetter(c) || Character.isDigit(c)) {
-                    sb.append(c);
-                } else {
-                    break;
-                }
-            }
-            if (sb.length() > 0) {
-                return sb.toString();
-            }
-        }
-        return null;
-    }
-
-    interface BadLocationIntBiConsumer {
-
-        void accept(int start, int end) throws BadLocationException;
-    }
-
     private static final boolean WIN = Utilities.isWindows();
+
     private int offsetsOf(Document doc, ParsedAntlrError error, BadLocationIntBiConsumer startEnd) throws BadLocationException {
         if (!WIN && error.hasFileOffset()) {
             // The updated and optimized line offset finding in MemoryTool seems
@@ -553,7 +266,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
 
             String pid = prob.text() + "-" + prob.start() + ":" + prob.end();
             LOG.log(Level.FINEST, "Handle epsilon {0}", eps);
-            brandNewBag.addHighlight(rng.start(), rng.end(), warnings);
+            brandNewBag.addHighlight(rng.start(), rng.end(), warnings());
             fixes.addError(pid, problemBlock, msg, () -> {
                 String repl = computeReplacement(prob.text());
                 String prepl = computePlusReplacement(prob.text());
@@ -576,7 +289,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
             IntRange<? extends IntRange<?>> vr = Range.ofCoordinates(eps.victimStart(), eps.victimEnd());
             String victimErrId = vr + "-" + err.code();
             if (!fixes.isUsedErrorId(victimErrId)) {
-                brandNewBag.addHighlight(vr.start(), vr.end(), warnings);
+                brandNewBag.addHighlight(vr.start(), vr.end(), warnings());
                 anyHighlights.set();
                 fixes.addWarning(victimErrId, vr.start(), vr.end(), eps.victimErrorMessage());
                 return true;
@@ -698,61 +411,5 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator imple
             }
         }
         return result;
-    }
-
-    private static final Pattern SURPRISE_PATTERN = Pattern.compile("^.*?'(.*?)'.*");
-
-    @Messages({
-        "# {0} - token",
-        "unexpectedMsg=Bad syntax - unexpected token ''{0}''",
-        "# {0} - token",
-        "unexpectedMsgHtml=Bad syntax - unexpected token <i>{0}</i>",})
-    static String stringifyUnexpectedTokenMessage(String msg) {
-        Matcher m = SURPRISE_PATTERN.matcher(msg);
-        if (m.find()) {
-            return Bundle.unexpectedMsg(m.group(1));
-        }
-        return msg;
-    }
-
-    static String htmlifyUnexpectedTokenMessage(String msg) {
-        Matcher m = SURPRISE_PATTERN.matcher(msg);
-        if (m.find()) {
-            return Bundle.unexpectedMsgHtml(m.group(1));
-        }
-        return msg;
-    }
-
-    static String stringifyLeftRecursionMessage(String msg) {
-        Matcher m = LEFT_RECUR_PATTERN.matcher(msg);
-        if (m.find()) {
-            String[] parts = m.group(2).split(",");
-            StringBuilder sb = new StringBuilder(msg.length() + (parts.length * 4));
-            sb.append(m.group(1));
-            sb.append(' ');
-            for (int i = 0; i < parts.length; i++) {
-                sb.append(' ').append(i + 1).append(". ").append(parts[i]);
-            }
-            return sb.toString();
-        }
-        return msg;
-
-    }
-
-    private static final Pattern LEFT_RECUR_PATTERN = Pattern.compile("^(.*?)\\s*\\[(.*?)\\].*");
-
-    static String htmlifyLeftRecursionMessage(String msg) {
-        Matcher m = LEFT_RECUR_PATTERN.matcher(msg);
-        if (m.find()) {
-            StringBuilder sb = new StringBuilder("<html>");
-            sb.append(m.group(1));
-            String[] parts = m.group(2).split(",");
-            sb.append("<ul>");
-            for (String part : parts) {
-                sb.append("<li>").append(part).append("</li>");
-            }
-            return sb.append("</ul></html>").toString();
-        }
-        return msg;
     }
 }

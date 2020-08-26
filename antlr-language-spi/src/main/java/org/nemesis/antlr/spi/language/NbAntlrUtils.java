@@ -91,21 +91,22 @@ public final class NbAntlrUtils {
 
     public static void parseImmediately( Document doc, BiConsumer<Extraction, Exception> consumer ) {
         long ts = DocumentUtilities.getDocumentVersion( doc );
-        Extraction result = null;
-        synchronized ( NbAntlrUtils.class ) {
-            if ( lastExtractionRev == ts && lastExtraction != null ) {
-                if ( lastDocumentIdHash == System.identityHashCode( doc ) ) {
-                    Extraction cached = lastExtraction.get();
-                    if ( cached != null ) {
-                        result = cached;
-                    }
-                }
-            }
-        }
-        if ( result != null ) {
-            consumer.accept( result, null );
-            return;
-        }
+//        Extraction result = null;
+//        synchronized ( NbAntlrUtils.class ) {
+//            if ( lastExtractionRev == ts && lastExtraction != null ) {
+//                if ( lastDocumentIdHash == System.identityHashCode( doc ) ) {
+//                    Extraction cached = lastExtraction.get();
+//                    if ( cached != null && !cached.isSourceProbablyModifiedSinceCreation()) {
+//                        System.out.println( "\n\nUSE CACHED" );
+//                        result = cached;
+//                    }
+//                }
+//            }
+//        }
+//        if ( result != null ) {
+//            consumer.accept( result, null );
+//            return;
+//        }
         parseImmediately( Source.create( doc ), ( ext, exp ) -> {
                       if ( exp == null && ext != null ) {
                           synchronized ( NbAntlrUtils.class ) {
@@ -411,7 +412,7 @@ public final class NbAntlrUtils {
         try {
             result = parseImmediately( document );
             if ( ref != null && result != null && !result.isPlaceholder() ) {
-                ref.set( new TimedWeakReference<Extraction>( result ) );
+                ref.set( new TimedWeakReference<>( result ) );
             }
         } catch ( Exception ex ) {
             Exceptions.printStackTrace( ex );

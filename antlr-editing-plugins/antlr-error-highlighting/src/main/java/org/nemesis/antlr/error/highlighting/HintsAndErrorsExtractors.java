@@ -89,6 +89,9 @@ public class HintsAndErrorsExtractors {
     public static final RegionsKey<Integer> SUPERFLUOUS_PARENTEHSES
             = RegionsKey.create(Integer.class, "superfluous-parentheses");
 
+    public static final RegionsKey<String> ALTERNATIVES =
+            RegionsKey.create(String.class, "");
+
     @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE,
             entryPoint = ANTLRv4Parser.GrammarFileContext.class)
     public static void populateBuilder(ExtractorBuilder<? super ANTLRv4Parser.GrammarFileContext> bldr) {

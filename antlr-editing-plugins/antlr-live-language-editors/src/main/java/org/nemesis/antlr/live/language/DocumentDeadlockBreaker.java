@@ -35,7 +35,7 @@ final class DocumentDeadlockBreaker {
     private static final Logger LOG = Logger.getLogger(DocumentDeadlockBreaker.class.getName());
 
     static {
-        Thread killThread = new Thread("adhoc-doc-deadlock-breaker");
+        Thread killThread = new Thread(DocumentDeadlockBreaker::loop, "adhoc-doc-deadlock-breaker");
         killThread.setPriority(Thread.NORM_PRIORITY - 1);
         killThread.setDaemon(true);
         killThread.setUncaughtExceptionHandler((Thread t, Throwable e) -> {
@@ -50,12 +50,20 @@ final class DocumentDeadlockBreaker {
         return e;
     }
 
-    static void loop() throws InterruptedException {
+    static void loop() {
         for (;;) {
-            Entry e = DQ.take();
-            if (!e.isDone()) {
-                LOG.log(Level.WARNING, "Deadlock breaker interrupting {0}", e);
-                e.kill();
+            String last = null;
+            try {
+                Entry e = DQ.take();
+                last = e.toString();
+                if (!e.isDone()) {
+                    LOG.log(Level.WARNING,
+                            "Deadlock breaker interrupting {0}", e);
+                    e.kill();
+                }
+            } catch (Exception ex) {
+                LOG.log(Level.INFO,
+                        "Exception in deadlock breaker; last: " + last, ex);
             }
         }
     }
@@ -78,9 +86,18 @@ final class DocumentDeadlockBreaker {
             if (setDone()) {
                 try {
                     thread.interrupt();
+                    Thread.yield();
+                    if (thread.getState() == Thread.State.BLOCKED) {
+                        Logger.getLogger(Entry.class.getName())
+                                .log(Level.WARNING, "Attempted "
+                                        + "to break deadlock in {0} "
+                                        + "but it still appears to be blocked",
+                                        thread);
+                        thread.interrupt();
+                    }
                     return true;
                 } catch (Exception ex) {
-                    Logger.getLogger(Entry.class.getName()).log(Level.INFO, 
+                    Logger.getLogger(Entry.class.getName()).log(Level.INFO,
                             "Exception killing late render task on " + thread, ex);
                 }
             }
@@ -109,6 +126,5 @@ final class DocumentDeadlockBreaker {
         public void run() {
             setDone();
         }
-
     }
 }

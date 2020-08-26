@@ -287,6 +287,15 @@ public final class AntlrGenerator {
         }
     }
 
+    public AntlrGenerationResult createFailedResult(Throwable thrown) {
+        return new AntlrGenerationResult(false, 1, thrown, UnixPath.get(this.originalFile.getFileName()).rawName(),
+                null, Collections.emptyList(), null, 0, Collections.emptyList(), Collections.emptySet(), Collections.emptyMap(),
+                Collections.emptySet(), jfs.get(), grammarSourceLocation, outputLocation, packageName, virtualSourcePath, virtualImportDir,
+                generateAll, opts, grammarEncoding, originalTokensHash, originalFile, jfs, 
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), 0,
+                pathHints, interceptor);
+    }
+
     private AntlrGenerationResult internalRun(String grammarFileName, PrintStream logStream, boolean generate) {
 //        System.out.println("RUN " + grammarFileName);
 //        System.out.println(listJFS());

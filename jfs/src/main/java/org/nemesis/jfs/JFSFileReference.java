@@ -130,6 +130,9 @@ final class JFSFileReference implements JFSCoordinates.Resolvable {
     public JFSFileObject resolve(JFS jfs) {
         String loc = locationString();
         JFSStorage stor = jfs.storageForLocation(loc);
+        if (stor == null) {
+            return null;
+        }
         return stor.find(Name.forFileName(path), false);
     }
 

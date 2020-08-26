@@ -15,24 +15,39 @@
  */
 package org.nemesis.antlr.live.language;
 
+import com.mastfrog.range.IntRange;
+import com.mastfrog.range.Range;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.prefs.Preferences;
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import javax.swing.Icon;
+import javax.swing.JComponent;
 import javax.swing.UIManager;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-import javax.swing.text.Element;
 import javax.swing.text.Position;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.live.language.AdhocHighlighterManager.HighlightingInfo;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
@@ -40,7 +55,6 @@ import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.AttributesUtilities;
 import org.netbeans.api.editor.settings.EditorStyleConstants;
 import org.netbeans.api.editor.settings.FontColorSettings;
-import org.netbeans.editor.BaseDocument;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.ZOrder;
@@ -49,10 +63,11 @@ import org.netbeans.spi.editor.hints.ErrorDescription;
 import org.netbeans.spi.editor.hints.ErrorDescriptionFactory;
 import org.netbeans.spi.editor.hints.HintsController;
 import org.netbeans.spi.editor.hints.Severity;
-import org.openide.filesystems.FileObject;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
+import org.openide.util.NbPreferences;
 import org.openide.util.RequestProcessor;
+import org.openide.util.WeakSet;
 
 /**
  *
@@ -60,15 +75,18 @@ import org.openide.util.RequestProcessor;
  */
 public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements Runnable {
 
-    private static final int REFRESH_ERRORS_DELAY=750;
+    private static final int REFRESH_ERRORS_DELAY = 750;
     protected final OffsetsBag bag;
     private static AttributeSet errorColoring;
     private final RequestProcessor.Task refreshErrorsTask;
+    private static final Set<AdhocErrorHighlighter> INSTANCES = new WeakSet<>();
 
+    @SuppressWarnings("LeakingThisInConstructor")
     public AdhocErrorHighlighter(AdhocHighlighterManager mgr) {
         super(mgr, ZOrder.TOP_RACK.forPosition(2001));
         bag = new OffsetsBag(mgr.document());
         refreshErrorsTask = mgr.threadPool().create(this);
+        INSTANCES.add(this);
     }
 
     @Override
@@ -116,68 +134,82 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
     }
 
     @Override
+    @Messages({"buildFailed=Build Failed"})
     protected void refresh(HighlightingInfo info) {
         Document doc = info.doc;
         AntlrProxies.ParseTreeProxy semantics = info.semantics;
-        if (semantics.text() == null || semantics.text().length() < 2) {
-            bag.clear();
-            return;
-        }
-        LOG.log(Level.FINER, "Refresh errors with {0} errors", semantics.syntaxErrors().size());
         OffsetsBag bag = new OffsetsBag(doc, true);
-        AttributeSet attrs = coloring();
         List<ErrorDescription> set = new ArrayList<>();
-        if (!semantics.syntaxErrors().isEmpty()) {
-            for (AntlrProxies.ProxySyntaxError e : semantics.syntaxErrors()) {
-                SimpleAttributeSet ttip = new SimpleAttributeSet(attrs);
-                ttip.addAttribute(EditorStyleConstants.Tooltip, e.message());
-                AttributeSet finalAttrs = AttributesUtilities.createImmutable(ttip);
-                if (e instanceof AntlrProxies.ProxyDetailedSyntaxError) {
-                    AntlrProxies.ProxyDetailedSyntaxError d = (AntlrProxies.ProxyDetailedSyntaxError) e;
-                    int start = Math.max(0, d.startIndex());
-                    int end = Math.min(doc.getLength() - 1, d.stopIndex());
-                    bag.addHighlight(Math.min(start, end), Math.max(start, end), attrs);
-                } else {
-                    if (doc instanceof LineDocument) {
-                        LineDocument ld = (LineDocument) doc;
-                        try {
+        AttributeSet attrs = coloring();
+        if (semantics.text() == null || semantics.text().length() < 2) {
+            // do nothing
+        } else if (semantics.isUnparsed()) {
+            set.add(ErrorDescriptionFactory
+                    .createErrorDescription(org.netbeans.spi.editor.hints.Severity.ERROR,
+                            Bundle.buildFailed(), doc, 0));
+        } else {
+            LOG.log(Level.FINER, "Refresh errors with {0} errors", semantics.syntaxErrors().size());
+            Set<IntRange<? extends IntRange<?>>> used = new HashSet<>();
+            LineDocument ld = LineDocumentUtils.as(doc, LineDocument.class);
+            if (!semantics.syntaxErrors().isEmpty()) {
+                for (AntlrProxies.ProxySyntaxError e : semantics.syntaxErrors()) {
+                    SimpleAttributeSet ttip = new SimpleAttributeSet();
+                    ttip.addAttribute(EditorStyleConstants.WaveUnderlineColor, Color.RED);
+                    ttip.addAttribute(EditorStyleConstants.Tooltip, e.message());
+                    AttributeSet finalAttrs = AttributesUtilities.createComposite(attrs, ttip);
+                    try {
+                        IntRange<? extends IntRange<?>> range;
+                        if (e instanceof AntlrProxies.ProxyDetailedSyntaxError) {
+                            AntlrProxies.ProxyDetailedSyntaxError d = (AntlrProxies.ProxyDetailedSyntaxError) e;
+                            int start = Math.max(0, d.startIndex());
+                            int end = Math.min(doc.getLength() - 1, d.endIndex());
+                            range = Range.ofCoordinates(Math.min(start, end), Math.max(start, end));
+                            bag.addHighlight(range.start(), range.end(),
+                                    finalAttrs);
+                            Position startPos = ld.createPosition(range.start(), Position.Bias.Backward);
+                            Position endPos = ld.createPosition(range.end(), Position.Bias.Forward);
+                            set.add(ErrorDescriptionFactory
+                                    .createErrorDescription(Severity.ERROR, e.message(), doc, startPos, endPos));
+                        } else {
                             int start = LineDocumentUtils.getLineStart(ld, e.line())
                                     + e.charPositionInLine();
-                            int end = LineDocumentUtils.getLineEnd(ld, e.line());
-                            bag.addHighlight(Math.min(start, end), Math.max(start, end), finalAttrs);
+                            int end = LineDocumentUtils.getLineEnd(ld, start);
+                            range = Range.ofCoordinates(Math.min(start, end), Math.max(start, end));
+                            bag.addHighlight(range.start(), range.end(), finalAttrs);
                             LOG.log(Level.FINEST, "Add highlight for {0}", e);
-                            ErrorDescription ed = ErrorDescriptionFactory
-                                    .createErrorDescription(Severity.ERROR, e.message(), doc, e.line());
-                            set.add(ed);
-                        } catch (BadLocationException ble) {
-                            Logger.getLogger(AdhocErrorHighlighter.class.getName()).log(Level.INFO, "BLE parsing " + e, ble);
+                            Position startPos = ld.createPosition(start);
+                            Position endPos = ld.createPosition(end);
+                            set.add(ErrorDescriptionFactory
+                                    .createErrorDescription(Severity.ERROR, e.message(), doc, startPos, endPos));
+                        }
+                        used.add(range);
+                    } catch (BadLocationException ble) {
+                        Logger.getLogger(AdhocErrorHighlighter.class.getName()).log(Level.INFO, "BLE parsing " + e, ble);
+                    }
+                }
+                for (AntlrProxies.ProxyToken tok : semantics.tokens()) {
+                    if (semantics.isErroneousToken(tok)) {
+                        int start = Math.max(0, tok.getStartIndex());
+                        int end = Math.min(doc.getLength() - 1, tok.getEndIndex());
+                        if (!used.contains(Range.ofCoordinates(Math.min(start, end), Math.max(start, end)))) {
+                            bag.addHighlight(Math.min(start, end), Math.max(start, end), attrs);
+                            LOG.log(Level.FINEST, "Add bad token highlight {0}", tok);
                         }
                     }
                 }
             }
-            for (AntlrProxies.ProxyToken tok : semantics.tokens()) {
-                if (semantics.isErroneousToken(tok)) {
-                    int start = Math.max(0, tok.getStartIndex());
-                    int end = Math.min(doc.getLength() - 1, tok.getEndIndex());
-                    bag.addHighlight(Math.min(start, end), Math.max(start, end), attrs);
-                    LOG.log(Level.FINEST, "Add bad token highlight {0}", tok);
-                }
-            }
         }
         // XXX useful but very noisy
-        // Should annotate the grammar document 8once* instead
-        /*
-        List<ErrorDescription> set = new ArrayList<>();
-        for (AntlrProxies.Ambiguity amb : semantics.ambiguities()) {
-            ProxyToken a = semantics.tokens().get(amb.startOffset);
-            ProxyToken b = semantics.tokens().get(amb.stopOffset);
-            bag.addHighlight(a.getStartIndex(), b.getEndIndex(), warning());
-            SimpleAttributeSet sas = new SimpleAttributeSet();
-            sas.addAttribute(EditorStyleConstants.Tooltip, "Matches " + amb.conflictingAlternatives);
-            ErrorDescription ed = ErrorDescriptionFactory.createErrorDescription(Severity.WARNING, "Ambiguity in rule '" + amb.ruleName + "'", NbEditorUtilities.getFileObject(doc), amb.startOffset, amb.end());
-            set.add(ed);
+        if (highlightAmbiguities()) {
+            for (AntlrProxies.Ambiguity amb : semantics.ambiguities()) {
+                ProxyToken a = semantics.tokens().get(amb.startOffset);
+                ProxyToken b = semantics.tokens().get(amb.stopOffset);
+                bag.addHighlight(a.getStartIndex(), b.getEndIndex(), warning());
+                SimpleAttributeSet sas = new SimpleAttributeSet();
+                sas.addAttribute(EditorStyleConstants.Tooltip, "Matches " + amb.conflictingAlternatives);
+                set.add(ErrorDescriptionFactory.createErrorDescription(Severity.WARNING, "Ambiguity in rule '" + amb.ruleName + "'", NbEditorUtilities.getFileObject(doc), amb.startOffset, amb.end()));
+            }
         }
-         */
         HintsController.setErrors(doc, "1", set);
         Mutex.EVENT.readAccess(() -> {
             try {
@@ -189,113 +221,134 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         this.refreshErrorsTask.schedule(REFRESH_ERRORS_DELAY);
     }
 
+    void onHighlightAmbiguitiesChanged() {
+        HighlightingInfo info = mgr.lastInfo();
+        if (info != null) {
+            refresh(info);
+        }
+    }
+
+    @Override
+    protected void onColoringsChanged() {
+        onHighlightAmbiguitiesChanged();
+    }
+
+    static boolean highlightAmbiguities() {
+        return prefs().getBoolean("highlight-ambiguities", false);
+    }
+
+    static boolean highlightAmbiguities(boolean val) {
+        boolean old = highlightAmbiguities();
+        prefs().putBoolean("highlight-ambiguities", val);
+        if (val != old) {
+            for (AdhocErrorHighlighter hl : INSTANCES) {
+                hl.onHighlightAmbiguitiesChanged();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    @Messages({"highlightAmbiguities=Highlight Ambiguities",
+        "highlightAmbiguitiesDesc=Enables highlighting of cases of ambiguity in the lexer; "
+        + " disabled by default because it can create a lot of visual noise."})
+    public static Action toggleHighlightAmbiguitiesAction() {
+        // Actions.checkbox() returns an action that never has an icon, even using
+        // putValue(), so IOWindow will throw an exception (and there will be no
+        // indication in the toolbar button whether it is selected or not). So,
+        // we do it the old-fashioned way.
+        return new ToggleHighlightAmbiguitiesAction();
+    }
+
+    static final class ToggleHighlightAmbiguitiesAction extends AbstractAction implements Icon {
+
+        ToggleHighlightAmbiguitiesAction() {
+            putValue("hideActionText", true);
+            putValue(SMALL_ICON, this);
+            putValue(NAME, Bundle.highlightAmbiguities());
+            putValue(SHORT_DESCRIPTION, Bundle.highlightAmbiguitiesDesc());
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            boolean old = highlightAmbiguities();
+            highlightAmbiguities(!old);
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            String txt = "a|?";
+            Graphics2D gg = (Graphics2D) g;
+            Font f = c.getFont();
+            FontMetrics fm = gg.getFontMetrics(f);
+            float ht = fm.getAscent();
+            float w = fm.stringWidth(txt);
+            Insets ins = ((JComponent) c).getInsets();
+            float availH = Math.max(4, (c.getHeight() - y) - ins.bottom);
+            float availW = Math.max(4, ((c.getWidth() - x)) - ins.right);
+            float scaleX = 1;
+            float scaleY = 1;
+            if (availW < w) {
+                scaleX = w / availW;
+            }
+            if (availH < ht) {
+                scaleY = ht / availH;
+            }
+            AffineTransform xform = AffineTransform.getScaleInstance(scaleX, scaleY);
+            f = f.deriveFont(xform);
+            gg.setFont(f);
+            fm = gg.getFontMetrics();
+            float left = x;
+            float top = y;
+            ht = fm.getAscent();
+            w = fm.stringWidth(txt);
+            if (ht < availH) {
+                top += (availH / 2) - (ht / 2);
+            }
+            if (w < availW) {
+                left += (availW / 2) - (w / 2);
+            }
+            if (highlightAmbiguities()) {
+                g.setColor(c.getForeground());
+            } else {
+                g.setColor(UIManager.getColor("Tree.line"));
+            }
+            gg.drawString(txt, left, top + fm.getAscent());
+        }
+
+        @Override
+        public int getIconWidth() {
+            return 24;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return 24;
+        }
+    }
+
+    private static Preferences prefs() {
+        return NbPreferences.forModule(AdhocErrorHighlighter.class);
+    }
+
     public void run() {
         HighlightingInfo info = mgr.lastInfo();
         if (info != null) {
             Document doc = info.doc;
             Runnable doIt = () -> {
-                refreshSourceErrors(info);
+                refresh(info);
             };
             // createErrorDescription will lock the document;
             // so will the call to set the errors - so rather than
             // risk deadlock, we do this in a background thread and
             // pre-lock the document so we don't lock/unlock once per
             // error
-            if (doc instanceof BaseDocument) {
-                BaseDocument bd = (BaseDocument) doc;
-                bd.runAtomicAsUser(doIt);
-            } else {
-                doc.render(doIt);
-            }
+            //
+            // This little hack gives us some further deadlock-proofing
+            // by ensuring we don't run when something else has the
+            // document locked
+            AdhocEditorKit.renderWhenPossible(doc, doIt);
         }
-    }
-
-    @Messages({"buildFailed=Build Failed"})
-    private void refreshSourceErrors(HighlightingInfo info) {
-        Document d = info.doc;
-        FileObject fo = NbEditorUtilities.getFileObject(d);
-
-        AntlrProxies.ParseTreeProxy proxy = info.semantics;
-
-        LOG.log(Level.FINEST, "Refresh src errs {0} from {1}",
-                new Object[]{this, info});
-
-//        System.out.println("refresh source errors " + info.semantics.loggingInfo());
-        if (proxy.isUnparsed()) {
-            String msg = Bundle.buildFailed();
-            ErrorDescription ed = ErrorDescriptionFactory
-                    .createErrorDescription(org.netbeans.spi.editor.hints.Severity.ERROR,
-                            msg, d, 0);
-            setErrors(d, Collections.singleton(ed));
-        } else if (!proxy.syntaxErrors().isEmpty()) {
-            List<ErrorDescription> ed = new ArrayList<>();
-            for (AntlrProxies.ProxySyntaxError err : proxy.syntaxErrors()) {
-                try {
-                    int start, end;
-                    if (err.hasFileOffsetsAndTokenIndex()) {
-                        start = err.startIndex();
-                        end = err.stopIndex() + 1;
-                    } else {
-                        Element lineRoot = ((BaseDocument) d).getParagraphElement(0).getParentElement();
-                        Element line = lineRoot.getElement(err.line() - 1); // antlr lines are 1-indexed
-                        if (line == null) {
-                            start = 0;
-                            end = Math.min(80, d.getLength());
-                        } else {
-                            start = line.getStartOffset() + err.charPositionInLine();
-                            AntlrProxies.ProxyToken tok = proxy.tokenAtLinePosition(err.line(), err.charPositionInLine());
-//                            System.out.println("COMPUTE CHAR OFFSET line "
-//                                    + err.line() + " element start offset "
-//                                    + line.getStartOffset() + " token "
-//                                    + tok + " " + " tok line " + (tok == null ? -1 :tok.getLine())
-//                                    + " length " + (tok == null ? -1 : tok.length()) + " end will be "
-//                                    + (start + (tok == null ? 0 : tok.length())
-//                                            + " in " + NbEditorUtilities.getFileObject(d))
-//                            );
-                            if (tok != null) {
-                                end = Math.min(line.getEndOffset(), start + tok.length());
-                            } else {
-                                start = line.getStartOffset();
-                                end = Math.min(line.getEndOffset(), start + 1);
-                            }
-                        }
-                    }
-                    Position pos1 = d.createPosition(start);
-                    Position pos2 = d.createPosition(end);
-                    ErrorDescription error = ErrorDescriptionFactory
-                            .createErrorDescription(Severity.ERROR, err.message(), Collections.emptyList(), d, pos1, pos2);
-                    ed.add(error);
-                    // The following errors simply *are* possible, in the case
-                    // that the document has changed, as long as we are using
-                    // createPosition
-                } catch (IndexOutOfBoundsException ex) {
-                    IllegalStateException ise = new IllegalStateException("IOOBE highlighting error on "
-                            + err.line() + ":" + err.charPositionInLine() + " in "
-                            + d.getProperty(Document.StreamDescriptionProperty)
-                            + " parse is of " + info.semantics.grammarPath()
-                            + " err " + err.getClass().getSimpleName() + ": " + err,
-                            ex);
-                    LOG.log(Level.FINE, "Error highlighting error '" + ex
-                            + "' in " + fo, ise);
-                } catch (BadLocationException ex) {
-                    IllegalStateException e2 = new IllegalStateException("IOOBE highlighting error on "
-                            + err.line() + ":" + err.charPositionInLine() + " in "
-                            + d.getProperty(Document.StreamDescriptionProperty)
-                            + " parse is of " + info.semantics.grammarPath()
-                            + " err " + err.getClass().getSimpleName() + ": " + err,
-                            ex);
-                    LOG.log(Level.FINE, "Error highlighting error '" + e2
-                            + "' in " + fo, e2);
-                }
-            }
-            setErrors(d, ed);
-        } else {
-            setErrors(d, Collections.emptySet());
-        }
-    }
-
-    protected void setErrors(Document document, Collection<ErrorDescription> errors) {
-        HintsController.setErrors(document, "adhoc-errors", errors);
     }
 
 }

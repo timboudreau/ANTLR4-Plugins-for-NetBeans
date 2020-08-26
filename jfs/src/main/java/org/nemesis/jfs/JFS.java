@@ -900,6 +900,7 @@ public final class JFS implements JavaFileManager {
         }
         JFSJavaFileObject result = stor.findJavaFileObject(name, false);
         if (result == null) {
+            System.out.println("GET JAVA FILE FOR INPUT " + location  + " " + className + " returns null");
             throw new FileNotFoundException("Did not find in " + location + ": " + name);
         }
         LOG.log(Level.FINEST, "getJavaFileForInput {0} {1} {2} gets {3}",

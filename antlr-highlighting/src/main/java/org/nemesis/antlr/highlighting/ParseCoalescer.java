@@ -15,29 +15,19 @@
  */
 package org.nemesis.antlr.highlighting;
 
+import com.mastfrog.util.collections.AtomicLinkedQueue;
 import com.mastfrog.util.collections.CollectionUtils;
-import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.text.Document;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.extraction.Extraction;
-import org.nemesis.extraction.ExtractionParserResult;
 import org.netbeans.modules.editor.NbEditorUtilities;
-import org.netbeans.modules.parsing.api.ParserManager;
-import org.netbeans.modules.parsing.api.ResultIterator;
-import org.netbeans.modules.parsing.api.Source;
-import org.netbeans.modules.parsing.api.UserTask;
-import org.netbeans.modules.parsing.spi.ParseException;
-import org.netbeans.modules.parsing.spi.Parser;
-import org.openide.util.Exceptions;
 import org.openide.util.RequestProcessor;
 
 /**
@@ -59,7 +49,7 @@ final class ParseCoalescer {
             = CollectionUtils.concurrentSupplierMap(() -> {
                 return ConcurrentHashMap.newKeySet(5);
             });
-    private final Map<Document, RequestProcessor.Task> tasks = new WeakHashMap<>();
+    private final Map<Document, RunReparse> tasks = new WeakHashMap<>();
     private final Map<String, RequestProcessor> threadPoolForMimeType
             = new ConcurrentHashMap<>();
 
@@ -70,20 +60,59 @@ final class ParseCoalescer {
     }
 
     void enqueueParse(Document doc, GeneralHighlighter<?> hl) {
-        if (true) {
-            threadPoolFor(doc).post(() -> {
-                Extraction ext = NbAntlrUtils.extractionFor(doc);
-                hl.refresh(doc, ext);
-            });
-            return;
+        // Need to make sure we get out of the way of
+        // the current document event
+        RunReparse runner = tasks.computeIfAbsent(doc, d -> {
+            RequestProcessor proc = threadPoolFor(doc);
+            return new RunReparse(d, proc);
+        });
+        runner.add(hl);
+    }
+
+    private static final class RunReparse implements Runnable {
+
+        private final AtomicLinkedQueue<GeneralHighlighter<?>> queue = new AtomicLinkedQueue<>();
+        private final AtomicBoolean pending = new AtomicBoolean();
+        private final WeakReference<Document> docRef;
+        private final RequestProcessor.Task task;
+        private static final int DELAY = 100;
+
+        @SuppressWarnings("LeakingThisInConstructor")
+        RunReparse(Document doc, RequestProcessor proc) {
+            docRef = new WeakReference<>(doc);
+            task = proc.create(this);
         }
 
-        Set<GeneralHighlighter<?>> awaiting = pending.get(doc);
-        awaiting.add(hl);
-        RequestProcessor.Task delayedTask = tasks.computeIfAbsent(doc, d -> {
-            return threadPoolFor(doc).create(new UTask(doc));
-        });
-        delayedTask.schedule(DELAY);
+        void add(GeneralHighlighter<?> hl) {
+            synchronized (this) {
+                queue.add(hl);
+            }
+            if (pending.compareAndSet(false, true)) {
+                task.schedule(DELAY);
+            }
+        }
+
+        @Override
+        public void run() {
+            try {
+                Set<GeneralHighlighter<?>> enqueued;
+                do {
+                    enqueued = new LinkedHashSet<>();
+                    queue.drain(enqueued::add);
+                    if (!enqueued.isEmpty()) {
+                        Document doc = docRef.get();
+                        if (doc != null) {
+                            Extraction ext = NbAntlrUtils.extractionFor(doc);
+                            for (GeneralHighlighter<?> hl : enqueued) {
+                                hl.refresh(doc, ext);
+                            }
+                        }
+                    }
+                } while (!enqueued.isEmpty());
+            } finally {
+                pending.set(false);
+            }
+        }
     }
 
     RequestProcessor threadPoolFor(Document doc) {
@@ -94,92 +123,5 @@ final class ParseCoalescer {
     RequestProcessor threadPoolFor(String mimeType) {
         return threadPoolForMimeType.computeIfAbsent(mimeType, mt -> new RequestProcessor(mt + "-highlight",
                 HIGHLIGHTING_PER_MIME_TYPE_THREADS, false));
-    }
-
-    class UTask extends UserTask implements Runnable {
-
-        private final Reference<Document> docRef;
-        private final AtomicBoolean enqueued = new AtomicBoolean();
-        private final int documentIdHash;
-
-        UTask(Document doc) {
-            this.docRef = new WeakReference<>(doc);
-            documentIdHash = System.identityHashCode(doc);
-        }
-
-        @Override
-        public void run(ResultIterator ri) throws Exception {
-            try {
-                Document doc = ri.getSnapshot().getSource().getDocument(false);
-                Parser.Result result = ri.getParserResult();
-                Extraction ext = ExtractionParserResult.extraction(result);
-                if (ext != null) {
-                    for (Set<GeneralHighlighter<?>> hls = pending.get(doc); !hls.isEmpty(); hls = pending.get(doc)) {
-                        Set<GeneralHighlighter<?>> toNotify;
-                        synchronized (hls) {
-                            toNotify = new HashSet<>(hls);
-                            hls.clear();
-                        }
-                        for (GeneralHighlighter<?> hl : toNotify) {
-                            try {
-                                hl.refresh(doc, ext);
-                            } catch (Exception | Error ex) {
-                                Exceptions.printStackTrace(ex);
-                            }
-                        }
-                    }
-                }
-            } finally {
-                enqueued.set(false);
-            }
-        }
-
-        volatile Future<?> lastTask;
-
-        @Override
-        public void run() {
-            Document doc = docRef.get();
-            if (doc != null /*&& enqueued.compareAndSet(false, true)*/) {
-                Source src = Source.create(doc);
-                Future<?> lt = lastTask;
-                try {
-                    if (lt != null && !lt.isDone()) {
-                        System.out.println("  parse collision for " + src);
-//                        lt.cancel(false);
-                    }
-                    lastTask = ParserManager.parseWhenScanFinished(Collections.singleton(src), this);
-                } catch (ParseException ex) {
-                    Exceptions.printStackTrace(ex);
-                }
-            } else if (doc != null && enqueued.get()) {
-                Future<?> lt = lastTask;
-                if (lt != null && lt.isCancelled()) {
-                    lastTask = null;
-                    enqueued.set(false);
-                    run();
-                }
-            }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == this) {
-                return true;
-            } else if (o == null || !(o instanceof UTask)) {
-                return false;
-            } else {
-                UTask ut = (UTask) o;
-                return ut.documentIdHash == documentIdHash;
-            }
-        }
-
-        @Override
-        public int hashCode() {
-            return documentIdHash;
-        }
-
-        public String toString() {
-            return "UTask(" + docRef.get() + ")";
-        }
     }
 }

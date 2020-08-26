@@ -957,7 +957,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         } else {
             enqueueRehighlighting();
 //            reparseTask.schedule(350);
-//            reparseTextTask.schedule(450);
+            reparseTextTask.schedule(450);
         }
     }
 

@@ -36,6 +36,7 @@ import org.nemesis.jfs.JFSFileModifications;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
 import org.nemesis.jfs.javac.JavacDiagnostic;
+import org.nemesis.jfs.javac.JavacOptions;
 
 /**
  * Thing which takes an Antlr Generator and a JFSCompileBuilder, and can run
@@ -52,14 +53,34 @@ public final class AntlrGeneratorAndCompiler {
     private final AntlrGenerator generator;
     private AntlrGenerationResult lastGenerationResult;
     private CompileResult lastCompileResult;
+    private static final boolean ANTLR_GENERATOR_VERBOSE_COMPILE = Boolean.getBoolean("antlr.gen.verbose");
 
     AntlrGeneratorAndCompiler(Supplier<JFS> jfs, JFSCompileBuilder compileBuilder, AntlrGenerator generator) {
         this.jfs = notNull("jfs", jfs);
         this.compileBuilder = notNull("compileBuilder", compileBuilder);
         this.generator = notNull("runner", generator);
-        compileBuilder.addSourceLocation(generator.sourceLocation()).addSourceLocation(generator.outputLocation());
-        compileBuilder.runAnnotationProcessors(false);
-        compileBuilder.sourceAndTargetLevel(8).withMaxErrors(1);
+        compileBuilder
+                .addSourceLocation(generator.sourceLocation())
+                .addSourceLocation(generator.outputLocation())
+                .runAnnotationProcessors(false)
+                .sourceAndTargetLevel(8);
+        if (!ANTLR_GENERATOR_VERBOSE_COMPILE) {
+            compileBuilder.withMaxErrors(1).setOptions(
+                    new JavacOptions()
+                            .withDebugInfo(JavacOptions.DebugInfo.NONE)
+                            .onlyRebuildNewerSources()
+            );
+        } else {
+            compileBuilder.setOptions(
+                    new JavacOptions()
+                            .withDebugInfo(JavacOptions.DebugInfo.LINES)
+                            .onlyRebuildNewerSources(true)
+                            .verbose()
+                            .withMaxErrors(10)
+                            .withMaxWarnings(10)
+            );
+
+        }
         LOG.log(Level.FINEST, "Create a {0} over jfs {1} for {2} with {3}", new Object[]{
             getClass().getSimpleName(), jfs,
             generator.originalFile() == null
@@ -88,9 +109,12 @@ public final class AntlrGeneratorAndCompiler {
         return compile(grammarFileName, GrammarProcessingOptions.setOf(opts));
     }
 
-    public static AntlrGeneratorAndCompiler fromResult(AntlrGenerationResult lastResult, JFSCompileBuilder compileBuilder) {
+    public static AntlrGeneratorAndCompiler fromResult(AntlrGenerationResult lastResult, 
+            JFSCompileBuilder compileBuilder, CompileResult lastCompileResult) {
         AntlrGeneratorAndCompiler result = new AntlrGeneratorAndCompiler(lastResult.jfsSupplier,
                 compileBuilder, lastResult.toGenerator());
+        result.lastGenerationResult = lastResult;
+        result.lastCompileResult = lastCompileResult;
         return result;
     }
 
@@ -115,35 +139,36 @@ public final class AntlrGeneratorAndCompiler {
                     }
                 }
             } catch (Exception ex) {
+                LOG.log(Level.FINE, "Rebuilding " + originalFile().getFileName(), ex);
                 Debug.thrown(ex);
                 return new AntlrGenerationAndCompilationResult(run,
                         CompileResult.precompiled(false, UnixPath.empty()), ex,
                         JFSFileModifications.empty());
             }
-            if (run == null || !run.isUsable()) {
-                LOG.log(Level.FINE, "Run result not usable for {0}", generator.originalFile().getFileName());
-                AntlrGenerationResult cr = run;
-                Debug.failure("failed or unusable", () -> {
-                    return cr == null ? "null result" : cr.toString();
-                });
-                if (cr.thrown().isPresent()) {
-                    Debug.thrown(cr.thrown().get());
-                }
+            if (run == null) {
+                run = generator.createFailedResult(null);
+            }
+            if (!run.isUsable()) {
+                LOG.log(Level.FINE, "Run result not usable for {0}: {1}",
+                        new Object[] { generator.originalFile().getFileName(), run});
                 return new AntlrGenerationAndCompilationResult(run,
                         CompileResult.precompiled(true, UnixPath.empty()), null,
                         JFSFileModifications.empty());
             }
             boolean shouldBuild = false;
             if (opts.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES)) {
-                LOG.log(Level.FINER, "Rebuild due to GrammarProcessingOptions");
+                LOG.log(Level.FINER, "Rebuild {0} due to GrammarProcessingOptions {1} in {2}",
+                        new Object[]{originalFile().getFileName(), opts, this});
                 shouldBuild = true;
             } else if (lastCompileResult == null || !lastCompileResult.isUsable()) {
-                LOG.log(Level.FINER, "Rebuild due to last result null or unusable");
+                LOG.log(Level.FINER, "Rebuild {0} due to last result null or unusable: {1} in {2}",
+                        new Object[]{originalFile().getFileName(), lastCompileResult, this});
                 shouldBuild = true;
             } else if (lastCompileResult != null && !lastCompileResult.filesState()
                     .changes()
                     .filter(AntlrGeneratorAndCompiler::isJavaSource).isUpToDate()) {
-                LOG.log(Level.FINER, "Rebuild due to last result out of date");
+                LOG.log(Level.FINER, "Rebuild {0} due to last result out of date: {1} in {2}",
+                        new Object[]{originalFile().getFileName(), lastCompileResult.filesState().changes(), this});
                 shouldBuild = true;
             } else {
                 LOG.log(Level.FINER, "Reusing output of previous compile");
@@ -159,6 +184,8 @@ public final class AntlrGeneratorAndCompiler {
                                     .writer(generator.originalFile(), AntlrLoggers.STD_TASK_COMPILE_GRAMMAR)) {
 
                                 writer.append("Compile Antlr " + LocalDateTime.now() + " " + generator.originalFile() + "\n");
+
+                                LOG.log(Level.FINE, "Rebuild {0}", originalFile().getFileName());
                                 // XXX if we get cannot find symbol, we should wipe the Java sources,
                                 // regenerate and try again
 //                                compileBuilder.verbose().nonIdeMode().withMaxErrors(5).withMaxWarnings(10);

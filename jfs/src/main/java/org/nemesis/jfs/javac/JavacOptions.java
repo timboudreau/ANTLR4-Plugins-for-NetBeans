@@ -43,13 +43,49 @@ public class JavacOptions {
     private boolean verbose;
     private boolean ideMode = true;
     private boolean suppressAbortOnBadClassFile = true;
+    private boolean onlyRebuildNewerSources = false;
 
     public JavacOptions() {
 
     }
 
+    public static JavacOptions fastDefaults() {
+        return new JavacOptions()
+                .withDebugInfo(JavacOptions.DebugInfo.NONE)
+                .onlyRebuildNewerSources(true)
+                .sourceAndTargetLevel(8)
+                .runAnnotationProcessors(false)
+                .withCharset(UTF_8);
+    }
+
+    public static JavacOptions verboseDefaults() {
+        return new JavacOptions()
+                .withDebugInfo(JavacOptions.DebugInfo.LINES)
+                .onlyRebuildNewerSources(false)
+                .sourceAndTargetLevel(8)
+                .runAnnotationProcessors(false)
+                .withCharset(UTF_8);
+    }
+
     private JavacOptions(JavacOptions x) {
         setFrom(x);
+    }
+
+    public JavacOptions onlyRebuildNewerSources() {
+        return onlyRebuildNewerSources(true);
+    }
+
+    public JavacOptions rebuildAllSources() {
+        return onlyRebuildNewerSources(false);
+    }
+
+    public JavacOptions onlyRebuildNewerSources(boolean val) {
+        this.onlyRebuildNewerSources = val;
+        return this;
+    }
+
+    boolean isOnlyRebuildNewerSources() {
+        return onlyRebuildNewerSources;
     }
 
     void setFrom(JavacOptions opts) {
@@ -66,6 +102,7 @@ public class JavacOptions {
         targetLevel = opts.targetLevel;
         verbose = opts.verbose;
         ideMode = opts.ideMode;
+        onlyRebuildNewerSources = opts.onlyRebuildNewerSources;
     }
 
     public JavacOptions nonIdeMode() {
@@ -216,5 +253,9 @@ public class JavacOptions {
             lastWasRemoved = false;
         }
         return options;
+    }
+
+    Charset encoding() {
+        return encoding;
     }
 }

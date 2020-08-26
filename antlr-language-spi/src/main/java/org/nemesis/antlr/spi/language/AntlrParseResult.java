@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Vocabulary;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
@@ -39,6 +40,7 @@ import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.hints.ErrorDescription;
+import org.openide.util.Pair;
 import org.openide.util.RequestProcessor;
 
 import static org.nemesis.antlr.spi.language.SyntaxError.FIX_COMPUTATION;
@@ -72,11 +74,50 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
 
     AntlrParseResult( Vocabulary lexerVocabulary, Snapshot _snapshot, Extraction extraction,
             Consumer<ParseResultContents> inputConsumer ) {
+        this( lexerVocabulary, _snapshot, extraction, inputConsumer, true );
+    }
+
+    private AntlrParseResult( Vocabulary lexerVocabulary, Snapshot _snapshot, Extraction extraction,
+            Consumer<ParseResultContents> inputConsumer, boolean record ) {
         super( _snapshot );
-        NbAntlrUtils.storeExtraction( _snapshot, extraction );
+        if ( record ) {
+            NbAntlrUtils.storeExtraction( _snapshot, extraction );
+        }
         this.lexerVocabulary = lexerVocabulary;
         this.extraction = extraction;
-        inputConsumer.accept( input() );
+        if ( inputConsumer != null ) {
+            inputConsumer.accept( input() );
+        }
+    }
+
+    /**
+     * Hacky; used for simulating a reparse when initializing any sort of reparse subscriber
+     * that needs to get run because it was registered, without going through ParserManager
+     * and triggering a bunch of TaskFactories that could trigger another reparse inadvertently.
+     * Deleteme.
+     *
+     * @param <T>
+     * @param tree The parse tree
+     * @param extraction The extraction
+     * @return The internals
+     *
+     * @throws Exception
+     */
+    public static <T extends ParserRuleContext> Pair<ParseResultContents, Fixes> simulateReparse( T tree,
+            Extraction extraction )
+            throws
+            Exception {
+        String mt = extraction.mimeType();
+        Vocabulary vocab = AntlrMimeTypeRegistration.vocabulary( mt );
+//        NbParserHelper<?, ?, ?, ?> pHelper = AntlrMimeTypeRegistration.helper(mt );
+//        helper.onCreateAntlrParser( lexer, parser, snapshot );
+        Optional<Snapshot> snap = extraction.source().lookup( Snapshot.class );
+        Snapshot sn = snap.isPresent() ? snap.get() : null;
+//        GenericAntlrErrorListener l = new GenericAntlrErrorListener(sn);
+        AntlrParseResult res = new AntlrParseResult( vocab, sn, extraction, null, false );
+        ParseResultHook.runForMimeType( mt, tree, extraction, res.input(), res.input().fixes() );
+        ParseResultContents input = res.input();
+        return Pair.of( input, input.fixes() );
     }
 
     /**

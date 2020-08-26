@@ -52,6 +52,10 @@ public class ExtractionCodeGenerationResult {
         this.generatedClassName = generatedClassName;
     }
 
+    public JFSCoordinates.Resolvable generatedFile() {
+        return generatedFile;
+    }
+
     public String generatedClassName() {
         return generatedClassName;
     }

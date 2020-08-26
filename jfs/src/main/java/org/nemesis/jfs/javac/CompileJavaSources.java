@@ -32,6 +32,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -53,6 +54,7 @@ import static javax.tools.StandardLocation.SOURCE_PATH;
 import javax.tools.ToolProvider;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
+import org.nemesis.jfs.JFSJavaFileObject;
 
 /**
  *
@@ -85,6 +87,23 @@ public class CompileJavaSources {
     private Iterable<JavaFileObject> sourceLocations(JFS jfs, Location... locations) throws IOException {
         if (locations.length == 0) {
             return jfs.list(SOURCE_PATH, "", EnumSet.of(SOURCE), true);
+        }
+        if (options.isOnlyRebuildNewerSources()) {
+            List<JavaFileObject> result = new ArrayList<>();
+            for (Location loc : locations) {
+                Iterable<JavaFileObject> nue = jfs.list(loc, "", EnumSet.of(SOURCE), true);
+                for (JavaFileObject fo : nue) {
+                    JFSJavaFileObject jfsFo = (JFSJavaFileObject) fo;
+                    long lm = jfsFo.getLastModified();
+                    UnixPath path = jfsFo.path();
+                    UnixPath classFilePath = path.getParent().resolve(path.rawName() + ".class");
+                    JFSFileObject classFile = jfs.get(StandardLocation.CLASS_OUTPUT, classFilePath);
+                    if (classFile == null || classFile.getLastModified() < lm) {
+                        result.add(jfsFo);
+                    }
+                }
+            }
+            return result;
         }
         List<Iterable<JavaFileObject>> all = new ArrayList<>();
         for (Location loc : locations) {
@@ -130,6 +149,16 @@ public class CompileJavaSources {
     }
 
     public CompileResult compile(Writer compilerOutput, JFS jfs, UnixPath singleSource, Location... sourceLocations) {
+        if (LOG.isLoggable(Level.FINEST)) {
+            LOG.log(Level.FINEST, "Initiate compile of " + jfs + " with " + singleSource + " over " + Arrays.asList(sourceLocations),
+                    new Exception("Compilation"));
+        }
+        if (!jfs.encoding().equals(options.encoding())) {
+            LOG.log(Level.WARNING, "JFS encoding {0} does not match the encoding set for this compile, {1}.  Setting it based on the JFS.",
+                    new Object[]{jfs.encoding(), options.encoding()});
+            options.withCharset(jfs.encoding());
+
+        }
         CompileResult.Builder result = CompileResult.builder(Paths.get(""));
         result.setInitialFileStatus(jfs.status(setOf(sourceLocations)));
         try {
@@ -148,15 +177,19 @@ public class CompileJavaSources {
                     toCompile);
             List<Path> paths = new LinkedList<>();
             for (JavaFileObject jfo : toCompile) {
-                LOG.log(Level.FINEST, "Compile {0}", jfo);
-//                paths.add(Paths.get(jfo.getName()));
+                LOG.log(Level.FINER, "Compile {0}", jfo);
                 paths.add(((JFSFileObject) jfo).path());
                 result.addSource(jfo);
             }
+            if (paths.isEmpty() && options.isOnlyRebuildNewerSources()) {
+                LOG.log(Level.FINE, "Nothing needed rebuilding - "
+                        + "return a dummy compile result");
+                return CompileResult.precompiled(true);
+            }
             long then = System.currentTimeMillis();
             boolean javacResult = task.call();
-            result.withJavacResult(javacResult);
             long elapsed = System.currentTimeMillis() - then;
+            result.withJavacResult(javacResult);
             result.withFiles(paths);
             result.elapsed(elapsed);
             LOG.log(Level.FINE, "Compile took {0}ms. Ok? {1}", new Object[]{elapsed, javacResult});

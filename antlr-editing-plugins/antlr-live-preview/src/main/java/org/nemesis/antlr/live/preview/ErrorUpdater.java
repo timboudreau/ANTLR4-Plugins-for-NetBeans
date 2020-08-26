@@ -18,13 +18,21 @@ package org.nemesis.antlr.live.preview;
 import com.mastfrog.function.IntBiConsumer;
 import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.strings.Strings;
+import java.awt.AWTEvent;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.EventQueue;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Insets;
+import java.awt.KeyboardFocusManager;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseEvent;
+import java.awt.geom.Line2D;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
@@ -47,7 +55,9 @@ import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.Icon;
+import javax.swing.JComponent;
 import javax.swing.JEditorPane;
+import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.text.Document;
@@ -61,6 +71,7 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.ParsingUtils;
+import static org.nemesis.antlr.live.language.AdhocErrorHighlighter.toggleHighlightAmbiguitiesAction;
 import org.nemesis.antlr.live.language.AdhocLanguageHierarchy;
 import org.nemesis.antlr.live.language.AdhocMimeDataProvider;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
@@ -163,7 +174,8 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
     }
 
     private static final Consumer<FileObject> INV = SourceInvalidator.create();
-    private final Action[] actions = new Action[]{new RerunAction()};
+    private final Action[] actions = new Action[]{new RerunAction(), new EnablementAction(),
+        toggleHighlightAmbiguitiesAction()};
 
     private final Map<String, Reference<InputOutput>> ioForName = new HashMap<>();
 
@@ -294,7 +306,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                 for (AntlrProxies.ProxySyntaxError e : proxy.syntaxErrors()) {
                     ErrOutputListener listener = listenerForError(io, proxy, e);
                     assert listener != null;
-                    ioPrint(io, e.message(), IOColors.OutputType.HYPERLINK_IMPORTANT, listener);
+                    ioPrint(io, e.message(), IOColors.OutputType.HYPERLINK, listener);
                     listener.printDescription(writer);
                 }
             }
@@ -439,17 +451,18 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
             "lineinfo=\tat {0}:{1}",
             "# {0} - The token type (symbolic, literal, display names and code)",
             "type=\tType: {0}", "# {0} - the list of rules this token particpates in",
-            "rules=\tRules: {0}", "# {0} - the token text", "text=\tText: '{0}'"})
+            "rules=\tRules: {0}", "# {0} - the token text", "text=\tText: ''{0}''"})
         void printDescription(OutputWriter out) throws IOException {
             AntlrProxies.ProxyToken tok = null;
-            print(Bundle.lineinfo(Integer.valueOf(e.line()), Integer.valueOf(e.charPositionInLine())), IOColors.OutputType.LOG_FAILURE);
+            print(Bundle.lineinfo(Integer.valueOf(e.line()), Integer.valueOf(e.charPositionInLine())),
+                    IOColors.OutputType.LOG_FAILURE);
             if (e.hasFileOffsetsAndTokenIndex()) {
                 int ix = e.tokenIndex();
                 tok = prx.tokens().get(ix);
             } else if (e.line() >= 0 && e.charPositionInLine() >= 0) {
                 tok = prx.tokenAtLinePosition(e.line(), e.charPositionInLine());
             } else {
-                return;
+                tok = prx.tokens().get(0);
             }
             if (tok != null) {
                 AntlrProxies.ProxyTokenType type = prx.tokenTypeForInt(tok.getType());
@@ -650,5 +663,94 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
         public int getIconHeight() {
             return 24;
         }
+    }
+
+    @Messages({"enableDebugOutputAction=Enable Debug Output",
+        "enableDebugOutputActionDescription=Prints expandable debug output"
+        + " from the various phases of processing your grammar"
+        + " in the output window."
+    })
+    static final class EnablementAction extends AbstractAction implements Icon {
+
+        @SuppressWarnings("LeakingThisInConstructor")
+        EnablementAction() {
+            putValue(Action.NAME, Bundle.enableDebugOutputAction());
+            putValue(Action.SHORT_DESCRIPTION, Bundle.enableDebugOutputActionDescription());
+            putValue(Action.LONG_DESCRIPTION, Bundle.enableDebugOutputActionDescription());
+            putValue(Action.SMALL_ICON, this);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            JPopupMenu popup = OutputEnabledTasksImpl.getDefault().createEnablementPopup();
+            int x = 0;
+            int y = 0;
+            Component target = null;
+            AWTEvent evt = EventQueue.getCurrentEvent();
+            if (evt.getSource() instanceof Component) {
+                target = (Component) evt.getSource();
+                if (evt instanceof MouseEvent) {
+                    MouseEvent me = (MouseEvent) evt;
+                    x = me.getX();
+                    y = me.getY();
+                }
+            }
+            if (target == null) {
+                target = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+                if (target == null) {
+                    for (PropertyChangeListener pcl : getPropertyChangeListeners()) {
+                        if (pcl instanceof Component) {
+                            target = (Component) pcl;
+                            break;
+                        }
+                    }
+                }
+            }
+            popup.show(target, x, y);
+        }
+
+        private final Line2D.Float ln = new Line2D.Float();
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Insets ins = c instanceof JComponent ? ((JComponent) c).getInsets() : new Insets(0, 0, 0, 0);
+            float maxX = Math.min(c.getWidth(), x + getIconWidth()) - ins.right;
+            float maxY = Math.min(c.getHeight(), y + getIconHeight()) - ins.bottom;
+            int lineWidth = 3;
+            Graphics2D gg = (Graphics2D) g;
+            gg.setStroke(new BasicStroke(lineWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1));
+            gg.setColor(UIManager.getColor("textText"));
+
+            float lineLength = (maxX - x) - 4;
+            float lineStart = 2;
+            float lineGap = lineWidth - 1;
+            float lineEnd = maxX - 2;
+
+            float oneRowHeight = lineWidth + lineGap;
+
+            float totalHeight = oneRowHeight * 3F;
+
+            float availHeight = maxY - y;
+            float centerY = y + (availHeight / 2F);
+            float top = centerY - (totalHeight / 2F);
+
+            gg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            for (int i = 0; i < 3; i++) {
+                ln.setLine(lineStart, top, lineEnd, top);
+                gg.draw(ln);
+                top += oneRowHeight;
+            }
+        }
+
+        @Override
+        public int getIconWidth() {
+            return 24;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return 24;
+        }
+
     }
 }

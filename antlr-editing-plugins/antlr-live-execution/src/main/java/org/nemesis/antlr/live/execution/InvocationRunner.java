@@ -16,6 +16,7 @@
 package org.nemesis.antlr.live.execution;
 
 import com.mastfrog.function.throwing.ThrowingFunction;
+import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -28,6 +29,9 @@ import org.nemesis.jfs.javac.JavacOptions;
 import org.openide.filesystems.FileObject;
 
 /**
+ * Generic abstraction for a thing which will generate some source code into a
+ * JFS, configure a compiler to compile it, configure a (most likely isolated)
+ * and classloader to invoke it.
  *
  * @author Tim Boudreau
  */
@@ -44,15 +48,19 @@ public abstract class InvocationRunner<T, A> implements ThrowingFunction<A, T> {
     }
 
     protected void onDisposed(FileObject fo) {
-        
+
     }
 
-    final A configureCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String packageName, Consumer<Supplier<ClassLoader>> classloaderSupplierConsumer) throws IOException {
+    final A configureCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res,
+            Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String packageName,
+            Consumer<Supplier<ClassLoader>> classloaderSupplierConsumer,
+            Consumer<UnixPath> singleJavaSourceConsumer) throws IOException {
         bldr.runAnnotationProcessors(false);
         bldr.sourceAndTargetLevel(8);
         bldr.setOptions(new JavacOptions().withCharset(jfs.encoding()).withMaxErrors(1));
-        return onBeforeCompilation(tree, res, extraction, jfs, bldr, packageName, classloaderSupplierConsumer);
+        return onBeforeCompilation(tree, res, extraction, jfs, bldr, packageName,
+                classloaderSupplierConsumer, singleJavaSourceConsumer);
     }
 
-    protected abstract A onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName, Consumer<Supplier<ClassLoader>> classloaderSupplierConsumer) throws IOException;
+    protected abstract A onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String grammarPackageName, Consumer<Supplier<ClassLoader>> classloaderSupplierConsumer, Consumer<UnixPath> singleJavaSourceConsumer) throws IOException;
 }

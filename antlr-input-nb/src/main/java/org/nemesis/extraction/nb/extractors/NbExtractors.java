@@ -22,6 +22,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
 import org.nemesis.extraction.Extractors;
@@ -66,6 +67,22 @@ public class NbExtractors extends Extractors {
 
     private <P extends ParserRuleContext> Extraction parse(String mimeType,
             GrammarSource<?> src, Class<P> type) throws IOException, ParseException {
+
+        Optional<Document> docOpt = src.lookup(Document.class);
+        if (docOpt.isPresent()) {
+            Extraction result = NbAntlrUtils.extractionFor(docOpt.get());
+            if (result != null && !result.isPlaceholder() && !result.isDisposed()) {
+                return result;
+            }
+        }
+        Optional<FileObject> fo = src.lookup(FileObject.class);
+        if (fo.isPresent()) {
+            Extraction result = NbAntlrUtils.extractionFor(fo.get());
+            if (result != null && !result.isPlaceholder() && !result.isDisposed()) {
+                return result;
+            }
+        }
+
         Source source = source(src);
         if (source != null) {
             Extraction[] result = new Extraction[1];

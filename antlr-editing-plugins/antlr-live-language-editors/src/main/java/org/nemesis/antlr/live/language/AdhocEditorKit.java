@@ -15,9 +15,11 @@
  */
 package org.nemesis.antlr.live.language;
 
+import com.mastfrog.util.collections.AtomicLinkedQueue;
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.util.Dictionary;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.Action;
 import javax.swing.JEditorPane;
 import javax.swing.JLabel;
@@ -33,6 +35,7 @@ import org.netbeans.modules.editor.NbEditorUI;
 import org.openide.util.NbBundle.Messages;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
+import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorKit;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.awt.Mnemonics;
@@ -144,6 +147,14 @@ public class AdhocEditorKit extends ExtKit {
         }
     }
 
+    static void renderWhenPossible(Document doc, Runnable run) {
+        if (doc instanceof Doc) {
+            ((Doc) doc).renderWhenPossible(run);
+        } else {
+            doc.render(run);
+        }
+    }
+
     // We have to subclass this in order to supply a toolbar, or the infrastructure
     // throws an exception, since there is no toolbar provider registered
     static final class Doc extends NbEditorDocument {
@@ -242,6 +253,29 @@ public class AdhocEditorKit extends ExtKit {
         @Override
         public void runAtomic(Runnable r) {
             super.runAtomic(wrap(r));
+            if (!pendingRenders.isEmpty() && !locked && !DocumentUtilities.isReadLocked(this)) {
+                render(() -> {
+                    // triggering the drain logic
+                });
+            }
+        }
+
+        private final AtomicLinkedQueue<Runnable> pendingRenders = new AtomicLinkedQueue<>();
+        private volatile boolean locked;
+
+        void renderWhenPossible(Runnable r) {
+            if (locked || DocumentUtilities.isReadLocked(this)) {
+                AtomicBoolean ab = new AtomicBoolean();
+                pendingRenders.add(() -> {
+                    try {
+                        r.run();
+                    } finally {
+                        ab.set(true);
+                    }
+                });
+            } else {
+                render(r);
+            }
         }
 
         @Override
@@ -249,7 +283,20 @@ public class AdhocEditorKit extends ExtKit {
             // This is just evil, but may help diagnose things
             Runnable removeThisThreadFromDeadlockBreaker = DocumentDeadlockBreaker.enqueue();
             try {
-                super.render(wrap(r));
+                super.render(wrap(() -> {
+                    boolean old = locked;
+                    try {
+                        r.run();
+                    } finally {
+                        try {
+                            pendingRenders.drain(run -> {
+                                super.render(r);
+                            });
+                        } finally {
+                            locked = false;
+                        }
+                    }
+                }));
             } finally {
                 removeThisThreadFromDeadlockBreaker.run();
             }
