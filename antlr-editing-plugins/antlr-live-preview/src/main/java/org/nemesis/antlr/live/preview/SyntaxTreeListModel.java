@@ -156,7 +156,7 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
 
         @Override
         public void mouseReleased(MouseEvent e) {
-            if (disabled.getAsBoolean()) {
+            if (disabled.getAsBoolean() || !e.isPopupTrigger()) {
                 return;
             }
             List<ProxyToken> toks = supp.get();

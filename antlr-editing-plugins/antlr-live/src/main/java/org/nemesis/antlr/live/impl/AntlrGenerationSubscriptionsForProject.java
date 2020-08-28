@@ -31,11 +31,8 @@ import com.mastfrog.util.strings.Strings;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Collection;
-import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -134,34 +131,31 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     } // need a defensive copy
 
     static final long INITIAL_LOAD;
-    static final long STARTUP_DELAY = 90000;
+    static final long STARTUP_DELAY = 35000;
 
     static {
         long start = System.currentTimeMillis();
-        try {
-            long beanValue = ManagementFactory.getRuntimeMXBean().getUptime();
-            if (beanValue == 0) {
-                long st = ManagementFactory.getRuntimeMXBean().getStartTime();
-                if (st != 0) {
-                    start = System.currentTimeMillis() - st;
-                }
-            } else {
-                start = beanValue;
-            }
-        } catch (Exception ex) {
-            LOG.log(Level.WARNING, null, ex);
-        }
-        if (Boolean.getBoolean("unit.test")) {
-            start = 0;
-        }
+        // In JDK 14, RuntimeMXBean always returns 0 for uptime and start time
+//        try {
+//            long beanValue = ManagementFactory.getRuntimeMXBean().getUptime();
+//            if (beanValue == 0) {
+//                long st = ManagementFactory.getRuntimeMXBean().getStartTime();
+//                if (st != 0) {
+//                    start = System.currentTimeMillis() - st;
+//                }
+//            } else {
+//                start = beanValue;
+//            }
+//        } catch (Exception ex) {
+//            LOG.log(Level.WARNING, null, ex);
+//        }
+//        if (Boolean.getBoolean("unit.test")) {
+//            start = 0;
+//        }
         INITIAL_LOAD = start;
-        System.out.println("START IS " + new Date(start));
     }
     static final long READY_TIME = INITIAL_LOAD + STARTUP_DELAY;
 
-    static {
-        System.out.println("TIME UNTIL READY: " + Duration.ofMillis(Math.max(0, READY_TIME - System.currentTimeMillis())));
-    }
 
     static boolean inStartupDelay() {
         return System.currentTimeMillis() < READY_TIME;
@@ -201,7 +195,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         public DelayedApplier(AtomicReference<EventApplier<FileObject, AntlrRegenerationEvent, Subscriber>> ref) {
             this.ref = ref;
             releaseTask = svc.create(this);
-            int delay = (int) Math.max(100, System.currentTimeMillis() - READY_TIME);
+            int delay = (int) Math.max(100, READY_TIME - System.currentTimeMillis());
             releaseTask.schedule(delay);
         }
 
