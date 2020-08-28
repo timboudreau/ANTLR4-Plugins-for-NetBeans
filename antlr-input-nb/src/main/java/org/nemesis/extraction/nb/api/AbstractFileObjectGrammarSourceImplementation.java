@@ -16,8 +16,13 @@
 package org.nemesis.extraction.nb.api;
 
 import java.io.File;
+import java.io.IOException;
+import java.lang.ref.Reference;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.swing.text.AbstractDocument;
 import javax.swing.text.Document;
 import javax.swing.text.StyledDocument;
 import org.nemesis.source.api.GrammarSource;
@@ -25,6 +30,7 @@ import org.nemesis.source.spi.GrammarSourceImplementation;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
 import org.netbeans.editor.BaseDocument;
+import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.api.Source;
 import org.openide.cookies.EditorCookie;
@@ -41,6 +47,8 @@ import org.openide.loaders.DataObjectNotFoundException;
  * @author Tim Boudreau
  */
 public abstract class AbstractFileObjectGrammarSourceImplementation<T> extends GrammarSourceImplementation<T> {
+
+    private Reference<Document> docRef;
 
     protected AbstractFileObjectGrammarSourceImplementation(Class<T> type) {
         super(type);
@@ -59,9 +67,15 @@ public abstract class AbstractFileObjectGrammarSourceImplementation<T> extends G
         if (type == Snapshot.class) {
             if (type.isInstance(src)) {
                 return type.cast(src);
+            } else if (src instanceof Source) {
+                return type.cast(((Source) src).createSnapshot());
             } else if (src instanceof Document) {
                 return type.cast(Source.create((Document) src).createSnapshot());
             } else {
+                Document doc = lookupImpl(Document.class);
+                if (doc != null) {
+                    return type.cast(Source.create(doc).createSnapshot());
+                }
                 FileObject fo = toFileObject();
                 if (fo != null) {
                     return type.cast(Source.create(fo).createSnapshot());
@@ -73,6 +87,10 @@ public abstract class AbstractFileObjectGrammarSourceImplementation<T> extends G
             } else if (src instanceof Document) {
                 return type.cast(Source.create((Document) src));
             } else {
+                Document doc = lookupImpl(Document.class);
+                if (doc != null) {
+                    return type.cast(Source.create(doc));
+                }
                 FileObject fo = toFileObject();
                 if (fo != null) {
                     return type.cast(Source.create(fo));
@@ -85,9 +103,11 @@ public abstract class AbstractFileObjectGrammarSourceImplementation<T> extends G
             }
         } else if (type == Path.class) {
             FileObject fo = toFileObject();
-            if (fo != null) {
-                Path p = FileUtil.toFile(fo).toPath();
-                return type.cast(p);
+            if (fo != null) { // MemoryFileSystem, etc.
+                File f = FileUtil.toFile(fo);
+                if (f == null) {
+                    return type.cast(f.toPath());
+                }
             }
         } else if (type == File.class) {
             FileObject fo = toFileObject();
@@ -102,21 +122,10 @@ public abstract class AbstractFileObjectGrammarSourceImplementation<T> extends G
             if (fo != null) {
                 return type.cast(FileOwnerQuery.getOwner(fo));
             }
-        } else if (type == Document.class || type == BaseDocument.class || type == StyledDocument.class) {
-            FileObject fo = toFileObject();
-            if (fo != null) {
-                try {
-                    DataObject dob = DataObject.find(fo);
-                    EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
-                    if (ck != null) {
-                        Document doc = ck.getDocument();
-                        if (doc != null && type.isInstance(doc)) {
-                            return type.cast(doc);
-                        }
-                    }
-                } catch (DataObjectNotFoundException ex) {
-                    throw new IllegalStateException(ex);
-                }
+        } else if (type == Document.class || type == BaseDocument.class || type == StyledDocument.class || type == AbstractDocument.class) {
+            Document doc = document();
+            if (doc != null && type.isInstance(doc)) {
+                return type.cast(doc);
             }
         } else if (DataObject.class == type) {
             FileObject fo = toFileObject();
@@ -130,6 +139,43 @@ public abstract class AbstractFileObjectGrammarSourceImplementation<T> extends G
             return type.cast(p == null ? name() : p.toAbsolutePath().toString());
         }
         return null;
+    }
+
+    protected Document document() {
+        if (docRef != null) {
+            Document doc = docRef.get();
+            if (doc != null) {
+                return doc;
+            }
+        }
+        FileObject fo = toFileObject();
+        if (fo != null) {
+            try {
+                DataObject dob = DataObject.find(fo);
+                EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
+                if (ck != null) {
+                    return ck.getDocument();
+                }
+            } catch (DataObjectNotFoundException ex) {
+                Logger.getLogger(AbstractFileObjectGrammarSourceImplementation.class.getName())
+                        .log(Level.WARNING, "File for " + fo + " disappeared", ex);
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public String name() {
+        return toFileObject().getName();
+    }
+
+    @Override
+    public long lastModified() throws IOException {
+        Document doc = document();
+        if (doc != null) {
+            return DocumentUtilities.getDocumentTimestamp(doc);
+        }
+        return toFileObject().lastModified().getTime();
     }
 
     public static FileObject fileObjectFor(GrammarSource<?> src) {

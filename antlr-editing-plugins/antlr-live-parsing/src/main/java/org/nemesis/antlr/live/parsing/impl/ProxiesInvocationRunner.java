@@ -110,6 +110,11 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             .loadingFromParent(AntlrProxies.ProxySyntaxError.class)
             .loadingFromParent(AntlrProxies.ProxyToken.class)
             .loadingFromParent(AntlrProxies.ProxyTokenType.class)
+            .loadingFromParent(AntlrProxies.Ambiguity.class)
+            .loadingFromParent(AntlrProxies.TokenAssociated.class)
+            .loadingFromParent(AntlrProxies.TerminalNodeTreeElement.class)
+            .loadingFromParent(AntlrProxies.RuleNodeTreeElement.class)
+            .loadingFromParent(AntlrProxies.ErrorNodeTreeElement.class)
 //            .loadingFromParent(ProxiesInvocationRunner.class.getName())
             // XXX, we should move the mime type guesswork to something
             // with a smaller footprint and omit this

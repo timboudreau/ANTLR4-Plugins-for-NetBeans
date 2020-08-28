@@ -59,6 +59,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.PrimitiveIterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
@@ -132,6 +133,12 @@ public final class Extraction implements Externalizable {
         return lmo == 0 ? true : lmo > lastModified;
     }
 
+    /**
+     * Get the last modified time of the snapshot of the source at the time this
+     * extraction was extracted.
+     *
+     * @return The last modified time
+     */
     public long sourceLastModifiedAtExtractionTime() {
         return lastModified;
     }
@@ -830,6 +837,133 @@ public final class Extraction implements Externalizable {
     }
 
     private transient Map<NameReferenceSetKey<?>, Attributions<?, ?, ?, ?>> attributionCache = new ConcurrentHashMap<>();
+
+    /**
+     * Resolve a name against any imported source file found in this extraction;
+     * note this method may trigger parsing of an arbitrary number of related
+     * files and should not be called from the event thread. This method does
+     * NOT also search this extraction itself; use the three-argument overload
+     * if you want that.
+     *
+     * @param <K> The key type
+     * @param key The reference key
+     * @param name The name to search for
+     * @return A reference or null
+     */
+    public <K extends Enum<K>> AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K>
+            resolveName(NameReferenceSetKey<K> key, String name) {
+        return resolveName(key, name, false);
+    }
+
+    /**
+     * Resolve a name against (optionally) this extraction and/or any imported
+     * source file found in this extraction; note this method may trigger
+     * parsing of an arbitrary number of related files and should not be called
+     * from the event thread.
+     *
+     * @param <K> The key type
+     * @param key The reference key
+     * @param name The name to search for
+     * @param checkSelf If true, search this extraction first, and return an
+     * attributued reference as if this extraction imported itself
+     * @return A reference or null
+     */
+    public <K extends Enum<K>> AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K>
+            resolveName(NameReferenceSetKey<K> key, String name, boolean checkSelf) {
+        if (checkSelf) {
+            NamedRegionReferenceSets<K> localRefSet = references(key);
+            if (localRefSet != null) {
+                NamedRegionReferenceSet<K> localReferences = localRefSet.references(name);
+                if (localReferences != null && !localReferences.isEmpty()) {
+                    NamedSemanticRegion<K> orig = localReferences.original();
+                    return new AttributedForeignNameReference<>(key,
+                            new KnownUnknown<>(orig),
+                            source(), localRefSet.originals(), orig, this, this);
+                }
+            }
+        }
+        Attributions<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K> resolved = resolveAll(key);
+        if (resolved != null && resolved.hasResolved()) {
+            SemanticRegions<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K>> att
+                    = resolved.attributed();
+
+            SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K>> found = att.find(attKey -> name.equals(attKey.name()));
+            return found.key();
+        }
+        return null;
+    }
+
+    /**
+     * A simple implementation of UnknownNameReference used by Extraction when
+     * using the attribution API to attribute a name the extraction happens to
+     * actually contain - so it simply wraps a NamedSemanticRegion in a fake
+     * UnknownNameReference to satisfy the constructor of
+     * AttributedForeignNameReference.
+     *
+     * @param <K> The key typ
+     */
+    private static final class KnownUnknown<K extends Enum<K>> implements UnknownNameReference<K> {
+
+        private final NamedSemanticRegion<K> region;
+
+        KnownUnknown(NamedSemanticRegion<K> region) {
+            this.region = region;
+        }
+
+        @Override
+        public K expectedKind() {
+            return region.kind();
+        }
+
+        @Override
+        public String name() {
+            return region.name();
+        }
+
+        @Override
+        public int end() {
+            return region.end();
+        }
+
+        @Override
+        public int size() {
+            return region.size();
+        }
+
+        @Override
+        public Class<K> kindType() {
+            return region.kind().getDeclaringClass();
+        }
+
+        @Override
+        public int index() {
+            return region.index();
+        }
+
+        @Override
+        public int start() {
+            return region.start();
+        }
+
+        @Override
+        public int hashCode() {
+            return region.start() + (region.end() * 73) + 7 * Objects.hashCode(region.name());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (o == null) {
+                return false;
+            } else if (o instanceof UnknownNameReference<?>) {
+                UnknownNameReference<?> u = (UnknownNameReference<?>) o;
+                return u.start() == start() && u.end() == end() && Objects.equals(name(), u.name());
+            }
+            return false;
+        }
+
+    }
 
     @SuppressWarnings("unchecked")
     public <K extends Enum<K>> Attributions<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K> resolveAll(

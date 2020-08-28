@@ -1,5 +1,27 @@
 
-With throttling on in RebuildSubscriptions, we lose error highlighting on invalid files after they pass the throttle threshold; without it, it is still possible to get into an endless-repeated-reparsing state
+Why is this logged as a dead parser when it is obviously not one?  Clearly causing a lot of extra reparses:
+
+INFO UP TO DATE false is dead parser false: EmbeddedParsingEnvironment(-ad2mr1spidm1-j0f1ks-1kdiuk12i4, JFSFileModifications(5xc1an.kee1rs0v FilesInfo([SOURCE_PATH]: a67e73536223c2ae74e1bc03944d3fd80fc2e663: {com/mastfrog/rust/RustLanguageLexer.g4,com/mastfrog/rust/RustLanguage.g4,com/mastfrog/rust/RustLexer.g4,imports/symbols.g4,imports/xidcontinue.g4,com/mastfrog/rust/Rust.g4,imports/xidstart.g4,imports/keywords.g4,imports/types.g4,})), GrammarRunResult(usable=true, result=org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner$PreservedInvocationEnvironment@78afb98b(EnvRef(null 0 discarded false) - com.mastfrog.rust.RustLanguageParserExtractor generationInfo: ; /*; Passed grammar name: RustLanguage; Passed lexer name: RustLanguageLexer; Looking for 'RustLanguage'; ; Passed lexer grammar name 'RustLanguageLexer'; Expected prefix for lexer: 'RustLanguage'; Found lexer by name: com/mastfrog/rust/RustLanguageLexer.g4; Found parser by name: com/mastfrog/rust/RustLanguage.g4 ; */; )
+
+
+
+
+Preview bugs:
+
+Add navigation menu items to popup of antlr grammar editor - Andreas Stefik request.
+
+AdhocEditor pane should have ambiguities, rebuild, etc. actions in popup.
+
+Lookup switching in tester seems not to be working - refactorings and such don't find anything to operate on;
+ex: rename popup gets an empty name; other things operate on selection from other editor.
+Maybe switch the lookup on mousePressed instead of focus?
+
+Need some kind of cookie to put in the preview editor which lets its grammar editor be
+used for navigation from navigator, etc. if present.
+
+Breadcrumb seems to stop working after a while - disappears.
+
+
 
 Rewrite AntlrRunSubscriptions to use Subscribable.
 
@@ -43,8 +65,6 @@ JFS and friends should be under antlr-editing-plugins - not used in the general 
 
   * Import finders and project helper sibling search being called WAY too many times per-parse - threadlocal context and cache?
      * Maybe a generalized threadlocal context and cache API?
-  * Need a JavaSourceForAntlrSourceQuery to implement refactoring of rule names where we actually go ahead and refactor Java code
-  * Add array of preferred rules to generic code completion?
   * Split out code to create parser and api for antlr parser results from annotations and
    other stuff in language spi  * does not belong together
   * Ability to specify a centrality key for Navigator panel annotations  

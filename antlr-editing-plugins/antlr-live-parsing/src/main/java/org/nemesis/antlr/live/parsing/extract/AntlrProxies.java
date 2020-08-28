@@ -262,6 +262,25 @@ public class AntlrProxies {
             this.tokenNamesChecksum = tokenNamesChecksum;
         }
 
+        private List<ErrorNodeTreeElement> allErrorElements = null;
+
+        public List<ErrorNodeTreeElement> allErrorElements() {
+            if (allErrorElements == null) {
+                allErrorElements = collectErrorElements();
+            }
+            return allErrorElements;
+        }
+
+        private List<ErrorNodeTreeElement> collectErrorElements() {
+            List<ErrorNodeTreeElement> result = new ArrayList<>(treeElements.size());
+            for (ParseTreeElement el : treeElements) {
+                if (el instanceof ErrorNodeTreeElement) {
+                    result.add((ErrorNodeTreeElement) el);
+                }
+            }
+            return result;
+        }
+
         public long tokenNamesChecksum() {
             return tokenNamesChecksum;
         }
@@ -768,6 +787,9 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                 TokenAssociated ta = (TokenAssociated) el;
                 int start = ta.startTokenIndex();
                 int end = ta.endTokenIndex();
+                if (start == -1 || end == -1) {
+                    return Collections.emptyList();
+                }
                 return tokens().subList(start, end);
             }
             return Collections.emptyList();
@@ -775,10 +797,6 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
     }
 
     void addElement(ParseTreeElement el) {
-        if (el.kind() == ParseTreeElementKind.ERROR) {
-            // will be -1 token index
-            return;
-        }
         switch (el.kind()) {
             case RULE:
                 presentRuleNames.add(el.name());
@@ -787,19 +805,21 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         treeElements.add(el);
         if (el instanceof TokenAssociated) {
             TokenAssociated ta = (TokenAssociated) el;
-            for (int tokenIndex = Math.max(0, ta.startTokenIndex()); tokenIndex < ta.endTokenIndex(); tokenIndex++) {
-                if (ruleReferences == null) {
-                    ruleReferences = new BitSet[tokens.size() + 1];
+            if (!el.isSynthetic()) {
+                for (int tokenIndex = Math.max(0, ta.startTokenIndex()); tokenIndex < ta.endTokenIndex(); tokenIndex++) {
+                    if (ruleReferences == null) {
+                        ruleReferences = new BitSet[tokens.size() + 1];
+                    }
+                    if (tokenIndex >= ruleReferences.length) {
+                        // Happens when we are adding elements for a lexer-only grammar
+                        ruleReferences = Arrays.copyOf(ruleReferences, tokenIndex + 16);
+                    }
+                    BitSet set = ruleReferences[tokenIndex];
+                    if (set == null) {
+                        set = ruleReferences[tokenIndex] = new BitSet(treeElements.size());
+                    }
+                    set.set(index);
                 }
-                if (tokenIndex >= ruleReferences.length) {
-                    // Happens when we are adding elements for a lexer-only grammar
-                    ruleReferences = Arrays.copyOf(ruleReferences, tokenIndex + 16);
-                }
-                BitSet set = ruleReferences[tokenIndex];
-                if (set == null) {
-                    set = ruleReferences[tokenIndex] = new BitSet(treeElements.size());
-                }
-                set.set(index);
             }
         }
     }
@@ -1157,6 +1177,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             return false;
         }
 
+        @Override
         public String toString() {
             return name() + "(" + type + ")";
         }
@@ -1452,8 +1473,9 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             return this;
         }
 
-        public ParseTreeBuilder addErrorNode(int startToken, int endToken, int depth) {
-            ErrorNodeTreeElement err = new ErrorNodeTreeElement(startToken, endToken, depth);
+        public ParseTreeBuilder addErrorNode(int startToken, int endToken, int depth, int tokenStart, int tokenStop, String tokenText, int tokenType) {
+            ErrorNodeTreeElement err = new ErrorNodeTreeElement(startToken, endToken, depth, 
+                    tokenStart, tokenStop, tokenText, tokenType);
             proxies.addElement(err);
             element.add(err);
             proxies.hasParseErrors = true;
@@ -1473,6 +1495,16 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
         public ParseTreeElement(ParseTreeElementKind kind) {
             this.kind = kind;
+        }
+
+        /**
+         * True for error nodes that represent missing tokens, in which case the
+         * start and end token indices will be -1.
+         *
+         * @return True if they are synthetic
+         */
+        public boolean isSynthetic() {
+            return false;
         }
 
         public int depth() {
@@ -1668,12 +1700,49 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         private final int startTokenIndex;
         private final int stopTokenIndex;
         private final short depth;
+        private final String text;
+        private final int tokenStart;
+        private final int tokenStop;
+        private final short tokenType;
 
-        public ErrorNodeTreeElement(int startToken, int stopToken, int depth) {
+        public ErrorNodeTreeElement(int startToken, int stopToken, int depth, int tokenStart,
+                 int tokenStop, String tokenText, int tokenType) {
             super(ParseTreeElementKind.ERROR);
+            this.tokenStart = tokenStart;
+            this.tokenStop = tokenStop;
+            this.tokenType = (short) tokenType;
+            text = tokenText;
             this.startTokenIndex = startToken;
             this.stopTokenIndex = stopToken;
             this.depth = (short) depth;
+        }
+
+        public int tokenType() {
+            return tokenType;
+        }
+
+        public int tokenStart() {
+            return tokenStart;
+        }
+
+        public int tokenStop() {
+            return tokenStop;
+        }
+
+        public int tokenEnd() {
+            return tokenStop + 1;
+        }
+
+        public boolean isSynthetic() {
+            return startTokenIndex == -1 || stopTokenIndex == -1;
+        }
+
+        @Override
+        public String toString() {
+            return "Error(startToken=" + startTokenIndex + ", " + stopTokenIndex
+                    + " depth=" + depth + " text='" + text + " start "
+                    + " startTokenIndex=" + startTokenIndex
+                    + " stopTokenIndex=" + stopTokenIndex + ")";
         }
 
         @Override
@@ -1681,16 +1750,18 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             return depth;
         }
 
+        @Override
         public int startTokenIndex() {
             return startTokenIndex;
         }
 
+        @Override
         public int stopTokenIndex() {
             return stopTokenIndex;
         }
 
         public String stringify() {
-            return "<error>";
+            return "error: '" + text + "'";
         }
 
         @Override
@@ -1698,6 +1769,9 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             int hash = 3;
             hash = 17 * hash + this.startTokenIndex;
             hash = 17 * hash + this.stopTokenIndex;
+            hash = 17 * hash + this.tokenStart;
+            hash = 17 * hash + this.tokenStop;
+            hash = 17 * hash + this.tokenType;
             return hash;
         }
 
@@ -1705,21 +1779,19 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         public boolean equals(Object obj) {
             if (this == obj) {
                 return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
+            } else if (obj == null || !(obj instanceof ErrorNodeTreeElement)) {
                 return false;
             }
             final ErrorNodeTreeElement other = (ErrorNodeTreeElement) obj;
-            if (this.startTokenIndex != other.startTokenIndex) {
-                return false;
-            }
-            if (this.stopTokenIndex != other.stopTokenIndex) {
-                return false;
-            }
-            return true;
+            return other.tokenStart == tokenStart
+                    && other.tokenStop == tokenStop
+                    && other.tokenType == tokenType
+                    && other.startTokenIndex == this.startTokenIndex
+                    && other.stopTokenIndex == this.stopTokenIndex;
+        }
+
+        public String tokenText() {
+            return text;
         }
     }
 

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.function.state.Int;
 import com.mastfrog.util.strings.Strings;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -24,7 +25,9 @@ import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.Graphics;
 import java.awt.Insets;
+import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.event.ActionEvent;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.FocusEvent;
@@ -42,8 +45,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
@@ -54,7 +59,9 @@ import javax.swing.JComponent;
 import javax.swing.JEditorPane;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
@@ -76,6 +83,7 @@ import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.swing.text.EditorKit;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.Position;
+import javax.swing.text.Segment;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.AntlrKeys;
@@ -94,14 +102,21 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
-import org.nemesis.antlr.spi.language.AntlrParseResult;
+import org.nemesis.antlr.live.preview.SyntaxTreeListModel.ModelEntry;
+import org.nemesis.antlr.spi.language.NbAntlrUtils;
+import org.nemesis.data.SemanticRegion;
+import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.debug.api.Debug;
+import org.nemesis.extraction.AttributedForeignNameReference;
+import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.source.api.GrammarSource;
 import org.nemesis.swing.Scroller;
 import org.nemesis.swing.cell.TextCellLabel;
 import org.netbeans.api.annotations.common.NonNull;
+import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.api.editor.caret.CaretInfo;
 import org.netbeans.api.editor.caret.CaretMoveContext;
 import org.netbeans.api.editor.caret.EditorCaret;
@@ -124,6 +139,7 @@ import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 import org.openide.text.CloneableEditorSupport;
+import org.openide.text.Line;
 import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
@@ -291,6 +307,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // Add the rules pane
         add(listsSplit, BorderLayout.EAST);
         editorPane = new JEditorPane();
+        // We need to make sure we are the VERY FIRST focus listener
+        // on the editor pane, so we have swapped the DataObject in the
+        // lookup before actions evaluate their enablement state
+        editorPane.addFocusListener(this);
 
         // We have to set the document AFTER creating the editor
         // kit.  This DOES mean a zombie document exists long
@@ -322,6 +342,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             split.setTopComponent(sampleScroll = new JScrollPane(editorPane));
         }
         grammarEditorClone = new JEditorPane();
+        // Same for the grammar editor - need to make sure we are the VERY FIRST
+        // focus listener so we can update our lookup before anything tries to
+        // use it to determine action enablement state
+        grammarEditorClone.addFocusListener(this);
         EditorCookie grammarFileEditorCookie = lookup.lookup(EditorCookie.class);
 
         if (grammarFileEditorCookie != null && grammarFileEditorCookie.getOpenedPanes() != null
@@ -404,8 +428,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         rulesList.addKeyListener(ruleClick);
         rulesList.addMouseListener(ruleClick);
         rulesList.addFocusListener(this);
-        grammarEditorClone.addFocusListener(this);
-        editorPane.addFocusListener(this);
         syntaxTreeList.addFocusListener(this);
         breadcrumb.addMouseListener(new BreadcrumbClickListener());
         breadcrumb.useFullTextAsToolTip();
@@ -419,6 +441,45 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
         lastFocused = editorPane;
         setActionMap(editorPane.getActionMap());
+        hackTextComponentsIntoEditorRegistry();
+    }
+
+    static Method editorRegistryDotRegister;
+    static boolean noRegisterMethod;
+
+    void hackTextComponentsIntoEditorRegistry() {
+        // We need to do this, otherwise:
+        //   - HintsController.setErrors() will show errors only until
+        //      the editor loses focus for the first time
+        //   - Navigator clicks will switch away from the preview editor
+        //     to the main editor, which is irritating behavior
+        //   - Some context-dependent popup actions in the editors
+        //     won't work
+        if (noRegisterMethod) {
+            return;
+        }
+        if (editorRegistryDotRegister == null) {
+            try {
+                editorRegistryDotRegister = EditorRegistry.class.getDeclaredMethod("register", JTextComponent.class);
+                editorRegistryDotRegister.setAccessible(true);
+            } catch (NoSuchMethodException | SecurityException ex) {
+                noRegisterMethod = true;
+                LOG.log(Level.INFO, null, ex);
+                return;
+            }
+        }
+        try {
+            editorRegistryDotRegister.invoke(null, editorPane);
+            System.out.println("HACK REGISTERED EDITOR PANE");
+        } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
+            LOG.log(Level.INFO, "Hacking component into editor registry", ex);
+        }
+        try {
+            editorRegistryDotRegister.invoke(null, grammarEditorClone);
+            System.out.println("HACK REGISTERED GRAMMAR PANE");
+        } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
+            LOG.log(Level.INFO, "Hacking component into editor registry", ex);
+        }
     }
 
     private Lookup createLookup(InstanceContent internalContent, DataObject sampleFileDataObject,
@@ -478,7 +539,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             if (e.getClickCount() == 2 && !e.isPopupTrigger()) {
                 String text = breadcrumb.textAt(e.getPoint());
                 if (text != null) {
-                    navigateToRule(text, true);
+                    navigateToRuleInGrammarOrImport(text, true);
                     e.consume();
                 }
             }
@@ -488,26 +549,50 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     private void navigateToRule(String ruleName, boolean focus) {
         try {
             Document doc = grammarEditorClone.getDocument();
-            ParsingUtils.parse(doc, res -> {
-                if (res instanceof AntlrParseResult) {
-                    Extraction ext = ((AntlrParseResult) res).extraction();
-                    if (ext != null) {
-                        NamedSemanticRegions<RuleTypes> regions = ext.namedRegions(AntlrKeys.RULE_NAMES);
-                        if (regions != null && regions.contains(ruleName)) {
-                            NamedSemanticRegion<?> region = regions.regionFor(ruleName);
-                            Caret caret = grammarEditorClone.getCaret();
-                            positionCaret(caret, region.start(), doc);
-                            if (focus) {
-                                grammarEditorClone.requestFocus();
-                            }
-                        }
+            Extraction ext = NbAntlrUtils.extractionFor(doc);
+            if (ext != null && !ext.isPlaceholder() && !ext.isDisposed()) {
+                NamedSemanticRegions<RuleTypes> regions = ext.namedRegions(AntlrKeys.RULE_NAMES);
+                if (regions != null && regions.contains(ruleName)) {
+                    NamedSemanticRegion<?> region = regions.regionFor(ruleName);
+                    Caret caret = grammarEditorClone.getCaret();
+                    positionCaret(caret, region.start(), doc);
+                    if (focus) {
+                        grammarEditorClone.requestFocus();
                     }
                 }
-                return null;
-            });
+            }
         } catch (Exception ex) {
             Exceptions.printStackTrace(ex);
         }
+    }
+
+    @Messages({
+        "# {0} - itemName",
+        "goTo=Go To {0}"})
+    void onSyntaxTreePopupRequested(Component target, int x, int y, ModelEntry rule) {
+        if (rule == null || rule.isError()) {
+            return;
+        }
+        ModelEntry curr = rule;
+        Set<String> seen = new HashSet<>();
+        JPopupMenu menu = new JPopupMenu();
+        while (curr != null && curr.element() != null && !curr.element().isRoot() && menu.getComponentCount() < 7) {
+            String name = curr.element().name();
+            if (!seen.contains(name) && !curr.isError()) {
+                JMenuItem item = new JMenuItem(Bundle.goTo(name));
+                ModelEntry en = curr;
+                item.addActionListener(ae -> {
+                    if (en.isParserRule()) {
+                        navigateToRule(en.name(), true);
+                    } else if (en.isTerminal()) {
+                        navigateToRuleInGrammarOrImport(en.lexerRuleName(), true);
+                    }
+                });
+                menu.add(item);
+                curr = syntaxModel.parent(curr);
+            }
+        }
+        menu.show(target, x, y);
     }
 
     private class RulesListClickOrEnter extends MouseAdapter implements KeyListener {
@@ -527,21 +612,166 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             if (e.getKeyCode() == KeyEvent.VK_ENTER) {
                 String rule = rulesList.getSelectedValue();
                 e.consume();
-                navigateToNearestExampleOf(rule);
+                navigateToNearestExampleOf(rule, true);
             }
         }
 
         @Override
+        @Messages({
+            "# {0} - ruleName",
+            "navigateToExample=Go to First Use of {0}",
+            "# {0} - ruleName",
+            "navigateToRule=Go to Definition of {0}"
+        })
         public void mouseClicked(MouseEvent e) {
             if (e.getClickCount() == 2 && !e.isPopupTrigger()) {
                 String rule = rulesList.getSelectedValue();
                 e.consume();
-                navigateToNearestExampleOf(rule);
+                navigateToNearestExampleOf(rule, true);
+                navigateToRule(rule, false);
+            } else if (e.isPopupTrigger()) {
+                mouseReleased(e);
+            }
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            mouseReleased(e);
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            if (e.isPopupTrigger()) {
+                Point p = e.getPoint();
+                int ix = rulesList.locationToIndex(p);
+                if (ix >= 0) {
+                    String rule = rulesList.getModel().getElementAt(ix);
+                    if (rule != null) {
+                        JPopupMenu popup = new JPopupMenu();
+                        JMenuItem navExample = new JMenuItem();
+                        Mnemonics.setLocalizedText(navExample,
+                                Bundle.navigateToExample(rule));
+                        navExample.addActionListener((ActionEvent e1) -> {
+                            navigateToNearestExampleOf(rule, true);
+                        });
+                        JMenuItem navRule = new JMenuItem();
+                        Mnemonics.setLocalizedText(navRule,
+                                Bundle.navigateToRule(rule));
+                        navRule.addActionListener((ActionEvent e1) -> {
+                            navigateToRuleInGrammarOrImport(rule, true);
+                        });
+                        popup.add(navExample);
+                        popup.add(navRule);
+                        popup.show((Component) e.getSource(), p.x, p.y);
+                        e.consume();
+                    } else {
+                        System.out.println("No rule at " + ix + ": " + rule);
+                    }
+                } else {
+                    System.out.println("Rules list ix " + ix);
+                }
             }
         }
     }
 
-    private void navigateToNearestExampleOf(String rule) {
+    @SuppressWarnings("deprecation")
+    private void navigateToRuleInGrammarOrImport(String rule, boolean focus) {
+        if (rule == null) {
+            return;
+        }
+        EventQueue.invokeLater(() -> {
+            // Ensure we're outside the AWT tree lock before we do something that
+            // could grab the giant lock that is ParserManager
+            Extraction ext = NbAntlrUtils.extractionFor(grammarEditorClone.getDocument());
+            NamedSemanticRegions<RuleTypes> rules = ext.namedRegions(AntlrKeys.RULE_NAMES);
+            NamedSemanticRegions<RuleTypes> ruleBounds = ext.namedRegions(AntlrKeys.RULE_BOUNDS);
+            NamedSemanticRegion<RuleTypes> region = rules.regionFor(rule);
+            NamedSemanticRegion<RuleTypes> bounds = ruleBounds.regionFor(rule);
+            if (region != null) {
+                // The requested rule is in the document we are showing - use the preview
+                // editor
+                Int offset = Int.of(region.end());
+                grammarEditorClone.getDocument().render(() -> {
+                    Segment seg = new Segment();
+                    try {
+                        grammarEditorClone.getDocument().getText(bounds.start(), bounds.end());
+                        int ix = seg.toString().indexOf(':');
+                        if (ix > 0) {
+                            offset.set(bounds.start() + ix);
+                        }
+                    } catch (BadLocationException ex) {
+                        LOG.log(Level.INFO, "Navigating to " + rule, ex);
+                    }
+                });
+                int charPos = offset.getAsInt();
+                this.positionCaret(grammarEditorClone.getCaret(), charPos, grammarEditorClone.getDocument());
+                centerRect(grammarEditorClone, charPos);
+                if (focus) {
+                    grammarEditorClone.requestFocus();
+                }
+            } else {
+                Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved = ext.resolveAll(AntlrKeys.RULE_NAME_REFERENCES);
+                if (resolved != null && resolved.hasResolved()) {
+                    SemanticRegions<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> att
+                            = resolved.attributed();
+
+                    SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>>
+                            found = att.find(key -> rule.equals(key.name()));
+
+                    if (found != null) {
+                        GrammarSource<?> src = found.key().attributedTo().source();
+                        Document doc = src.lookupOrDefault(Document.class, () -> {
+                            FileObject fo = src.lookupOrDefault(FileObject.class, () -> null);
+                            if (fo != null) {
+                                try {
+                                    DataObject dob = DataObject.find(fo);
+                                    EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
+                                    if (ck == null) {
+                                        return null;
+                                    }
+                                    ck.open();
+                                    return ck.openDocument();
+                                } catch (IOException ex) {
+                                    LOG.log(Level.INFO, null, ex);
+                                    return null;
+                                }
+                            }
+                            return null;
+                        });
+                        if (doc != null) {
+                            int offset = found.key().element().start();
+                            Line ln = NbEditorUtilities.getLine(doc, offset, false);
+                            if (ln != null) {
+                                ln.show(Line.ShowOpenType.REUSE_NEW, Line.ShowVisibilityType.FOCUS);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    @SuppressWarnings("deprecation")
+    private void centerRect(JTextComponent comp, int charOffset) {
+        try {
+            // XXX JDK9 use modelToView2D
+            Rectangle bds = comp.modelToView(charOffset);
+            Rectangle vis = comp.getVisibleRect();
+            int remainder = (bds.height - vis.height) / 2;
+            bds.y -= remainder;
+            bds.height += remainder;
+            bds.y = Math.max(0, bds.y);
+            bds.x = 0;
+            if (bds.y + bds.height > comp.getHeight()) {
+                bds.height = comp.getHeight() - bds.y;
+            }
+            comp.scrollRectToVisible(bds);
+        } catch (BadLocationException ex) {
+            Exceptions.printStackTrace(ex);
+        }
+    }
+
+    private void navigateToNearestExampleOf(String rule, boolean focus) {
         if (rule == null) {
             return;
         }
@@ -568,6 +798,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 ProxyTokenType type = ptp.tokenTypeForInt(next.getType());
                 if (type.name().equals(rule)) {
                     selectRangeInPreviewEditor(next.getStartIndex(), next.getEndIndex());
+                    if (focus) {
+                        editorPane.requestFocus();
+                    }
                     return;
                 }
             }
@@ -576,6 +809,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 ProxyTokenType type = ptp.tokenTypeForInt(prev.getType());
                 if (type.name().equals(rule)) {
                     selectRangeInPreviewEditor(prev.getStartIndex(), prev.getEndIndex());
+                    if (focus) {
+                        editorPane.requestFocus();
+                    }
                     return;
                 }
             }
@@ -595,6 +831,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                         ProxyToken first = toks.get(0);
                         ProxyToken last = toks.get(toks.size() - 1);
                         selectRangeInPreviewEditor(first.getStartIndex(), last.getEndIndex());
+                        if (focus) {
+                            editorPane.requestFocus();
+                        }
                         return;
                     }
                 }

@@ -390,7 +390,7 @@ final class AdhocHighlighterManager {
         LOG.log(Level.FINE, "onNewParse {0} with {1} and {2}",
                 new Object[]{this, doc, res});
         AntlrProxies.ParseTreeProxy s = res.proxy();
-        if (s.text() == null) {
+        if (s.text() == null || s.text().length() < 2) {
             Debug.failure("Null text", res::toString);
             return;
         }

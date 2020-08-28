@@ -1760,6 +1760,14 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 block.declare("snapshotSource").initializedByInvoking("find")
                                         .withArgument("snapshot").withArgument(tokenTypeName + ".MIME_TYPE")
                                         .on(GRAMMAR_SOURCE.simpleName()).as(GRAMMAR_SOURCE.parametrizedName("?"));
+                                block.asserting(ab -> {
+                                    ab.variable("snapshotSource").notEquals().expression("null")
+                                            .endCondition().withMessage(msg -> {
+                                                msg.append("Null returned from GrammarSource.find() with an instance of Snapshot of mimeType ")
+                                                        .append(mimeType).append(". Probably the antlr-input-nb is missing?");
+
+                                            });
+                                });
                                 block.lineComment("Store the source and canceller temporarily in the map of source to canceller");
                                 block.invoke("put")
                                         .withArgument("src")
@@ -1779,7 +1787,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .fynalli().synchronizeOn("CANCELLATION_FOR_SOURCE")
                                         .iff(ifb -> {
                                             ifb.invoke("get").withArgument("src").on("CANCELLATION_FOR_SOURCE")
-                                                    .equals().expression("cancelled").endCondition()
+                                                    .isEquals("cancelled")
                                                     .invoke("remove").withArgument("src")
                                                     .on("CANCELLATION_FOR_SOURCE").endIf();
                                         })
@@ -1836,7 +1844,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                             .withArgumentFromInvoking("get").on("foOpt")
                                             .on(FILE_OWNER_QUERY.simpleName()).as(PROJECT.simpleName());
                                     ibb.iff(ifProject -> {
-                                        ClassBuilder.IfBuilder<?> ifProjectBlock = ifProject.booleanExpression("project != null && project != FileOwnerQuery.UNOWNED");
+                                        ClassBuilder.IfBuilder<?> ifProjectBlock = ifProject.variable("project").notEquals().expression("null")
+                                                .and().variable("project").notEqualToField("UNOWNED").of(FILE_OWNER_QUERY.simpleName());
                                         ifProjectBlock.lineComment("Here is where we will get back an empty AntlrParserResult if our MIME type is locked for this project");
                                         ifProjectBlock.returningInvocationOf("returnDummyResultIfProjectLocked")
                                                 .withArgument("project")
@@ -2426,7 +2435,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .endIf()
                 .ifNotNull("litStripped")
                 .invoke("put").withArgument("litStripped").withArgument("tok").on("byLiteralName")
-                .iff().invoke("length").on("litStripped").equals().literal(1).endCondition()
+                .iff().invoke("length").on("litStripped").isEqualTo(1)
                 .invoke("put").withArgument("litStripped.charAt(0)").withArgument("tok").on("tokForCharMap")
                 .invoke("add").withArgument("litStripped.charAt(0)").on("charsList")
                 .endIf()
@@ -2446,7 +2455,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .docComment("Look up the token id for a single character such as ';'.")
                 .withModifier(STATIC).withModifier(PUBLIC).body()
                 .declare("ix").initializedWith("Arrays.binarySearch(chars, ch)").as("int")
-                .iff().variable("ix").greaterThanOrEqualto().literal(0).endCondition()
+                .iff().variable("ix").isGreaterThanOrEqualTo(0)
                 .returning("Optional.of(tokForChar[ix])").endIf()
                 .returning("Optional.empty()").endBlock();
 
@@ -2556,7 +2565,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
         idSwitch.inDefaultCase().andThrow(nb -> {
             nb.withStringConcatentationArgument("No such ID:").with().expression("id").endConcatenation()
                     .ofType(ILLEGAL_ARGUMENT_EXCEPTION.simpleName());
-        });
+        }).endBlock();
         idSwitch.build().endBlock();
         allArray.closeArrayLiteral();
 
@@ -2625,7 +2634,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                             .lineComment("Assign fields here to guarantee initialization order")
                             .statement("IDS = Collections.unmodifiableList(Arrays.asList(" + tokensTypeName + ".all()));")
                             .simpleLoop(tokenTypeName, "tok").over("IDS")
-                            .iff().invoke("ordinal").on("tok").equals().literal(-1).endCondition()
+                            .iff().invoke("ordinal").on("tok").isEqualTo(-1)
                             .lineComment("Antlr has a token type -1 for EOF; editor's cache cannot handle negative ordinals")
                             .statement("continue").endIf()
                             .declare("curr").initializedByInvoking("get").withArgument("tok.primaryCategory()").on("map").as("Collection<" + tokenTypeName + ">")

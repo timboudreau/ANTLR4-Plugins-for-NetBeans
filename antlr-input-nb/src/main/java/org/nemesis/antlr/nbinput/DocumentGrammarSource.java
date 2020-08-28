@@ -178,6 +178,11 @@ final class DocumentGrammarSource extends AbstractFileObjectGrammarSourceImpleme
         return doc;
     }
 
+    @Override
+    protected Document document() {
+        return doc;
+    }
+
     public String toString() {
         FileObject fo = toFileObject();
         return fo != null ? "doc:" + fo.toURI() : "doc:" + doc.toString();

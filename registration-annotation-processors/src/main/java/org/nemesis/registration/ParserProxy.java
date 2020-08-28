@@ -141,9 +141,9 @@ class ParserProxy {
                     ab.addClassArgument("service", RULES_MAPPING.simpleName())
                             .addArgument("path", "antlr/" + mimeType + "/rules");
                 })
-                .method("ruleTypeForName", (ClassBuilder.MethodBuilder<?> mb) -> {
+                .overridePublic("ruleTypeForName", (ClassBuilder.MethodBuilder<?> mb) -> {
                     mb.addArgument("String", "name")
-                            .withModifier(PUBLIC, FINAL)
+                            .withModifier(FINAL)
                             .returning("Class<? extends ParserRuleContext>")
                             .body((BlockBuilder<?> bb) -> {
                                 bb.switchingOn("name", (ClassBuilder.SwitchBuilder<?> sw) -> {
@@ -153,9 +153,9 @@ class ParserProxy {
                                     sw.inDefaultCase().returningNull().endBlock();
                                 });
                             });
-                }).method("nameForRuleType", (ClassBuilder.MethodBuilder<?> mb) -> {
+                }).overridePublic("nameForRuleType", (ClassBuilder.MethodBuilder<?> mb) -> {
             mb.addArgument("Class<? extends ParserRuleContext>", "type")
-                    .withModifier(PUBLIC, FINAL)
+                    .withModifier(FINAL)
                     .returning("String")
                     .body((BlockBuilder<?> bb) -> {
                         bb.switchingOn("type.getName()", (ClassBuilder.SwitchBuilder<?> sw) -> {
@@ -166,9 +166,9 @@ class ParserProxy {
                             sw.inDefaultCase().returningNull().endBlock();
                         });
                     });
-        }).method("ruleIdForType", (ClassBuilder.MethodBuilder<?> mb) -> {
+        }).overridePublic("ruleIdForType", (ClassBuilder.MethodBuilder<?> mb) -> {
             mb.addArgument("Class<? extends ParserRuleContext>", "type")
-                    .withModifier(PUBLIC, FINAL)
+                    .withModifier(FINAL)
                     .returning("int")
                     .body((BlockBuilder<?> bb) -> {
                         bb.switchingOn("type.getName()", (ClassBuilder.SwitchBuilder<?> sw) -> {
@@ -184,7 +184,7 @@ class ParserProxy {
                             sw.inDefaultCase().returning(-1).endBlock();
                         });
                     });
-        }).method("typeForRuleId", (ClassBuilder.MethodBuilder<?> mb) -> {
+        }).overridePublic("typeForRuleId", (ClassBuilder.MethodBuilder<?> mb) -> {
             mb.addArgument("int", "ruleId")
                     .withModifier(PUBLIC, FINAL)
                     .returning("Class<? extends ParserRuleContext>")
@@ -201,9 +201,9 @@ class ParserProxy {
                             sw.inDefaultCase().returningNull().endBlock();
                         });
                     });
-        }).method("nameForRuleId", (ClassBuilder.MethodBuilder<?> mb) -> {
+        }).overridePublic("nameForRuleId", (ClassBuilder.MethodBuilder<?> mb) -> {
             mb.addArgument("int", "ruleId")
-                    .withModifier(PUBLIC, FINAL)
+                    .withModifier(FINAL)
                     .returning("String")
                     .body((BlockBuilder<?> bb) -> {
                         bb.switchingOn("ruleId", (ClassBuilder.SwitchBuilder<?> sw) -> {
@@ -216,7 +216,7 @@ class ParserProxy {
                             sw.inDefaultCase().returningNull().endBlock();
                         });
                     });
-        }).method("ruleIdForName", (ClassBuilder.MethodBuilder<?> mb) -> {
+        }).overridePublic("ruleIdForName", (ClassBuilder.MethodBuilder<?> mb) -> {
             mb.addArgument("String", "name")
                     .withModifier(PUBLIC, FINAL)
                     .returning("int")
@@ -230,9 +230,9 @@ class ParserProxy {
                             sw.inDefaultCase().returning(-1).endBlock();
                         });
                     });
-        }).method("invokeRule", mb -> {
+        }).overridePublic("invokeRule", mb -> {
             mb.addArgument("int", "ruleId").addArgument(parserClassSimple(), "on")
-                    .withModifier(PUBLIC, FINAL)
+                    .withModifier(FINAL)
                     .returning(PARSER_RULE_CONTEXT.simpleName())
                     .body((BlockBuilder<?> bb) -> {
                         bb.declare("targetMethod").as("Supplier<? extends "
@@ -247,12 +247,14 @@ class ParserProxy {
                                     switchCase.statement("break");
                                 });
                             }
-                            sw.inDefaultCase().andThrow(nb -> {
-                                nb.withArgument(LinesBuilder.stringLiteral("No such id: ")
-                                        + " + ruleId + "
-                                        + LinesBuilder.stringLiteral(". Possible ids are 0:"
-                                                + Collections.max(this.ruleIdForName.keySet())))
-                                        .ofType("IllegalArgumentException");
+                            sw.inDefaultCase(db -> {
+                                db.andThrow(nb -> {
+                                    nb.withArgument(LinesBuilder.stringLiteral("No such id: ")
+                                            + " + ruleId + "
+                                            + LinesBuilder.stringLiteral(". Possible ids are 0:"
+                                                    + Collections.max(this.ruleIdForName.keySet())))
+                                            .ofType("IllegalArgumentException");
+                                });
                             });
                         }).returningInvocationOf("get").on("targetMethod");
                     });

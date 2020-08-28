@@ -29,6 +29,7 @@ import javax.swing.DefaultListSelectionModel;
 import javax.swing.JList;
 import javax.swing.ListModel;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -117,7 +118,11 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         @Override
         @SuppressWarnings("unchecked")
         public void mouseClicked(MouseEvent e) {
-            if (disabled.getAsBoolean()) {
+            if (e.isPopupTrigger()) {
+                mouseReleased(e);
+                return;
+            }
+            if (disabled.getAsBoolean() || e.getClickCount() > 1) {
                 return;
             }
             List<ProxyToken> toks = supp.get();
@@ -139,6 +144,37 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
             }
             list.setSelectedIndex(index);
             list.repaint(list.getCellBounds(oldSel < 0 ? index : oldSel, index));
+            e.consume();
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            if (e.isPopupTrigger()) {
+                mouseReleased(e);
+            }
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            if (disabled.getAsBoolean()) {
+                return;
+            }
+            List<ProxyToken> toks = supp.get();
+            if (toks.isEmpty()) {
+                return;
+            }
+            JList<ModelEntry> list = (JList<ModelEntry>) e.getSource();
+            int index = list.locationToIndex(e.getPoint());
+            if (index >= 0) {
+                ModelEntry entry = list.getModel().getElementAt(index);
+                if (entry != null) {
+                    PreviewPanel pnl = (PreviewPanel) SwingUtilities.getAncestorOfClass(PreviewPanel.class, list);
+                    if (pnl != null) {
+                        pnl.onSyntaxTreePopupRequested(list, e.getX(), e.getY(), entry);
+                        e.consume();
+                    }
+                }
+            }
         }
     }
 
@@ -275,6 +311,18 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         return null;
     }
 
+    ModelEntry parent(ModelEntry en) {
+        if (en.depth() > 0) {
+            ParseTreeElement pte = en.element().parent();
+            for (ModelEntry e : entries) {
+                if (e.element() == en.element().parent()) {
+                    return e;
+                }
+            }
+        }
+        return null;
+    }
+
     static final class ModelEntry {
 
         private final AntlrProxies.ParseTreeElement el;
@@ -305,6 +353,10 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
                             == AntlrProxies.ERRONEOUS_TOKEN_NAME;
                 }
             }
+        }
+
+        public AntlrProxies.ParseTreeElement element() {
+            return el;
         }
 
         public String modeName() {

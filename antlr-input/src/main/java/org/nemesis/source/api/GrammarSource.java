@@ -96,7 +96,7 @@ public final class GrammarSource<T> implements Serializable {
             return type.cast(this);
         }
         R result = GSAccessor.getDefault().lookup(impl, type);
-        return result == null ? defaultResult.get() : result;
+        return result == null ? defaultResult == null ? null : defaultResult.get() : result;
     }
 
     public final <R> Optional<R> lookup(Class<R> type) {

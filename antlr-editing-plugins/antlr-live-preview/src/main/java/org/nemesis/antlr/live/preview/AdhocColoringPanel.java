@@ -16,12 +16,15 @@
 package org.nemesis.antlr.live.preview;
 
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.Serializable;
@@ -35,6 +38,9 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.plaf.basic.BasicButtonUI;
+import static org.nemesis.antlr.live.language.AdhocErrorHighlighter.toggleHighlightAmbiguitiesAction;
+import static org.nemesis.antlr.live.language.AdhocErrorHighlighter.toggleHighlightLexerErrorsAction;
+import static org.nemesis.antlr.live.language.AdhocErrorHighlighter.toggleHighlightParserErrorsAction;
 import org.nemesis.antlr.live.language.ColorUtils;
 import org.nemesis.antlr.live.language.coloring.AdhocColoring;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
@@ -56,8 +62,11 @@ import org.openide.util.NbBundle.Messages;
     "italic=Italic",
     "disableAll=Disable All Colors"
 })
-public final class AdhocColoringPanel extends JPanel implements ActionListener, PropertyChangeListener {
+public final class AdhocColoringPanel extends JPanel implements ActionListener, PropertyChangeListener, MouseListener {
 
+    private final JButton toggle1 = new JButton(toggleHighlightAmbiguitiesAction());
+    private final JButton toggle2 = new JButton(toggleHighlightParserErrorsAction());
+    private final JButton toggle3 = new JButton(toggleHighlightLexerErrorsAction());
     private final JLabel label = new JLabel("<rule name>");
     private final JCheckBox active = new JCheckBox(Bundle.active());
     private final JCheckBox bold = new JCheckBox(Bundle.bold());
@@ -99,14 +108,33 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
         colorButton.setMinimumSize(new Dimension(24, 24));
         colorButton.setOpaque(true);
         GridBagConstraints gbc = new GridBagConstraints();
+        toggle1.setText("");
+        toggle2.setText("");
+        toggle3.setText("");
+        toggle1.setContentAreaFilled(false);
+        toggle2.setContentAreaFilled(false);
+        toggle3.setContentAreaFilled(false);
+        // The icon will paint itself with a different color after a 
+        // toggle, but there is no mechanism to repaint the button directly
+        // via the action
+        toggle1.addMouseListener(this);
+        toggle2.addMouseListener(this);
+        toggle3.addMouseListener(this);
         gbc.anchor = GridBagConstraints.FIRST_LINE_START;
-        gbc.insets = new Insets(0, 5, 0, 0);
+        gbc.insets = new Insets(0, 5, 2, 0);
         gbc.ipadx = 3;
         gbc.ipady = 3;
         gbc.gridx = 0;
         gbc.gridwidth = 1;
         gbc.gridheight = GridBagConstraints.RELATIVE;
         gbc.fill = GridBagConstraints.VERTICAL;
+        add(toggle1, gbc);
+        gbc.gridx++;
+        add(toggle2, gbc);
+        gbc.gridx++;
+        add(toggle3, gbc);
+        gbc.gridx++;
+
         gbc.weightx = 1.0;
         add(label, gbc);
         gbc.weightx = 0;
@@ -162,6 +190,31 @@ public final class AdhocColoringPanel extends JPanel implements ActionListener, 
 
     public Color getColor() {
         return color;
+    }
+
+    @Override
+    public void mouseClicked(MouseEvent e) {
+        ((Component) e.getSource()).repaint();
+    }
+
+    @Override
+    public void mousePressed(MouseEvent e) {
+        // do nothing
+    }
+
+    @Override
+    public void mouseReleased(MouseEvent e) {
+        // do nothing
+    }
+
+    @Override
+    public void mouseEntered(MouseEvent e) {
+        // do nothing
+    }
+
+    @Override
+    public void mouseExited(MouseEvent e) {
+        // do nothing
     }
 
     @Override

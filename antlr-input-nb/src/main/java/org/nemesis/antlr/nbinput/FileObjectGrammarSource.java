@@ -46,11 +46,6 @@ final class FileObjectGrammarSource extends AbstractFileObjectGrammarSourceImple
         this.resolver = resolver;
     }
 
-    @Override
-    public String name() {
-        return file.getName();
-    }
-
     public String toString() {
         return file.toURI().toString();
     }
@@ -58,11 +53,6 @@ final class FileObjectGrammarSource extends AbstractFileObjectGrammarSourceImple
     @Override
     public FileObject toFileObject() {
         return file;
-    }
-
-    @Override
-    public long lastModified() throws IOException {
-        return file.lastModified().getTime();
     }
 
     @Override

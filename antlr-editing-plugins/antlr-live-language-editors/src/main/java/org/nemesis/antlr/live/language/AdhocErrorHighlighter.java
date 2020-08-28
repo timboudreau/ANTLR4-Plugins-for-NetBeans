@@ -17,6 +17,8 @@ package org.nemesis.antlr.live.language;
 
 import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
+import com.mastfrog.util.strings.Strings;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
@@ -24,9 +26,12 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Line2D;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -35,6 +40,9 @@ import java.util.logging.Logger;
 import java.util.prefs.Preferences;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
+import static javax.swing.Action.NAME;
+import static javax.swing.Action.SHORT_DESCRIPTION;
+import static javax.swing.Action.SMALL_ICON;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.UIManager;
@@ -47,7 +55,12 @@ import javax.swing.text.StyleConstants;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.live.language.AdhocHighlighterManager.HighlightingInfo;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ErrorNodeTreeElement;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElementKind;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
@@ -55,7 +68,6 @@ import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.AttributesUtilities;
 import org.netbeans.api.editor.settings.EditorStyleConstants;
 import org.netbeans.api.editor.settings.FontColorSettings;
-import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
@@ -94,7 +106,15 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         return bag;
     }
 
-    public static AttributeSet coloring() {
+    private static Color errorColor() {
+        Color c = UIManager.getColor("nb.errorForeground");
+        if (c == null) {
+            c = new Color(255, 190, 190);
+        }
+        return c;
+    }
+
+    public static AttributeSet errors() {
         // Do not cache - user can edit these
 //        MimePath mimePath = MimePath.parse(ANTLR_MIME_TYPE);
 //        FontColorSettings fcs = MimeLookup.getLookup(mimePath).lookup(FontColorSettings.class);
@@ -107,14 +127,30 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         }
         SimpleAttributeSet set = new SimpleAttributeSet();
         StyleConstants.setUnderline(set, true);
-        Color c = UIManager.getColor("nb.errorForeground");
-        if (c == null) {
-            c = new Color(255, 190, 190);
-        }
+        Color c = errorColor();
         StyleConstants.setForeground(set, c);
         StyleConstants.setBackground(set, new Color(120, 20, 20));
         set.addAttribute(EditorStyleConstants.WaveUnderlineColor, c.darker());
         return errorColoring = AttributesUtilities.createImmutable(set);
+    }
+
+    private static AttributeSet pErrors;
+
+    public static AttributeSet parserErrors() {
+        if (pErrors != null) {
+            return pErrors;
+        }
+        SimpleAttributeSet s = new SimpleAttributeSet();
+//        Color c = Color.RED;
+        StyleConstants.setForeground(s, Color.RED);
+        s.addAttribute(StyleConstants.Underline, Color.ORANGE);
+        s.addAttribute(StyleConstants.Bold, true);
+//        StyleConstants.setBackground(s, Color.BLUE);
+//        s.addAttribute(EditorStyleConstants.BottomBorderLineColor, c);
+//        s.addAttribute(EditorStyleConstants.LeftBorderLineColor, c);
+//        s.addAttribute(EditorStyleConstants.RightBorderLineColor, c);
+//        s.addAttribute(EditorStyleConstants.TopBorderLineColor, c);
+        return pErrors = AttributesUtilities.createImmutable(s);
     }
 
     private static AttributeSet warning;
@@ -134,82 +170,180 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
     }
 
     @Override
-    @Messages({"buildFailed=Build Failed"})
+    @Messages({"buildFailed=Build Failed",
+        "# {0} - ruleName",
+        "# {1} - alternatives",
+        "ambiguityMsg=Ambiguity in {0}. Alternatives: {1}",
+        "# {0} - matches",
+        "ambiguityMatches=Ambiguity between: {0}",
+        "parseError=Parse Tree Error Node"
+    })
     protected void refresh(HighlightingInfo info) {
-        Document doc = info.doc;
+        // We may get called multiple times with a flurry of
+        // reparses - avoid doing extra work by delaying and
+        // coalescing
+        this.refreshErrorsTask.schedule(REFRESH_ERRORS_DELAY);
+    }
+
+    private void doRefresh(HighlightingInfo info) {
         AntlrProxies.ParseTreeProxy semantics = info.semantics;
+        if (!semantics.isUnparsed() && semantics.text() == null || semantics.text().length() < 2) {
+            // Just a no-text parse the lexer used to extract a list of tokens; ignore it.
+            return;
+        }
+        Document doc = info.doc;
         OffsetsBag bag = new OffsetsBag(doc, true);
         List<ErrorDescription> set = new ArrayList<>();
-        AttributeSet attrs = coloring();
-        if (semantics.text() == null || semantics.text().length() < 2) {
-            // do nothing
-        } else if (semantics.isUnparsed()) {
+        AttributeSet attrs = errors();
+        LineDocument ld = LineDocumentUtils.as(doc, LineDocument.class);
+        if (semantics.isUnparsed()) {
             set.add(ErrorDescriptionFactory
                     .createErrorDescription(org.netbeans.spi.editor.hints.Severity.ERROR,
                             Bundle.buildFailed(), doc, 0));
         } else {
-            LOG.log(Level.FINER, "Refresh errors with {0} errors", semantics.syntaxErrors().size());
-            Set<IntRange<? extends IntRange<?>>> used = new HashSet<>();
-            LineDocument ld = LineDocumentUtils.as(doc, LineDocument.class);
-            if (!semantics.syntaxErrors().isEmpty()) {
-                for (AntlrProxies.ProxySyntaxError e : semantics.syntaxErrors()) {
-                    SimpleAttributeSet ttip = new SimpleAttributeSet();
-                    ttip.addAttribute(EditorStyleConstants.WaveUnderlineColor, Color.RED);
-                    ttip.addAttribute(EditorStyleConstants.Tooltip, e.message());
-                    AttributeSet finalAttrs = AttributesUtilities.createComposite(attrs, ttip);
+            if (highlightAmbiguities()) { // XXX useful but very noisy on unfinished grammars
+                for (AntlrProxies.Ambiguity amb : semantics.ambiguities()) {
+                    ProxyToken a = semantics.tokens().get(amb.startOffset);
+                    ProxyToken b = semantics.tokens().get(amb.stopOffset);
+                    SimpleAttributeSet sas = new SimpleAttributeSet();
+                    StringBuilder alts = new StringBuilder();
+                    for (int bit = amb.conflictingAlternatives.nextSetBit(0);
+                            bit >= 0;
+                            bit = amb.conflictingAlternatives.nextSetBit(bit + 1)) {
+                        if (bit >= 0 && bit < semantics.tokenTypeCount()) {
+                            if (alts.length() > 0) {
+                                alts.append(", ");
+                            }
+                            ProxyTokenType type = semantics.tokenTypeForInt(bit);
+                            alts.append(type);
+                        }
+                    }
+                    Position startPos, endPos;
                     try {
-                        IntRange<? extends IntRange<?>> range;
-                        if (e instanceof AntlrProxies.ProxyDetailedSyntaxError) {
-                            AntlrProxies.ProxyDetailedSyntaxError d = (AntlrProxies.ProxyDetailedSyntaxError) e;
-                            int start = Math.max(0, d.startIndex());
-                            int end = Math.min(doc.getLength() - 1, d.endIndex());
-                            range = Range.ofCoordinates(Math.min(start, end), Math.max(start, end));
-                            bag.addHighlight(range.start(), range.end(),
-                                    finalAttrs);
-                            Position startPos = ld.createPosition(range.start(), Position.Bias.Backward);
-                            Position endPos = ld.createPosition(range.end(), Position.Bias.Forward);
-                            set.add(ErrorDescriptionFactory
-                                    .createErrorDescription(Severity.ERROR, e.message(), doc, startPos, endPos));
+                        if (ld != null) {
+                            startPos = ld.createPosition(amb.startOffset, Position.Bias.Backward);
+                            endPos = ld.createPosition(amb.end(), Position.Bias.Backward);
                         } else {
-                            int start = LineDocumentUtils.getLineStart(ld, e.line())
-                                    + e.charPositionInLine();
-                            int end = LineDocumentUtils.getLineEnd(ld, start);
-                            range = Range.ofCoordinates(Math.min(start, end), Math.max(start, end));
-                            bag.addHighlight(range.start(), range.end(), finalAttrs);
-                            LOG.log(Level.FINEST, "Add highlight for {0}", e);
-                            Position startPos = ld.createPosition(start);
-                            Position endPos = ld.createPosition(end);
-                            set.add(ErrorDescriptionFactory
-                                    .createErrorDescription(Severity.ERROR, e.message(), doc, startPos, endPos));
+                            startPos = doc.createPosition(amb.startOffset);
+                            endPos = doc.createPosition(amb.end());
                         }
-                        used.add(range);
+                        sas.addAttribute(EditorStyleConstants.Tooltip,
+                                Bundle.ambiguityMatches(alts.toString()));
+                        bag.addHighlight(a.getStartIndex(), b.getEndIndex(),
+                                AttributesUtilities.createComposite(warning(), sas));
+                        set.add(ErrorDescriptionFactory.createErrorDescription(Severity.WARNING,
+                                Bundle.ambiguityMsg(amb.ruleName, alts),
+                                doc, startPos, endPos));
                     } catch (BadLocationException ble) {
-                        Logger.getLogger(AdhocErrorHighlighter.class.getName()).log(Level.INFO, "BLE parsing " + e, ble);
+                        Logger.getLogger(AdhocErrorHighlighter.class.getName()).log(
+                                Level.INFO, "BLE on ambiguity " + amb, ble);
                     }
                 }
-                for (AntlrProxies.ProxyToken tok : semantics.tokens()) {
-                    if (semantics.isErroneousToken(tok)) {
-                        int start = Math.max(0, tok.getStartIndex());
-                        int end = Math.min(doc.getLength() - 1, tok.getEndIndex());
-                        if (!used.contains(Range.ofCoordinates(Math.min(start, end), Math.max(start, end)))) {
-                            bag.addHighlight(Math.min(start, end), Math.max(start, end), attrs);
-                            LOG.log(Level.FINEST, "Add bad token highlight {0}", tok);
+            }
+            if (highlightLexerErrors()) {
+                LOG.log(Level.FINER, "Refresh errors with {0} errors", semantics.syntaxErrors().size());
+                Set<IntRange<? extends IntRange<?>>> used = new HashSet<>();
+                if (ld != null && !semantics.syntaxErrors().isEmpty()) {
+                    for (AntlrProxies.ProxySyntaxError e : semantics.syntaxErrors()) {
+                        SimpleAttributeSet ttip = new SimpleAttributeSet();
+                        ttip.addAttribute(EditorStyleConstants.WaveUnderlineColor, Color.RED);
+                        ttip.addAttribute(EditorStyleConstants.Tooltip, e.message());
+                        AttributeSet finalAttrs = AttributesUtilities.createComposite(attrs, ttip);
+                        try {
+                            IntRange<? extends IntRange<?>> range;
+                            if (e instanceof AntlrProxies.ProxyDetailedSyntaxError) {
+                                AntlrProxies.ProxyDetailedSyntaxError d = (AntlrProxies.ProxyDetailedSyntaxError) e;
+                                int start = Math.max(0, d.startIndex());
+                                int end = Math.min(doc.getLength() - 1, d.endIndex());
+                                range = Range.ofCoordinates(Math.min(start, end), Math.max(start, end));
+                                bag.addHighlight(range.start(), range.end(),
+                                        finalAttrs);
+                                Position startPos = ld.createPosition(range.start(), Position.Bias.Backward);
+                                Position endPos = ld.createPosition(range.end(), Position.Bias.Forward);
+                                set.add(ErrorDescriptionFactory
+                                        .createErrorDescription(Severity.ERROR, e.message(), doc, startPos, endPos));
+                            } else {
+                                int start = LineDocumentUtils.getLineStart(ld, e.line())
+                                        + e.charPositionInLine();
+                                int end = LineDocumentUtils.getLineEnd(ld, start);
+                                range = Range.ofCoordinates(Math.min(start, end), Math.max(start, end));
+                                bag.addHighlight(range.start(), range.end(), finalAttrs);
+                                LOG.log(Level.FINEST, "Add highlight for {0}", e);
+                                Position startPos = ld.createPosition(start);
+                                Position endPos = ld.createPosition(end);
+                                set.add(ErrorDescriptionFactory
+                                        .createErrorDescription(Severity.ERROR, e.message(), doc, startPos, endPos));
+                            }
+                            used.add(range);
+                        } catch (BadLocationException ble) {
+                            Logger.getLogger(AdhocErrorHighlighter.class.getName()).log(
+                                    Level.INFO, "BLE parsing " + e, ble);
+                        }
+                    }
+                    for (AntlrProxies.ProxyToken tok : semantics.tokens()) {
+                        if (semantics.isErroneousToken(tok)) {
+                            IntRange<? extends IntRange<?>> range
+                                    = Range.ofCoordinates(Math.max(0, tok.getStartIndex()),
+                                            Math.min(doc.getLength() - 1, tok.getEndIndex()));
+                            if (!used.contains(range)) {
+                                bag.addHighlight(range.start(), range.end(), attrs);
+                                LOG.log(Level.FINEST, "Add bad token highlight {0}", tok);
+                                used.add(range);
+                            }
+                        }
+                    }
+                }
+            }
+            if (highlightParserErrors()) {
+                for (AntlrProxies.ParseTreeElement el : coalescedErrorElements(semantics)) {
+                    if (el.kind() == ParseTreeElementKind.ERROR) {
+                        SimpleAttributeSet tip = new SimpleAttributeSet();
+                        tip.addAttribute(EditorStyleConstants.Tooltip, el.stringify());
+                        tip.addAttribute(EditorStyleConstants.DisplayName, el.stringify());
+                        try {
+                            if (el.isSynthetic() && el instanceof ErrorNodeTreeElement) {
+                                int start = ((ErrorNodeTreeElement) el).tokenStart();
+                                int end = ((ErrorNodeTreeElement) el).tokenEnd();
+                                if (end == start) {
+                                    end = Math.min(doc.getLength() - 1, start + 1);
+                                }
+                                if (start >= 0 && end > start) {
+                                    bag.addHighlight(start, end,
+                                            AttributesUtilities.createComposite(parserErrors(), tip));
+                                    Position startPos = doc.createPosition(start);
+                                    Position endPos = doc.createPosition(end);
+                                    set.add(ErrorDescriptionFactory
+                                            .createErrorDescription(Severity.ERROR, el.stringify(),
+                                                    doc, startPos, endPos));
+                                }
+                            } else {
+                                if (el instanceof TokenAssociated) {
+                                    TokenAssociated ta = (TokenAssociated) el;
+                                    if (ta.startTokenIndex() >= 0 && ta.stopTokenIndex() >= 0) {
+                                        List<ProxyToken> toks = semantics.tokensForElement(el);
+                                        if (!toks.isEmpty()) {
+                                            ProxyToken first = toks.get(0);
+                                            ProxyToken last = toks.get(toks.size() - 1);
+                                            bag.addHighlight(first.getStartIndex(), last.getEndIndex(),
+                                                    AttributesUtilities.createComposite(parserErrors(), tip));
+                                            Position startPos = doc.createPosition(first.getStartIndex());
+                                            Position endPos = doc.createPosition(last.getStopIndex());
+                                            set.add(ErrorDescriptionFactory
+                                                    .createErrorDescription(Severity.ERROR, el.stringify(),
+                                                            doc, startPos, endPos));
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (BadLocationException ble) {
+                            Logger.getLogger(AdhocErrorHighlighter.class.getName()).log(Level.INFO,
+                                    "BLE finding offsets of " + el, ble);
                         }
                     }
                 }
             }
         }
-        // XXX useful but very noisy
-        if (highlightAmbiguities()) {
-            for (AntlrProxies.Ambiguity amb : semantics.ambiguities()) {
-                ProxyToken a = semantics.tokens().get(amb.startOffset);
-                ProxyToken b = semantics.tokens().get(amb.stopOffset);
-                bag.addHighlight(a.getStartIndex(), b.getEndIndex(), warning());
-                SimpleAttributeSet sas = new SimpleAttributeSet();
-                sas.addAttribute(EditorStyleConstants.Tooltip, "Matches " + amb.conflictingAlternatives);
-                set.add(ErrorDescriptionFactory.createErrorDescription(Severity.WARNING, "Ambiguity in rule '" + amb.ruleName + "'", NbEditorUtilities.getFileObject(doc), amb.startOffset, amb.end()));
-            }
-        }
+        System.out.println("SET " + set.size() + " errors on " + doc);
         HintsController.setErrors(doc, "1", set);
         Mutex.EVENT.readAccess(() -> {
             try {
@@ -218,10 +352,99 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                 bag.discard();
             }
         });
-        this.refreshErrorsTask.schedule(REFRESH_ERRORS_DELAY);
     }
 
-    void onHighlightAmbiguitiesChanged() {
+    static List<ErrorNodeTreeElement> coalescedErrorElements(ParseTreeProxy proxy) {
+        List<ErrorNodeTreeElement> origs = new ArrayList<>(proxy.allErrorElements());
+
+        Collections.sort(origs, (a, b) -> {
+            int aStart, bStart, aEnd, bEnd;
+            if (a.isSynthetic()) {
+                aStart = a.tokenStart();
+                aEnd = a.tokenEnd();
+            } else {
+                List<ProxyToken> toks = proxy.tokensForElement(a);
+                ProxyToken first = toks.get(0);
+                ProxyToken last = toks.get(toks.size() - 1);
+                aStart = first.getStartIndex();
+                aEnd = last.getEndIndex();
+            }
+            if (b.isSynthetic()) {
+                bStart = b.tokenStart();
+                bEnd = b.tokenEnd();
+            } else {
+                List<ProxyToken> toks = proxy.tokensForElement(b);
+                ProxyToken first = toks.get(0);
+                ProxyToken last = toks.get(toks.size() - 1);
+                bStart = first.getStartIndex();
+                bEnd = last.getEndIndex();
+            }
+
+            int result = Integer.compare(aStart, bStart);
+            if (result == 0) {
+                result = Integer.compare(aEnd, bEnd);
+            }
+            return result;
+        });
+        List<ErrorNodeTreeElement> result = new ArrayList<>(origs.size());
+        int currStart = Integer.MIN_VALUE;
+        int currEnd = Integer.MIN_VALUE;
+        int currTokenIndexStart = Integer.MIN_VALUE;
+        int currTokenIndexStop = Integer.MIN_VALUE;
+        int maxDepth = Integer.MIN_VALUE;
+        List<String> symbols = new ArrayList<>();
+        for (ErrorNodeTreeElement orig : origs) {
+            if (currStart == Integer.MIN_VALUE) {
+                currStart = orig.tokenStart();
+                currEnd = orig.tokenEnd();
+                maxDepth = Math.max(maxDepth, orig.depth());
+                if (orig.isSynthetic()) {
+                    currTokenIndexStart = -1;
+                    currTokenIndexStop = -1;
+                } else {
+                    currTokenIndexStart = orig.startTokenIndex();
+                    currTokenIndexStop = orig.stopTokenIndex();
+                }
+                symbols.add(orig.tokenText());
+            } else {
+                if (orig.tokenStart() <= currEnd + 1) {
+                    symbols.add(orig.tokenText());
+                    currEnd = orig.tokenEnd();
+                    if (orig.isSynthetic()) {
+                    } else {
+                        currTokenIndexStop = orig.stopTokenIndex();
+                    }
+                } else {
+                    if (currStart != Integer.MAX_VALUE) {
+                        String text = Strings.join(", ", symbols);
+                        symbols.clear();
+                        result.add(new ErrorNodeTreeElement(currTokenIndexStart,
+                                currTokenIndexStop, maxDepth,
+                                currStart, currEnd, text, -1));
+                        currTokenIndexStart = -1;
+                        currTokenIndexStop = -1;
+                    }
+                    currStart = orig.tokenStart();
+                    currEnd = orig.tokenEnd();
+                    symbols.add(orig.tokenText());
+                    if (!orig.isSynthetic()) {
+                        currTokenIndexStart = orig.startTokenIndex();
+                        currTokenIndexStop = orig.stopTokenIndex();
+                    }
+                }
+            }
+        }
+        if (currStart != Integer.MAX_VALUE) {
+            String text = Strings.join(", ", symbols);
+            symbols.clear();
+            result.add(new ErrorNodeTreeElement(currTokenIndexStart,
+                    currTokenIndexStop, maxDepth,
+                    currStart, currEnd, text, -1));
+        }
+        return result;
+    }
+
+    void onHighlightItemsChanged() {
         HighlightingInfo info = mgr.lastInfo();
         if (info != null) {
             refresh(info);
@@ -230,7 +453,13 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
 
     @Override
     protected void onColoringsChanged() {
-        onHighlightAmbiguitiesChanged();
+        onHighlightItemsChanged();
+    }
+
+    static void onChange() {
+        for (AdhocErrorHighlighter hl : INSTANCES) {
+            hl.onHighlightItemsChanged();
+        }
     }
 
     static boolean highlightAmbiguities() {
@@ -241,9 +470,35 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         boolean old = highlightAmbiguities();
         prefs().putBoolean("highlight-ambiguities", val);
         if (val != old) {
-            for (AdhocErrorHighlighter hl : INSTANCES) {
-                hl.onHighlightAmbiguitiesChanged();
-            }
+            onChange();
+            return true;
+        }
+        return false;
+    }
+
+    static boolean highlightParserErrors() {
+        return prefs().getBoolean("highlight-parser-errors", false);
+    }
+
+    static boolean highlightParserErrors(boolean val) {
+        boolean old = highlightParserErrors();
+        prefs().putBoolean("highlight-parser-errors", val);
+        if (val != old) {
+            onChange();
+            return true;
+        }
+        return false;
+    }
+
+    static boolean highlightLexerErrors() {
+        return prefs().getBoolean("highlight-lexer-errors", true);
+    }
+
+    static boolean highlightLexerErrors(boolean val) {
+        boolean old = highlightLexerErrors();
+        prefs().putBoolean("highlight-lexer-errors", val);
+        if (val != old) {
+            onChange();
             return true;
         }
         return false;
@@ -260,10 +515,25 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         return new ToggleHighlightAmbiguitiesAction();
     }
 
+    public static Action toggleHighlightParserErrorsAction() {
+        // Actions.checkbox() returns an action that never has an icon, even using
+        // putValue(), so IOWindow will throw an exception (and there will be no
+        // indication in the toolbar button whether it is selected or not). So,
+        // we do it the old-fashioned way.
+        return new ToggleHighlightParserErrorsAction();
+    }
+
+    public static Action toggleHighlightLexerErrorsAction() {
+        // Actions.checkbox() returns an action that never has an icon, even using
+        // putValue(), so IOWindow will throw an exception (and there will be no
+        // indication in the toolbar button whether it is selected or not). So,
+        // we do it the old-fashioned way.
+        return new ToggleHighlightLexerErrorsAction();
+    }
+
     static final class ToggleHighlightAmbiguitiesAction extends AbstractAction implements Icon {
 
         ToggleHighlightAmbiguitiesAction() {
-            putValue("hideActionText", true);
             putValue(SMALL_ICON, this);
             putValue(NAME, Bundle.highlightAmbiguities());
             putValue(SHORT_DESCRIPTION, Bundle.highlightAmbiguitiesDesc());
@@ -311,9 +581,147 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
             if (highlightAmbiguities()) {
                 g.setColor(c.getForeground());
             } else {
-                g.setColor(UIManager.getColor("Tree.line"));
+                g.setColor(UIManager.getColor("ScrollBar.thumbShadow"));
             }
             gg.drawString(txt, left, top + fm.getAscent());
+        }
+
+        @Override
+        public int getIconWidth() {
+            return 24;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return 24;
+        }
+    }
+
+    @Messages({
+        "highlightLexerErrors=Highlight Parse Errors",
+        "highlightLexerErrorsDesc=Highlight syntax errors from the lexer"
+    })
+    static final class ToggleHighlightLexerErrorsAction extends AbstractAction implements Icon {
+
+        ToggleHighlightLexerErrorsAction() {
+            putValue(SMALL_ICON, this);
+            putValue(NAME, Bundle.highlightLexerErrors());
+            putValue(SHORT_DESCRIPTION, Bundle.highlightLexerErrorsDesc());
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            boolean old = highlightLexerErrors();
+            highlightLexerErrors(!old);
+        }
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            String txt = "<?>";
+            Graphics2D gg = (Graphics2D) g;
+            Font f = c.getFont();
+            FontMetrics fm = gg.getFontMetrics(f);
+            float ht = fm.getAscent();
+            float w = fm.stringWidth(txt);
+            Insets ins = ((JComponent) c).getInsets();
+            float availH = Math.max(4, (c.getHeight() - y) - ins.bottom);
+            float availW = Math.max(4, ((c.getWidth() - x)) - ins.right);
+            float scaleX = 1;
+            float scaleY = 1;
+            if (availW < w) {
+                scaleX = w / availW;
+            }
+            if (availH < ht) {
+                scaleY = ht / availH;
+            }
+            AffineTransform xform = AffineTransform.getScaleInstance(scaleX, scaleY);
+            f = f.deriveFont(xform);
+            gg.setFont(f);
+            fm = gg.getFontMetrics();
+            float left = x;
+            float top = y;
+            ht = fm.getAscent();
+            w = fm.stringWidth(txt);
+            top += (availH / 2) - (ht / 2);
+            left += (availW / 2) - (w / 2);
+            if (highlightLexerErrors()) {
+                g.setColor(c.getForeground());
+            } else {
+                g.setColor(UIManager.getColor("ScrollBar.thumbHighlight"));
+            }
+            gg.drawString(txt, left, top + fm.getAscent());
+        }
+
+        @Override
+        public int getIconWidth() {
+            return 24;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return 24;
+        }
+    }
+
+    @Messages({
+        "highlightParserErrors=Highlight Parse Errors",
+        "highlightParserErrorsDesc=Highlight error nodes generated when parsing the document; "
+        + "these are errors where the lexer recognized the tokens, but they did not "
+        + "come in a sequence that made sense to the parser."
+    })
+    static final class ToggleHighlightParserErrorsAction extends AbstractAction implements Icon {
+
+        ToggleHighlightParserErrorsAction() {
+            putValue("hideActionText", true);
+            putValue(SMALL_ICON, this);
+            putValue(NAME, Bundle.highlightParserErrors());
+            putValue(SHORT_DESCRIPTION, Bundle.highlightParserErrorsDesc());
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            boolean old = highlightParserErrors();
+            highlightParserErrors(!old);
+        }
+
+        private final Line2D.Float line = new Line2D.Float();
+
+        @Override
+        public void paintIcon(Component c, Graphics g, int x, int y) {
+            Graphics2D gg = (Graphics2D) g;
+            Font f = c.getFont();
+            FontMetrics fm = gg.getFontMetrics(f);
+            float ht = fm.getAscent();
+            Insets ins = ((JComponent) c).getInsets();
+            float availH = Math.max(4, (c.getHeight() - y) - ins.bottom);
+            float availW = Math.max(4, ((c.getWidth() - x)) - ins.right);
+            float w = (availW - 2) / 2;
+
+            gg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            float top = availH / 4;
+
+            float sw = fm.stringWidth("x");
+            float sh = fm.getAscent();
+            float scale = (top - y) / sh;
+            f = f.deriveFont(AffineTransform.getScaleInstance(scale, scale));
+            gg.setFont(f);
+
+            if (highlightParserErrors()) {
+                g.setColor(c.getForeground());
+            } else {
+                g.setColor(UIManager.getColor("ScrollBar.thumbHighlight"));
+            }
+            fm = gg.getFontMetrics();
+            float sl = (x + (availW / 2)) - sw / 2;
+            gg.drawString("x", sl, y + top + fm.getAscent());
+            gg.setStroke(new BasicStroke(1.5F, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1));
+            float xoff = x + (availW / 2) - (w / 2);
+            line.setLine(xoff, y + top, xoff + w, y + top);
+            gg.draw(line);
+            line.setLine(x + 1, y + top + top, x + w + 1, y + top + top);
+            gg.draw(line);
+            line.setLine((x + availW - 1) - w, y + top + top, (x + availW - (w + 1)), y + top + top);
+            gg.draw(line);
         }
 
         @Override
@@ -334,10 +742,6 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
     public void run() {
         HighlightingInfo info = mgr.lastInfo();
         if (info != null) {
-            Document doc = info.doc;
-            Runnable doIt = () -> {
-                refresh(info);
-            };
             // createErrorDescription will lock the document;
             // so will the call to set the errors - so rather than
             // risk deadlock, we do this in a background thread and
@@ -347,7 +751,9 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
             // This little hack gives us some further deadlock-proofing
             // by ensuring we don't run when something else has the
             // document locked
-            AdhocEditorKit.renderWhenPossible(doc, doIt);
+            AdhocEditorKit.renderWhenPossible(info.doc, () -> {
+                doRefresh(this.mgr.lastInfo());
+            });
         }
     }
 

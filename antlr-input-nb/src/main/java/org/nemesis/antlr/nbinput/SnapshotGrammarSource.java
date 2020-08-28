@@ -75,6 +75,11 @@ public class SnapshotGrammarSource extends AbstractFileObjectGrammarSourceImplem
     }
 
     @Override
+    protected Document document() {
+        return snapshot.getSource().getDocument(false);
+    }
+
+    @Override
     protected <R> R lookupImpl(Class<R> type) {
         if (FileObject.class == type) {
             FileObject fo = toFileObject();

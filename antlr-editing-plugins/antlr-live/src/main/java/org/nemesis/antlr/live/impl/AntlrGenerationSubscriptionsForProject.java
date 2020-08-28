@@ -33,7 +33,9 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Collection;
+import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -132,12 +134,20 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     } // need a defensive copy
 
     static final long INITIAL_LOAD;
-    static final long STARTUP_DELAY = 30000;
+    static final long STARTUP_DELAY = 90000;
 
     static {
         long start = System.currentTimeMillis();
         try {
-            start = ManagementFactory.getRuntimeMXBean().getUptime();
+            long beanValue = ManagementFactory.getRuntimeMXBean().getUptime();
+            if (beanValue == 0) {
+                long st = ManagementFactory.getRuntimeMXBean().getStartTime();
+                if (st != 0) {
+                    start = System.currentTimeMillis() - st;
+                }
+            } else {
+                start = beanValue;
+            }
         } catch (Exception ex) {
             LOG.log(Level.WARNING, null, ex);
         }
@@ -145,8 +155,13 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
             start = 0;
         }
         INITIAL_LOAD = start;
+        System.out.println("START IS " + new Date(start));
     }
     static final long READY_TIME = INITIAL_LOAD + STARTUP_DELAY;
+
+    static {
+        System.out.println("TIME UNTIL READY: " + Duration.ofMillis(Math.max(0, READY_TIME - System.currentTimeMillis())));
+    }
 
     static boolean inStartupDelay() {
         return System.currentTimeMillis() < READY_TIME;
@@ -257,7 +272,6 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                 return event + " for " + subscribers;
             }
         }
-
     }
 
     private static final class UndelayedApplier implements EventApplier<FileObject, AntlrRegenerationEvent, Subscriber> {
@@ -271,7 +285,6 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                 rebuildInfo.accept(s);
             }
         }
-
     }
 
     private void onFileReplaced(FileObject oldFile, FileObject newFile) {

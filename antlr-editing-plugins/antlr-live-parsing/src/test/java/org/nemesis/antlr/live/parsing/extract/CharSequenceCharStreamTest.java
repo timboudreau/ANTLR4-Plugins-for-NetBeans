@@ -18,7 +18,6 @@ package org.nemesis.antlr.live.parsing.extract;
 import ignoreme.placeholder.DummyLanguageLexer;
 import java.util.ArrayList;
 import java.util.List;
-import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.misc.Interval;
@@ -34,8 +33,9 @@ import org.nemesis.antlr.live.parsing.extract.ParserExtractor.CharSequenceCharSt
 public class CharSequenceCharStreamTest {
 
     @Test
+    @SuppressWarnings("deprecation") // we are testing behavior against the oldest possible implementation
     public void testStreamsBehaveIdentically() {
-        ANTLRInputStream theirs = new ANTLRInputStream(txt);
+        org.antlr.v4.runtime.ANTLRInputStream theirs = new org.antlr.v4.runtime.ANTLRInputStream(txt);
         CharSequenceCharStream ours = new CharSequenceCharStream(txt);
         assertEquals(theirs.toString(), ours.toString());
 
@@ -59,6 +59,7 @@ public class CharSequenceCharStreamTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation") // we are testing behavior against the oldest possible implementation
     public void testProxyMaker() throws Throwable {
         String txt = "These are some words.  Sentences, even.";
         CharStream str = new CharSequenceCharStream(txt);
@@ -72,7 +73,7 @@ public class CharSequenceCharStreamTest {
                 break;
             }
         }
-        str = new ANTLRInputStream(txt);
+        str = new org.antlr.v4.runtime.ANTLRInputStream(txt);
         lex = new DummyLanguageLexer(str);
         List<ProxyToken> l2 = new ArrayList<>(30);
         for (;;) {

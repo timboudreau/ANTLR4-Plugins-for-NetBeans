@@ -308,7 +308,7 @@ public class SequenceHighlightingTest {
     public static TestFixtures initAntlrTestFixtures(boolean verbose) {
         TestFixtures fixtures = new TestFixtures();
         if (verbose) {
-            fixtures.verboseGlobalLogging(PREINIT);
+            fixtures.verboseGlobalLogging((Object[]) PREINIT);
         }
         DocumentFactory fact = new DocumentFactoryImpl();
         return fixtures.addToMimeLookup("", fact)

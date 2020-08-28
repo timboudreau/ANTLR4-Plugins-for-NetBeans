@@ -173,14 +173,10 @@ class RecursionAnalyzer {
                     // flagged as a wildcard, it's either not the same item,
                     // or a case of legal self-left-recursion
                     if (lookingFor.a.equals(item.name) && item.inNestedBlock) {
-                        System.out.println("HAVE A MATCH " + item + " nested? " + item.inNestedBlock
-                                + " wildcard? " + item.isWildcard());
                         culprits.get(item).add(path);
-                        System.out.println("  add to culprits " + path + " for " + item);
                         altsAccepted.increment();
                         break;
                     } else if (lookingFor.a.equals(item.name)) {
-                        System.out.println("ITEM OK " + item);
                         break;
                     } else if (!item.isWildcard()) {
                         LOG.log(Level.FINEST, "Left-Path {0} of {1} interrupted  in\n\t{2}"
@@ -345,7 +341,6 @@ class RecursionAnalyzer {
                 super.visitBlock(ctx);
                 inNestedBlock = old;
                 if (currentAlt.references.size() > sz) {
-                    System.out.println("SOME ALTS ADDED IN BLOCK " + ctx.getText());
                     // This is a tiny cheat - rather than modelling nested block
                     // contents, we simply capture the rules called within it
                     // and apply the EBNF suffix of the block to each one - whether
@@ -365,23 +360,14 @@ class RecursionAnalyzer {
                             ParserRuleElementContext prc = (ParserRuleElementContext) p.getParent();
                             ANTLRv4Parser.EbnfSuffixContext suff = prc.ebnfSuffix();
                             if (suff != null) {
-                                System.out.println("APPLY BLOCK EBNF " + suff + " TO SUB-ELEMENTS: "
-                                        + currentAlt.references.subList(sz, currentAlt.references.size()));
-
                                 for (int i = sz; i < currentAlt.references.size(); i++) {
                                     NameReference ref = currentAlt.references.get(i);
                                     if (ref.ebnfString == null || ref.ebnfString.isEmpty() || ref.ebnfString.indexOf('+') >= 0) {
                                         ref.ebnfString = suff.getText();
                                     }
                                 }
-                            } else {
-                                System.out.println("  no EbnfSuffixContext");
                             }
-                        } else {
-                            System.out.println("  p-parent not ParserRuleElementContext but " + p.getParent().getClass().getSimpleName());
                         }
-                    } else {
-                        System.out.println("  parent not EbnfContext but " + ctx.getParent().getClass().getSimpleName());
                     }
                 }
                 return null;
@@ -569,9 +555,6 @@ class RecursionAnalyzer {
             this.start = start;
             this.end = end;
             this.inNestedBlock = inNestedBlock;
-            if (inNestedBlock) {
-                System.out.println("IN NESTED BLOCK: " + this);
-            }
         }
 
         public boolean isWildcard() {

@@ -816,6 +816,15 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         }
     }
 
+    public SemanticRegion<T> find(Predicate<T> test) {
+        for (int i = 0; i < size; i++) {
+            if (test.test(keys[i])) {
+                return new SemanticRegionImpl(i, -1);
+            }
+        }
+        return null;
+    }
+
     private class It implements Iterator<SemanticRegion<T>> {
 
         private int ix = -1;

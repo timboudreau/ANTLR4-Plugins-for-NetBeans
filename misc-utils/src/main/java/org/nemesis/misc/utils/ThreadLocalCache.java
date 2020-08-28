@@ -17,10 +17,12 @@ package org.nemesis.misc.utils;
 
 import com.mastfrog.function.throwing.ThrowingConsumer;
 import com.mastfrog.function.throwing.ThrowingFunction;
+import com.mastfrog.function.throwing.ThrowingPredicate;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.function.throwing.ThrowingToIntFunction;
 import com.mastfrog.function.throwing.io.IOConsumer;
 import com.mastfrog.function.throwing.io.IOFunction;
+import com.mastfrog.function.throwing.io.IOPredicate;
 import com.mastfrog.function.throwing.io.IORunnable;
 import com.mastfrog.function.throwing.io.IOToIntFunction;
 import java.io.IOException;
@@ -219,12 +221,9 @@ public class ThreadLocalCache<T, R> {
         }
     }
 
-    /*
-    pending release of mastfrog 2.6.11
-
     public boolean testThrowing(T key, ThrowingPredicate<R> r) throws Exception {
         boolean firstEntry = cache.get() == null;
-        Map<T,R> map = enter();
+        Map<T, R> map = enter();
         try {
             R value = map.get(key);
             if (value == null) {
@@ -239,9 +238,9 @@ public class ThreadLocalCache<T, R> {
         }
     }
 
-    public boolean testIO(IOPredicate r) throws IOException {
+    public boolean testIO(T key, IOPredicate r) throws IOException {
         boolean firstEntry = cache.get() == null;
-        Map<T,R> map = enter();
+        Map<T, R> map = enter();
         try {
             R value = map.get(key);
             if (value == null) {
@@ -255,7 +254,7 @@ public class ThreadLocalCache<T, R> {
             }
         }
     }
-     */
+
     public int getInt(T key, ToIntFunction<R> r) {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();

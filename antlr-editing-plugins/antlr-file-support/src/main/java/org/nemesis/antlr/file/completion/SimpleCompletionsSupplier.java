@@ -220,7 +220,7 @@ public class SimpleCompletionsSupplier extends CompletionsSupplier {
         }
 
         private void collectExtractions(Set<GrammarSource<?>> seen, Set<GrammarSource<?>> sources, Consumer<Extraction> c) {
-            for (GrammarSource gs : sources) {
+            for (GrammarSource<?> gs : sources) {
                 if (!seen.contains(gs)) {
                     Optional<Document> odoc = gs.lookup(Document.class);
                     if (odoc.isPresent()) {
