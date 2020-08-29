@@ -89,7 +89,6 @@ public abstract class ErrorHintGenerator {
         if (!initialized) {
             Lookup.getDefault().lookupAll(ErrorHintGenerator.class).forEach(eg -> {
                 eg.register(contents);
-                System.out.println("REGISTERED ERR HANDLER " + eg);
             });
             fastNegativeTest.addAll(contents.keySet());
             initialized = true;

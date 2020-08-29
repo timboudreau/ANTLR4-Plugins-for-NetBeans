@@ -343,7 +343,6 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                 }
             }
         }
-        System.out.println("SET " + set.size() + " errors on " + doc);
         HintsController.setErrors(doc, "1", set);
         Mutex.EVENT.readAccess(() -> {
             try {
@@ -695,14 +694,14 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
             Insets ins = ((JComponent) c).getInsets();
             float availH = Math.max(4, (c.getHeight() - y) - ins.bottom);
             float availW = Math.max(4, ((c.getWidth() - x)) - ins.right);
-            float w = (availW - 2) / 2;
+            float w = (availW - 2) / 4F;
 
             gg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            float top = availH / 4;
+            float top = availH / 4F;
 
             float sw = fm.stringWidth("x");
             float sh = fm.getAscent();
-            float scale = (top - y) / sh;
+            float scale = top / sh;
             f = f.deriveFont(AffineTransform.getScaleInstance(scale, scale));
             gg.setFont(f);
 
@@ -712,7 +711,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                 g.setColor(UIManager.getColor("ScrollBar.thumbHighlight"));
             }
             fm = gg.getFontMetrics();
-            float sl = (x + (availW / 2)) - sw / 2;
+            float sl = (x + (availW / 2F)) - sw / 2F;
             gg.drawString("x", sl, y + top + fm.getAscent());
             gg.setStroke(new BasicStroke(1.5F, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1));
             float xoff = x + (availW / 2) - (w / 2);

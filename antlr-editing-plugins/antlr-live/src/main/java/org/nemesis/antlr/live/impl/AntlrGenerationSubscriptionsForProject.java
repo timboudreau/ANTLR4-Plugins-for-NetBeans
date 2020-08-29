@@ -27,7 +27,6 @@ import com.mastfrog.util.cache.MapCache;
 import com.mastfrog.util.collections.MapFactories;
 import com.mastfrog.util.collections.SetFactories;
 import com.mastfrog.util.path.UnixPath;
-import com.mastfrog.util.strings.Strings;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -216,7 +215,6 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         public void run() {
             // Ensure we are not run twice
             if (wasRun.compareAndSet(false, true)) {
-                System.out.println("RELEASE THE CRACKEN! " + entries.keySet());
                 // Loop to ensure we don't miss and throw away entries added
                 // WHILE we are running here
                 Map<FileObject, Entry> copy;
@@ -225,7 +223,6 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                         copy = new HashMap<>(entries);
                         entries.clear();
                     }
-                    System.out.println("   HAVE " + copy.size());
                     try {
                         for (Map.Entry<FileObject, Entry> e : copy.entrySet()) {
                             try {
@@ -237,9 +234,6 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                         }
                     } finally {
                         boolean success = ref.compareAndSet(this, real);
-                        if (success) {
-                            System.out.println("  NOW USING REAL APPLIER");
-                        }
                     }
                 } while (!copy.isEmpty());
             }
@@ -720,9 +714,6 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                 // we won't wind up accidentally doing it more than once
                 for (FileObject fo : notRegeneratedButNeedReparse) {
                     if (!generationWasRunFor.containsKey(fo) && !fileStack.contains(fo)) {
-                        System.out.println("FORCE parse " + fo.getNameExt()
-                                + " stack " + Strings.join(',', fileStack, FileObject::getNameExt)
-                                + " for root " + root.getNameExt());
                         forceParse(fo, "Regeneration of " + fileStack);
                     }
                 }

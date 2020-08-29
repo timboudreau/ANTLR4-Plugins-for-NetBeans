@@ -277,7 +277,6 @@ public class OrIndentationFormatting extends AbstractFormatter {
                 }
                 sb.append(e).append("=").append(state.get((Enum) e));
             }
-            System.out.println(msg + " tok '" + token.getText() + "' " + sb);
             other.accept(token, ctx, state);
         };
     }

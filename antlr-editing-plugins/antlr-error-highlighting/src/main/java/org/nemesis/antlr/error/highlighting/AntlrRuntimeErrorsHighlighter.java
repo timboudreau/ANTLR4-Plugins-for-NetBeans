@@ -230,12 +230,10 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
                 int ix = keys.indexOf(en);
                 if (ix >= 0) {
                     En en1 = keys.get(ix);
-                    System.out.println("HAVE A PRESENT DOOHICKY " + en1 + " and " + en);
                     Thread.yield();
                     if (other.runIndex() > en1.runIndex) {
                         OffsetsBag b = bag(this);
                         if (b != null) {
-                            System.out.println("   DO THE OTHER THING " + en1 + " -> " + en);
                             OffsetsBag otherBag = bag(other);
                             b.setHighlights(otherBag);
                             fixes.copyFrom(en1.fixes);
@@ -278,8 +276,6 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
                             int ri = en1.runIndex;
                             for (int i = 0; i < 30; i++) {
                                 if (hl.runIndex() > ri) {
-                                    System.out.println("DO THE THING!!!! "
-                                            + en1 + " and " + en);
                                     OffsetsBag newerBag = bag(hl);
                                     brandNewBag.setHighlights(newerBag);
                                     fixes.copyFrom(en1.fixes);

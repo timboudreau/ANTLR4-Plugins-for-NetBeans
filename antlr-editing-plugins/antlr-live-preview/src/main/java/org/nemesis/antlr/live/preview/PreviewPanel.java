@@ -313,8 +313,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         editorPane.addFocusListener(this);
 
         // We have to set the document AFTER creating the editor
-        // kit.  This DOES mean a zombie document exists long
-        // enough to get highlighting attached to it.  The code
+        // kit.  This DOES mean a zombie document can exist long
+        // enough to get a zombie highlighter attached to it.  The code
         // in AdhocHighightLayerFactory that checks StreamDescriptionProperty
         // for null should catch this and avoid one getting created
         // Now find the editor kit (should be an AdhocEditorKit) from
@@ -448,6 +448,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     static boolean noRegisterMethod;
 
     void hackTextComponentsIntoEditorRegistry() {
+
+        // THIS is what keeps error icons in the margin from
+        // vanishing forever when the editor is hidden for the
+        // first time - it causes HintsUI to ignore ancestor
+        // changes and not treat that as an invitation to discard them
+        editorPane.putClientProperty("usedByCloneableEditor", true);
+        grammarEditorClone.putClientProperty("usedByCloneableEditor", true);
         // We need to do this, otherwise:
         //   - HintsController.setErrors() will show errors only until
         //      the editor loses focus for the first time
@@ -470,13 +477,11 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         }
         try {
             editorRegistryDotRegister.invoke(null, editorPane);
-            System.out.println("HACK REGISTERED EDITOR PANE");
         } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
             LOG.log(Level.INFO, "Hacking component into editor registry", ex);
         }
         try {
             editorRegistryDotRegister.invoke(null, grammarEditorClone);
-            System.out.println("HACK REGISTERED GRAMMAR PANE");
         } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
             LOG.log(Level.INFO, "Hacking component into editor registry", ex);
         }
@@ -664,11 +669,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                         popup.add(navRule);
                         popup.show((Component) e.getSource(), p.x, p.y);
                         e.consume();
-                    } else {
-                        System.out.println("No rule at " + ix + ": " + rule);
                     }
-                } else {
-                    System.out.println("Rules list ix " + ix);
                 }
             }
         }

@@ -147,8 +147,6 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         if (!info.isUpToDate() || info.parser instanceof DeadEmbeddedParser) {
             LOG.log(Level.FINE, "{0} force reparse due to {1} up to date? ",
                     new Object[]{path.getFileName(), new Object[]{info, info.isUpToDate()}});
-            System.out.println("INFO UP TO DATE " + info.isUpToDate() + " is dead parser "
-                + (info.parser instanceof DeadEmbeddedParser) + ": " + info);
 //            forceGrammarFileReparse(info);
             return true;
         }

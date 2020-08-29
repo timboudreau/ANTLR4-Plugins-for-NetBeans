@@ -313,10 +313,10 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
 
         @Override
         public final ParseResultContents addErrorDescription( ErrorDescription err ) {
-            if ( wasInvalidated ) {
-                System.out.println( " hint add after invalidation " + err );
+//            if ( wasInvalidated ) {
+//                System.out.println( " hint add after invalidation " + err );
 //                return this;
-            }
+//            }
             addedErrorDescriptions.add( err );
             if ( fullyProcessed ) {
                 enqueueLateHintAdditions();
@@ -348,7 +348,6 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
         public void run() {
             List<? extends ErrorDescription> errors = getErrorDescriptions();
             Snapshot snapshot = getSnapshot();
-            System.out.println( "UPDATE " + snapshot + " with " + errors.size() + " hints" );
             AntlrInvocationErrorHighlighter.updateErrors( snapshot, errors );
         }
     }

@@ -18,10 +18,12 @@ package org.nemesis.antlr.refactoring;
 import com.mastfrog.function.TriFunction;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.util.Optional;
+import javax.swing.text.Document;
 import org.nemesis.charfilter.CharFilter;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NamedExtractionKey;
+import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.modules.refactoring.api.AbstractRefactoring;
 import org.netbeans.modules.refactoring.spi.RefactoringPlugin;
 import org.openide.filesystems.FileObject;
@@ -52,11 +54,18 @@ abstract class NamedRefactoringCreationStrategyFactory<R extends AbstractRefacto
 
     @Override
     public RefactoringPlugin apply(R refactoring, Extraction extraction, PositionBounds bounds) {
-        Optional<FileObject> fileOpt = extraction.source().lookup(FileObject.class);
-        if (!fileOpt.isPresent()) {
+        FileObject file = extraction.source().lookupOrDefault(FileObject.class, null);
+        if (file == null) {
+            Optional<Document> docOpt = extraction.source().lookup(Document.class);
+            if (docOpt.isPresent()) {
+                file = NbEditorUtilities.getFileObject(docOpt.get());
+            } else {
+                return null;
+            }
+        }
+        if (file == null) {
             return null;
         }
-        FileObject file = fileOpt.get();
         FindResult<T> item = findWithAttribution(file, key, extraction, bounds);
         if (item != null) {
             RefactoringPlugin result = createRefactoringPlugin(item.key(), refactoring, item.extraction(),
