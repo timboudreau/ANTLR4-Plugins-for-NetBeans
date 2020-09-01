@@ -17,10 +17,13 @@ package org.nemesis.antlr.live.language;
 
 import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
+import com.mastfrog.subscription.SubscribableBuilder;
+import com.mastfrog.util.collections.SetFactories;
 import com.mastfrog.util.strings.Strings;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.EventQueue;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
@@ -30,7 +33,10 @@ import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Line2D;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -90,6 +96,10 @@ import org.openide.util.actions.Presenter;
  */
 public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements Runnable {
 
+    static final String PREFS_KEY_HIGHLIGHT_AMBIGUITIES = "highlight-ambiguities";
+    static final String PREFS_KEY_HIGHLIGHT_LEXER_ERRORS = "highlight-lexer-errors";
+    static final String PREFS_KEY_HIGHLIGHT_PARSER_ERRORS = "highlight-parser-errors";
+
     private static final int REFRESH_ERRORS_DELAY = 750;
     protected final OffsetsBag bag;
     private static AttributeSet errorColoring;
@@ -132,7 +142,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         StyleConstants.setUnderline(set, true);
         Color c = errorColor();
         StyleConstants.setForeground(set, c);
-        StyleConstants.setBackground(set, new Color(120, 20, 20));
+        StyleConstants.setBackground(set, new Color(60, 10, 10));
         set.addAttribute(EditorStyleConstants.WaveUnderlineColor, c.darker());
         return errorColoring = AttributesUtilities.createImmutable(set);
     }
@@ -465,42 +475,51 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
     }
 
     static boolean highlightAmbiguities() {
-        return prefs().getBoolean("highlight-ambiguities", false);
+        return prefs().getBoolean(PREFS_KEY_HIGHLIGHT_AMBIGUITIES, false);
     }
 
     static boolean highlightAmbiguities(boolean val) {
         boolean old = highlightAmbiguities();
-        prefs().putBoolean("highlight-ambiguities", val);
+        prefs().putBoolean(PREFS_KEY_HIGHLIGHT_AMBIGUITIES, val);
         if (val != old) {
             onChange();
+            subs.eventInput.onEvent(PREFS_KEY_HIGHLIGHT_AMBIGUITIES,
+                    new PropertyChangeEvent(AdhocErrorHighlighter.class,
+                            PREFS_KEY_HIGHLIGHT_AMBIGUITIES, !val, val));
             return true;
         }
         return false;
     }
 
     static boolean highlightParserErrors() {
-        return prefs().getBoolean("highlight-parser-errors", false);
+        return prefs().getBoolean(PREFS_KEY_HIGHLIGHT_PARSER_ERRORS, false);
     }
 
     static boolean highlightParserErrors(boolean val) {
         boolean old = highlightParserErrors();
-        prefs().putBoolean("highlight-parser-errors", val);
+        prefs().putBoolean(PREFS_KEY_HIGHLIGHT_PARSER_ERRORS, val);
         if (val != old) {
             onChange();
+            subs.eventInput.onEvent(PREFS_KEY_HIGHLIGHT_PARSER_ERRORS,
+                    new PropertyChangeEvent(AdhocErrorHighlighter.class,
+                            PREFS_KEY_HIGHLIGHT_PARSER_ERRORS, !val, val));
             return true;
         }
         return false;
     }
 
     static boolean highlightLexerErrors() {
-        return prefs().getBoolean("highlight-lexer-errors", true);
+        return prefs().getBoolean(PREFS_KEY_HIGHLIGHT_LEXER_ERRORS, true);
     }
 
     static boolean highlightLexerErrors(boolean val) {
         boolean old = highlightLexerErrors();
-        prefs().putBoolean("highlight-lexer-errors", val);
+        prefs().putBoolean(PREFS_KEY_HIGHLIGHT_LEXER_ERRORS, val);
         if (val != old) {
             onChange();
+            subs.eventInput.onEvent(PREFS_KEY_HIGHLIGHT_LEXER_ERRORS,
+                    new PropertyChangeEvent(AdhocErrorHighlighter.class,
+                            PREFS_KEY_HIGHLIGHT_LEXER_ERRORS, !val, val));
             return true;
         }
         return false;
@@ -510,54 +529,149 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         "highlightAmbiguitiesDesc=Enables highlighting of cases of ambiguity in the lexer; "
         + " disabled by default because it can create a lot of visual noise."})
     public static Action toggleHighlightAmbiguitiesAction() {
+        return toggleHighlightAmbiguitiesAction(true);
+    }
+
+    static ToggleHighlightAmbiguitiesAction toggleHighlightAmbiguitiesAction(boolean icon) {
         // Actions.checkbox() returns an action that never has an icon, even using
         // putValue(), so IOWindow will throw an exception (and there will be no
         // indication in the toolbar button whether it is selected or not). So,
         // we do it the old-fashioned way.
-        return new ToggleHighlightAmbiguitiesAction();
+        return new ToggleHighlightAmbiguitiesAction(icon);
     }
 
     public static Action toggleHighlightParserErrorsAction() {
+        return toggleHighlightParserErrorsAction(true);
+    }
+
+    static ToggleHighlightParserErrorsAction toggleHighlightParserErrorsAction(boolean icon) {
         // Actions.checkbox() returns an action that never has an icon, even using
         // putValue(), so IOWindow will throw an exception (and there will be no
         // indication in the toolbar button whether it is selected or not). So,
         // we do it the old-fashioned way.
-        return new ToggleHighlightParserErrorsAction();
+        return new ToggleHighlightParserErrorsAction(icon);
     }
 
     public static Action toggleHighlightLexerErrorsAction() {
+        return toggleHighlightLexerErrorsAction(true);
+    }
+
+    public static ToggleHighlightLexerErrorsAction toggleHighlightLexerErrorsAction(boolean icon) {
         // Actions.checkbox() returns an action that never has an icon, even using
         // putValue(), so IOWindow will throw an exception (and there will be no
         // indication in the toolbar button whether it is selected or not). So,
         // we do it the old-fashioned way.
-        return new ToggleHighlightLexerErrorsAction();
+        return new ToggleHighlightLexerErrorsAction(icon);
     }
 
-    static final class ToggleHighlightAmbiguitiesAction extends AbstractAction implements Icon, Presenter.Menu, Presenter.Popup {
+//    subs = SubscribableBuilder.withKeys(String.class)
+//            .<PropertyChangeEvent, PropertyChangeListener>withEventApplier((String changed, PropertyChangeEvent ce, Collection<? extends PropertyChangeListener> listeners) -> {
+//                for (PropertyChangeListener l : listeners) {
+//                    l.propertyChange(ce);
+//                }
+//            }).storingSubscribersIn(SetFactories.CONCURRENT_EQUALITY)
+//            .withSets(SetFactories.WEAK_HASH).threadSafe()
+//            .withSynchronousEventDelivery().build();
+    private static final SubscribableBuilder.SubscribableContents<String, String, PropertyChangeListener, PropertyChangeEvent> subs = SubscribableBuilder.withKeys(String.class)
+            .<PropertyChangeEvent, PropertyChangeListener>withEventApplier((String changed, PropertyChangeEvent ce, Collection<? extends PropertyChangeListener> listeners) -> {
+                for (PropertyChangeListener l : listeners) {
+                    l.propertyChange(ce);
+                }
+            }).storingSubscribersIn(SetFactories.CONCURRENT_EQUALITY)
+            .withSets(SetFactories.WEAK_HASH).threadSafe()
+            .withSynchronousEventDelivery().build();
 
-        ToggleHighlightAmbiguitiesAction() {
-            putValue(SMALL_ICON, this);
-            putValue(NAME, Bundle.highlightAmbiguities());
-            putValue(SHORT_DESCRIPTION, Bundle.highlightAmbiguitiesDesc());
+    static abstract class AbstractPrefsKeyToggleAction extends AbstractAction implements Icon, Presenter.Popup, PropertyChangeListener, Runnable {
+
+        private final String key;
+        private JCheckBoxMenuItem presenter;
+
+        @SuppressWarnings({"OverridableMethodCallInConstructor", "LeakingThisInConstructor"})
+        AbstractPrefsKeyToggleAction(boolean icon, String key, String displayName, String description) {
+            this.key = key;
+            putValue(NAME, displayName);
+            if (icon) {
+                putValue(SMALL_ICON, this);
+            }
+            putValue(SELECTED_KEY, key);
+            if (description != null) {
+                putValue(SHORT_DESCRIPTION, description);
+            }
+            subs.subscribable.subscribe(key, this);
+        }
+
+        protected abstract boolean currentValue();
+
+        protected abstract boolean updateValue(boolean val);
+
+        private void setValue(boolean val) {
+            if (updateValue(val)) {
+                firePropertyChange(key, !val, val);
+            }
+        }
+
+        protected void toggleValue() {
+            setValue(!currentValue());
         }
 
         @Override
-        public JMenuItem getMenuPresenter() {
-            JCheckBoxMenuItem item = new JCheckBoxMenuItem();
-            item.setSelected(highlightAmbiguities());
-            item.setAction(this);
-            return item;
+        public Object getValue(String key) {
+            if (this.key.equals(key)) {
+                return currentValue();
+            }
+            return super.getValue(key);
         }
 
         @Override
         public JMenuItem getPopupPresenter() {
-            return getMenuPresenter();
+            if (presenter == null) {
+                presenter = new JCheckBoxMenuItem((Action) this);
+                presenter.setSelected(currentValue());
+                String desc = (String) getValue(SHORT_DESCRIPTION);
+                if (desc != null) {
+                    presenter.setToolTipText(desc);
+                }
+                PropertyChangeListener pcl = evt -> {
+                    presenter.repaint();
+                };
+                subs.subscribable.subscribe(key, pcl);
+                // hold a reference
+                presenter.putClientProperty("_pcl", pcl);
+            }
+            return presenter;
         }
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            boolean old = highlightAmbiguities();
-            highlightAmbiguities(!old);
+            toggleValue();
+        }
+
+        @Override
+        public void propertyChange(PropertyChangeEvent evt) {
+            // triger a repaint in presenters
+            EventQueue.invokeLater(this);
+        }
+
+        public void run() {
+            setEnabled(false);
+            setEnabled(true);
+        }
+    }
+
+    static final class ToggleHighlightAmbiguitiesAction extends AbstractPrefsKeyToggleAction {
+
+        ToggleHighlightAmbiguitiesAction(boolean icon) {
+            super(icon, PREFS_KEY_HIGHLIGHT_AMBIGUITIES, Bundle.highlightAmbiguities(), Bundle.highlightAmbiguitiesDesc());
+        }
+
+        @Override
+        protected boolean currentValue() {
+            return highlightAmbiguities();
+        }
+
+        @Override
+        protected boolean updateValue(boolean val) {
+            return highlightAmbiguities(val);
         }
 
         @Override
@@ -613,34 +727,23 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
     }
 
     @Messages({
-        "highlightLexerErrors=Highlight Parse Errors",
+        "highlightLexerErrors=Highlight Lexer Syntax Errors",
         "highlightLexerErrorsDesc=Highlight syntax errors from the lexer"
     })
-    static final class ToggleHighlightLexerErrorsAction extends AbstractAction implements Icon, Presenter.Menu, Presenter.Popup {
+    static final class ToggleHighlightLexerErrorsAction extends AbstractPrefsKeyToggleAction {
 
-        ToggleHighlightLexerErrorsAction() {
-            putValue(SMALL_ICON, this);
-            putValue(NAME, Bundle.highlightLexerErrors());
-            putValue(SHORT_DESCRIPTION, Bundle.highlightLexerErrorsDesc());
+        ToggleHighlightLexerErrorsAction(boolean icon) {
+            super(icon, PREFS_KEY_HIGHLIGHT_LEXER_ERRORS, Bundle.highlightLexerErrors(), Bundle.highlightLexerErrorsDesc());
         }
 
         @Override
-        public void actionPerformed(ActionEvent e) {
-            boolean old = highlightLexerErrors();
-            highlightLexerErrors(!old);
+        protected boolean currentValue() {
+            return highlightLexerErrors();
         }
 
         @Override
-        public JMenuItem getMenuPresenter() {
-            JCheckBoxMenuItem item = new JCheckBoxMenuItem();
-            item.setSelected(highlightLexerErrors());
-            item.setAction(this);
-            return item;
-        }
-
-        @Override
-        public JMenuItem getPopupPresenter() {
-            return getMenuPresenter();
+        protected boolean updateValue(boolean val) {
+            return highlightLexerErrors(val);
         }
 
         @Override
@@ -697,35 +800,22 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         + "these are errors where the lexer recognized the tokens, but they did not "
         + "come in a sequence that made sense to the parser."
     })
-    static final class ToggleHighlightParserErrorsAction extends AbstractAction implements Icon, Presenter.Menu, Presenter.Popup {
-
-        ToggleHighlightParserErrorsAction() {
-            putValue("hideActionText", true);
-            putValue(SMALL_ICON, this);
-            putValue(NAME, Bundle.highlightParserErrors());
-            putValue(SHORT_DESCRIPTION, Bundle.highlightParserErrorsDesc());
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            boolean old = highlightParserErrors();
-            highlightParserErrors(!old);
-        }
-
-        @Override
-        public JMenuItem getMenuPresenter() {
-            JCheckBoxMenuItem item = new JCheckBoxMenuItem();
-            item.setSelected(highlightParserErrors());
-            item.setAction(this);
-            return item;
-        }
-
-        @Override
-        public JMenuItem getPopupPresenter() {
-            return getMenuPresenter();
-        }
-
+    static final class ToggleHighlightParserErrorsAction extends AbstractPrefsKeyToggleAction {
         private final Line2D.Float line = new Line2D.Float();
+
+        ToggleHighlightParserErrorsAction(boolean icon) {
+            super(icon, PREFS_KEY_HIGHLIGHT_PARSER_ERRORS, Bundle.highlightParserErrors(), Bundle.highlightParserErrorsDesc());
+        }
+
+        @Override
+        protected boolean currentValue() {
+            return highlightParserErrors();
+        }
+
+        @Override
+        protected boolean updateValue(boolean val) {
+            return highlightParserErrors(val);
+        }
 
         @Override
         public void paintIcon(Component c, Graphics g, int x, int y) {

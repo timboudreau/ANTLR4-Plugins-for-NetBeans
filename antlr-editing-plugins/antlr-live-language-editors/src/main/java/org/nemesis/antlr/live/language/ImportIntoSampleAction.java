@@ -28,6 +28,7 @@ import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.live.ParsingUtils;
+import org.nemesis.editor.ops.DocumentOperator;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileChooserBuilder;
 import org.openide.filesystems.FileObject;
@@ -101,14 +102,25 @@ final class ImportIntoSampleAction extends AbstractAction implements ContextAwar
                     try {
                         String text = fo.asText();
                         StyledDocument doc = (StyledDocument) target.getDocument();
-                        NbDocument.runAtomicAsUser(doc, () -> {
-                            try {
-                                doc.remove(0, doc.getLength());
-                                doc.insertString(0, text, null);
-                            } catch (BadLocationException ex) {
-                                Exceptions.printStackTrace(ex);
-                            }
-                        });
+                        DocumentOperator.builder().acquireAWTTreeLock()
+                                .blockIntermediateRepaints()
+                                .disableTokenHierarchyUpdates()
+                                .lockAtomicAsUser()
+                                .writeLock()
+                                .build().operateOn(doc)
+                                .runOp(() -> {
+                                    doc.remove(0, doc.getLength());
+                                    doc.insertString(0, text, null);
+                                });
+//
+//                        NbDocument.runAtomicAsUser(doc, () -> {
+//                            try {
+//                                doc.remove(0, doc.getLength());
+//                                doc.insertString(0, text, null);
+//                            } catch (BadLocationException ex) {
+//                                Exceptions.printStackTrace(ex);
+//                            }
+//                        });
                         ParsingUtils.parse(doc);
                     } catch (Exception ex) {
                         Exceptions.printStackTrace(ex);

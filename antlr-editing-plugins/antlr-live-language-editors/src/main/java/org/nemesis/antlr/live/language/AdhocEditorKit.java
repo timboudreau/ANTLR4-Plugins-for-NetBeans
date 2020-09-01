@@ -16,8 +16,11 @@
 package org.nemesis.antlr.live.language;
 
 import com.mastfrog.util.collections.AtomicLinkedQueue;
+import com.mastfrog.util.strings.Strings;
 import java.awt.Container;
 import java.awt.EventQueue;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
@@ -27,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Dictionary;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.AbstractAction;
@@ -72,6 +76,9 @@ import org.netbeans.modules.editor.NbEditorDocument;
 import org.openide.util.NbBundle.Messages;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
+import org.netbeans.api.lexer.Token;
+import org.netbeans.api.lexer.TokenHierarchy;
+import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.editor.BaseTextUI;
 import org.netbeans.editor.EditorUI;
 import org.netbeans.editor.Utilities;
@@ -85,6 +92,7 @@ import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
 import org.openide.text.CloneableEditorSupport;
 import org.openide.text.Line;
+import org.openide.text.NbDocument;
 import org.openide.text.PositionBounds;
 import org.openide.text.PositionRef;
 import org.openide.util.Exceptions;
@@ -150,31 +158,28 @@ public class AdhocEditorKit extends ExtKit {
         })
         @Override
         public void actionPerformed(ActionEvent e) {
-            System.out.println("populate popup action performed");
             JTextComponent target = (JTextComponent) e.getSource();
             EditorUI ui = Utilities.getEditorUI(target);
             JPopupMenu menu = new JPopupMenu();
             try {
                 Action importAction = ImportIntoSampleAction.createInstance(target);
                 menu.add(importAction);
-                System.out.println("added import action " + importAction.getValue(NAME));
+                Action copyTokenSequenceAction = new CopyTokenSequenceAction(target);
+                menu.add(copyTokenSequenceAction);
                 menu.add(new JSeparator());
                 JMenuItem cutItem = new JMenuItem(getActionByName(cutAction));
                 Mnemonics.setLocalizedText(cutItem, Bundle.cut());
-                System.out.println("added cut item " + cutItem.getText());
                 menu.add(cutItem);
                 JMenuItem copyItem = new JMenuItem(getActionByName(copyAction));
                 Mnemonics.setLocalizedText(copyItem, Bundle.copy());
-                System.out.println("added copy item " + copyItem.getText());
                 menu.add(copyItem);
                 JMenuItem pasteItem = new JMenuItem(getActionByName(pasteAction));
                 Mnemonics.setLocalizedText(pasteItem, Bundle.paste());
-                System.out.println("added paste item " + pasteItem.getText());
                 menu.add(pasteItem);
                 menu.add(new JSeparator());
-                menu.add(AdhocErrorHighlighter.toggleHighlightParserErrorsAction());
-                menu.add(AdhocErrorHighlighter.toggleHighlightLexerErrorsAction());
-                menu.add(AdhocErrorHighlighter.toggleHighlightAmbiguitiesAction());
+                menu.add(AdhocErrorHighlighter.toggleHighlightParserErrorsAction(false).getPopupPresenter());
+                menu.add(AdhocErrorHighlighter.toggleHighlightLexerErrorsAction(false).getPopupPresenter());
+                menu.add(AdhocErrorHighlighter.toggleHighlightAmbiguitiesAction(false).getPopupPresenter());
                 menu.add(new JSeparator());
                 menu.add(createLazyGotoSubmenu(target));
             } catch (Exception ex) {
@@ -190,7 +195,6 @@ public class AdhocEditorKit extends ExtKit {
             "noNav=Could not find items to navigate to"
         })
         JMenuItem createLazyGotoSubmenu(JTextComponent target) {
-            System.out.println("create lazy submenu");
             JMenu sub = new JMenu(Bundle._goto());
             JMenuItem waitItem = new JMenuItem(Bundle.waitFor());
             waitItem.setEnabled(false);
@@ -218,17 +222,14 @@ public class AdhocEditorKit extends ExtKit {
             @Override
             public void itemStateChanged(ItemEvent e) {
                 boolean done = completed;
-                System.out.println("item state changed - task done? " + done + ": " + e);
                 if (done) {
                     e.getItemSelectable().removeItemListener(this);
                 }
                 Object[] obs = e.getItemSelectable().getSelectedObjects();
                 if (obs != null && obs.length > 0 && !done) {
-                    System.out.println("ITEM SELECTED, SCHEDULE TASK");
                     task.cancel();
                     task.schedule(350);
                 } else {
-                    System.out.println("ITEM DESELECTED, CANCEL TASK");
                     task.cancel();
                 }
             }
@@ -236,9 +237,7 @@ public class AdhocEditorKit extends ExtKit {
             @Override
             public void run() {
                 if (!EventQueue.isDispatchThread()) {
-                    System.out.println("start populate");
                     if (Thread.interrupted()) {
-                        System.out.println("cancel populate 1");
                         return;
                     }
                     Segment seg = new Segment();
@@ -250,20 +249,17 @@ public class AdhocEditorKit extends ExtKit {
                         }
                     });
                     if (Thread.interrupted()) {
-                        System.out.println("cancel populate 2");
                         return;
                     }
                     if (seg.length() > 0) {
                         EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(getContentType());
                         if (Thread.interrupted()) {
-                            System.out.println("cancel populate 3");
                             return;
                         }
                         try {
                             EmbeddedAntlrParserResult res = parser.parse(seg);
                             if (res != null && res.isUsable()) {
                                 if (Thread.interrupted()) {
-                                    System.out.println("cancel populate 4");
                                     return;
                                 }
                                 ParseTreeProxy prox = res.proxy();
@@ -277,7 +273,6 @@ public class AdhocEditorKit extends ExtKit {
                                         Extraction ext = NbAntlrUtils.extractionFor(fo);
                                         if (ext != null && !ext.isPlaceholder()) {
                                             if (Thread.interrupted()) {
-                                                System.out.println("cancel populate 5");
                                                 return;
                                             }
                                             List<Action> actionsLocal = new ArrayList<>();
@@ -292,7 +287,6 @@ public class AdhocEditorKit extends ExtKit {
                                                 switch (pte.kind()) {
                                                     case RULE:
                                                         if (Thread.interrupted()) {
-                                                            System.out.println("cancel populate 6 - " + pte.name());
                                                             return;
                                                         }
                                                         if (seen.contains(pte.name())) {
@@ -315,32 +309,24 @@ public class AdhocEditorKit extends ExtKit {
                                                         }
                                                 }
                                             }
-                                            System.out.println("CREATED " + actionsLocal.size() + " actions");
                                             for (Action a : actionsLocal) {
                                                 this.actions.add(a);
                                             }
                                         }
-                                    } else {
-                                        System.out.println("got erroneous token");
                                     }
                                     completed = true;
                                     EventQueue.invokeLater(this);
-                                } else {
-                                    System.out.println("got an unparsed proxy");
                                 }
                             }
                         } catch (Exception ex) {
                             Exceptions.printStackTrace(ex);
                         }
-                    } else {
-                        System.out.println("zero length segment");
                     }
                 } else {
                     if (!sub.isPopupMenuVisible()) {
                         completed = false;
                         return;
                     }
-                    System.out.println("Add actions to popup");
                     synchronized (sub.getTreeLock()) {
                         boolean hasAny = !actions.isEmpty();
                         sub.removeAll();
@@ -412,7 +398,6 @@ public class AdhocEditorKit extends ExtKit {
         GotoRegion(String ruleName, RuleTypes type, String sourceName, PositionBounds bounds) throws IOException {
             String typeName = Localizers.displayName(type);
             putValue(NAME, Bundle.gotoDefinitionOf(ruleName, typeName, sourceName));
-            System.out.println("create goto region " + getValue(NAME));
             this.bounds = bounds;
         }
 
@@ -450,6 +435,141 @@ public class AdhocEditorKit extends ExtKit {
                 }
             } catch (IOException ex) {
                 Exceptions.printStackTrace(ex);
+            }
+        }
+    }
+
+    @Messages({"copyTokenSequence=Copy Token Sequence",
+        "copyTokenSequenceDesc=Copies the token names in the selection or to the end of the current line, creating a rough approximation of a rule definition",
+        "noTokens=No token sequence found",
+        "# {0} - theTokenSequence",
+        "addedToClipboard=Token sequence added to clipboard: {0}"
+    })
+    public static final class CopyTokenSequenceAction extends AbstractAction {
+
+        private final JTextComponent comp;
+
+        CopyTokenSequenceAction(JTextComponent comp) {
+            this.comp = comp;
+            putValue(NAME, Bundle.copyTokenSequence());
+            putValue(SHORT_DESCRIPTION, Bundle.copyTokenSequenceDesc());
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            StyledDocument doc = (StyledDocument) comp.getDocument();
+            StringBuilder tokens = new StringBuilder();
+            String mime = NbEditorUtilities.getMimeType(doc);
+            doc.render(() -> {
+                int start = comp.getSelectionStart();
+                int end = comp.getSelectionEnd();
+                if (start == end) {
+                    int lineCount = NbDocument.findLineNumber(doc, doc.getLength() - 1);
+                    int line = NbDocument.findLineNumber(doc, start);
+                    start = NbDocument.findLineOffset(doc, line);
+                    if (line >= lineCount) {
+                        end = doc.getLength() - 1;
+                    } else {
+                        end = NbDocument.findLineOffset(doc, line + 1);
+                    }
+                }
+                TokenHierarchy<Document> hier = TokenHierarchy.get(doc);
+                if (hier == null) {
+                    return;
+                }
+                Language<AdhocTokenId> lang = (Language<AdhocTokenId>) Language.find(mime);
+                if (lang == null) {
+                    DynamicLanguages.ensureRegistered(mime);
+                    lang = (Language<AdhocTokenId>) Language.find(mime);
+                    if (lang == null) {
+                        // our lock bypassing makes this possible
+                        return;
+                    }
+                }
+                TokenSequence<AdhocTokenId> seq = hier.tokenSequence(lang);
+                if (seq == null || seq.isEmpty() || !seq.isValid()) {
+                    // do it the hard way - the token sequence held by the lexer infrastructure
+                    // was garbage collected
+                    EmbeddedAntlrParser par = AdhocLanguageHierarchy.parserFor(mime);
+                    if (par != null) {
+                        Segment seg = new Segment();
+                        try {
+                            doc.getText(0, doc.getLength(), seg);
+                            EmbeddedAntlrParserResult res = par.parse(seg);
+                            if (res != null && res.isUsable() && res.proxy() != null && !res.proxy().isUnparsed()) {
+                                ParseTreeProxy prx = res.proxy();
+                                ProxyToken tok = prx.tokenAtPosition(start);
+                                ProxyTokenType last = null;
+                                while (tok != null && tok.getStartIndex() < end) {
+                                    ProxyTokenType type = prx.tokenTypeForInt(tok.getType());
+                                    CharSequence tokTxt = prx.textOf(tok);
+                                    if (!Strings.isBlank(tokTxt) && !tok.isEOF()) {
+                                        if (Objects.equals(last, type)) {
+                                            if (tokens.length() > 0 && tokens.charAt(tokens.length() - 1) != '+') {
+                                                tokens.append('+');
+                                            }
+                                        } else {
+                                            if (tokens.length() > 0) {
+                                                tokens.append(' ');
+                                            }
+                                            if (type.literalName != null) {
+                                                tokens.append('\'').append(type.literalName).append('\'');
+                                            } else {
+                                                tokens.append(type.symbolicName);
+                                            }
+                                        }
+                                    }
+                                    if (tok.getTokenIndex() + 1 >= prx.tokenCount()) {
+                                        break;
+                                    }
+                                    tok = prx.tokens().get(tok.getTokenIndex() + 1);
+                                }
+                            }
+                        } catch (Exception ex) {
+                            Exceptions.printStackTrace(ex);
+                        }
+                    }
+                    return;
+                }
+                seq.move(start);
+                if (!seq.moveNext()) {
+                    return;
+                }
+                int count = seq.tokenCount();
+                AdhocTokenId last = null;
+                do {
+                    Token<AdhocTokenId> tok = seq.offsetToken();
+                    if (tok == null) {
+                        break;
+                    }
+                    // Assume whitespace is on another channel and noise
+                    // if the user is attempting to figure out a token sequence
+                    // to form a rule from
+                    if (Strings.isBlank(tok.text())) {
+                        seq.moveNext();
+                        continue;
+                    }
+                    AdhocTokenId id = tok.id();
+                    if (Objects.equals(id, last)) {
+                        tokens.append('+');
+                    } else {
+                        if (tokens.length() > 0) {
+                            tokens.append(' ');
+                        }
+                        tokens.append(id.toTokenString());
+                    }
+                    if (!seq.moveNext()) {
+                        break;
+                    }
+                } while (seq.index() < count && seq.offset() < end);
+            });
+            if (tokens.length() == 0) {
+                StatusDisplayer.getDefault().setStatusText(Bundle.noTokens());
+                Toolkit.getDefaultToolkit().beep();
+            } else {
+                StatusDisplayer.getDefault().setStatusText(Bundle.addedToClipboard(tokens));
+                StringSelection sel = new StringSelection(tokens.toString());
+                Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
             }
         }
     }

@@ -71,6 +71,13 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
         return type.literalName;
     }
 
+    String toTokenString() {
+        if (type.literalName != null) {
+            return "'" + type.literalName + "'";
+        }
+        return type.symbolicName;
+    }
+
     boolean canBeFlyweight() {
         return type.literalName != null && !type.literalName.isEmpty();
     }

@@ -452,7 +452,16 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                     IOColors.OutputType.LOG_FAILURE);
             if (e.hasFileOffsetsAndTokenIndex()) {
                 int ix = e.tokenIndex();
-                tok = prx.tokens().get(ix);
+                if (ix >= prx.tokens().size()) {
+                    Logger.getLogger(ErrorUpdater.class.getName())
+                            .log(Level.WARNING, "Error has offset and token index but the token "
+                                    + "index is out of range: {0} of {1}. Probably the code "
+                                    + "that set it is broken: {2}",
+                                    new Object[]{ix, prx.tokens().size(), e});
+                    tok = prx.tokenAtLinePosition(e.line(), e.charPositionInLine());
+                } else {
+                    tok = prx.tokens().get(ix);
+                }
             } else if (e.line() >= 0 && e.charPositionInLine() >= 0) {
                 tok = prx.tokenAtLinePosition(e.line(), e.charPositionInLine());
             } else {
