@@ -888,7 +888,9 @@ public final class Extraction implements Externalizable {
                     = resolved.attributed();
 
             SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<K>, NamedSemanticRegion<K>, K>> found = att.find(attKey -> name.equals(attKey.name()));
-            return found.key();
+            if (found != null) {
+                return found.key();
+            }
         }
         return null;
     }

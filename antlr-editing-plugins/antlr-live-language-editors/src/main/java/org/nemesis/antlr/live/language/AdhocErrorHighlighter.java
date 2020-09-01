@@ -44,7 +44,9 @@ import static javax.swing.Action.NAME;
 import static javax.swing.Action.SHORT_DESCRIPTION;
 import static javax.swing.Action.SMALL_ICON;
 import javax.swing.Icon;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComponent;
+import javax.swing.JMenuItem;
 import javax.swing.UIManager;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
@@ -80,6 +82,7 @@ import org.openide.util.NbBundle.Messages;
 import org.openide.util.NbPreferences;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakSet;
+import org.openide.util.actions.Presenter;
 
 /**
  *
@@ -530,12 +533,25 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         return new ToggleHighlightLexerErrorsAction();
     }
 
-    static final class ToggleHighlightAmbiguitiesAction extends AbstractAction implements Icon {
+    static final class ToggleHighlightAmbiguitiesAction extends AbstractAction implements Icon, Presenter.Menu, Presenter.Popup {
 
         ToggleHighlightAmbiguitiesAction() {
             putValue(SMALL_ICON, this);
             putValue(NAME, Bundle.highlightAmbiguities());
             putValue(SHORT_DESCRIPTION, Bundle.highlightAmbiguitiesDesc());
+        }
+
+        @Override
+        public JMenuItem getMenuPresenter() {
+            JCheckBoxMenuItem item = new JCheckBoxMenuItem();
+            item.setSelected(highlightAmbiguities());
+            item.setAction(this);
+            return item;
+        }
+
+        @Override
+        public JMenuItem getPopupPresenter() {
+            return getMenuPresenter();
         }
 
         @Override
@@ -600,7 +616,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         "highlightLexerErrors=Highlight Parse Errors",
         "highlightLexerErrorsDesc=Highlight syntax errors from the lexer"
     })
-    static final class ToggleHighlightLexerErrorsAction extends AbstractAction implements Icon {
+    static final class ToggleHighlightLexerErrorsAction extends AbstractAction implements Icon, Presenter.Menu, Presenter.Popup {
 
         ToggleHighlightLexerErrorsAction() {
             putValue(SMALL_ICON, this);
@@ -612,6 +628,19 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         public void actionPerformed(ActionEvent e) {
             boolean old = highlightLexerErrors();
             highlightLexerErrors(!old);
+        }
+
+        @Override
+        public JMenuItem getMenuPresenter() {
+            JCheckBoxMenuItem item = new JCheckBoxMenuItem();
+            item.setSelected(highlightLexerErrors());
+            item.setAction(this);
+            return item;
+        }
+
+        @Override
+        public JMenuItem getPopupPresenter() {
+            return getMenuPresenter();
         }
 
         @Override
@@ -668,7 +697,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         + "these are errors where the lexer recognized the tokens, but they did not "
         + "come in a sequence that made sense to the parser."
     })
-    static final class ToggleHighlightParserErrorsAction extends AbstractAction implements Icon {
+    static final class ToggleHighlightParserErrorsAction extends AbstractAction implements Icon, Presenter.Menu, Presenter.Popup {
 
         ToggleHighlightParserErrorsAction() {
             putValue("hideActionText", true);
@@ -681,6 +710,19 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         public void actionPerformed(ActionEvent e) {
             boolean old = highlightParserErrors();
             highlightParserErrors(!old);
+        }
+
+        @Override
+        public JMenuItem getMenuPresenter() {
+            JCheckBoxMenuItem item = new JCheckBoxMenuItem();
+            item.setSelected(highlightParserErrors());
+            item.setAction(this);
+            return item;
+        }
+
+        @Override
+        public JMenuItem getPopupPresenter() {
+            return getMenuPresenter();
         }
 
         private final Line2D.Float line = new Line2D.Float();

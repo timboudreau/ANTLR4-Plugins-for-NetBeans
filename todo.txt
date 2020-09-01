@@ -8,17 +8,6 @@ INFO UP TO DATE false is dead parser false: EmbeddedParsingEnvironment(-ad2mr1sp
 
 Preview bugs:
 
-Add navigation menu items to popup of antlr grammar editor - Andreas Stefik request.
-
-AdhocEditor pane should have ambiguities, rebuild, etc. actions in popup.
-
-Lookup switching in tester seems not to be working - refactorings and such don't find anything to operate on;
-ex: rename popup gets an empty name; other things operate on selection from other editor.
-Maybe switch the lookup on mousePressed instead of focus?
-
-Need some kind of cookie to put in the preview editor which lets its grammar editor be
-used for navigation from navigator, etc. if present.
-
 Breadcrumb seems to stop working after a while - disappears.
 
 

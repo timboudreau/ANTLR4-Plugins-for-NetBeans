@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JEditorPane;
+import javax.swing.JMenuItem;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.text.BadLocationException;
@@ -65,6 +66,7 @@ import org.netbeans.editor.BaseKit;
 import org.netbeans.editor.ext.ExtKit;
 import org.netbeans.spi.editor.AbstractEditorAction;
 import org.netbeans.spi.editor.caret.CaretMoveHandler;
+import org.openide.awt.Mnemonics;
 import org.openide.cookies.EditorCookie;
 import org.openide.cookies.OpenCookie;
 import org.openide.filesystems.FileObject;
@@ -73,6 +75,8 @@ import org.openide.loaders.DataObjectNotFoundException;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle;
+import org.openide.util.NbBundle.Messages;
+import org.openide.util.actions.Presenter;
 import org.openide.windows.TopComponent;
 
 /**
@@ -81,7 +85,8 @@ import org.openide.windows.TopComponent;
  *
  * @author Tim Boudreau
  */
-public final class AntlrGotoDeclarationAction extends AbstractEditorAction {
+@Messages("gotoDeclaration=&Go To Declaration")
+public final class AntlrGotoDeclarationAction extends AbstractEditorAction implements Presenter.Menu, Presenter.Popup {
 
     private static final Logger LOGGER
             = Logger.getLogger( AntlrGotoDeclarationAction.class.getName() );
@@ -98,6 +103,24 @@ public final class AntlrGotoDeclarationAction extends AbstractEditorAction {
         putValue( MIME_TYPE_KEY, mimeType );
 
         LOGGER.log( Level.FINE, "Created a goto-decl action for {0}", keys[ 0 ] );
+    }
+
+    @Override
+    public JMenuItem getPopupPresenter() {
+        return getMenuPresenter();
+    }
+    
+    private JMenuItem presenter;
+    @Override
+    public JMenuItem getMenuPresenter() {
+        // This action is also used in popup menus, and by default it will
+        // have no display name at all if we don't implement Presenter.Menu and
+        // Presenter.Popup and provide our own implementation
+        if (presenter == null) {
+            presenter = new JMenuItem(this);
+            Mnemonics.setLocalizedText(presenter, Bundle.gotoDeclaration());
+        }
+        return presenter;
     }
 
     @Override

@@ -16,31 +16,80 @@
 package org.nemesis.antlr.live.language;
 
 import com.mastfrog.util.collections.AtomicLinkedQueue;
+import java.awt.Container;
 import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Dictionary;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.JEditorPane;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.JSeparator;
 import javax.swing.JToolBar;
+import javax.swing.SwingUtilities;
+import javax.swing.text.BadLocationException;
+import static javax.swing.text.DefaultEditorKit.copyAction;
+import static javax.swing.text.DefaultEditorKit.cutAction;
+import static javax.swing.text.DefaultEditorKit.pasteAction;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
+import javax.swing.text.Position;
+import javax.swing.text.Segment;
+import javax.swing.text.StyledDocument;
+import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
+import org.nemesis.antlr.common.extractiontypes.RuleTypes;
+import org.nemesis.antlr.file.AntlrKeys;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
+import org.nemesis.antlr.spi.language.NbAntlrUtils;
+import org.nemesis.data.named.NamedSemanticRegion;
+import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.extraction.AttributedForeignNameReference;
+import org.nemesis.extraction.Extraction;
+import org.nemesis.localizers.api.Localizers;
+import org.nemesis.source.api.GrammarSource;
+import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.editor.BaseDocument;
-import org.netbeans.editor.EditorUI;
 import org.netbeans.editor.MultiKeymap;
 import org.netbeans.editor.ext.ExtKit;
 import org.netbeans.modules.editor.NbEditorDocument;
-import org.netbeans.modules.editor.NbEditorUI;
 import org.openide.util.NbBundle.Messages;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
+import org.netbeans.editor.BaseTextUI;
+import org.netbeans.editor.EditorUI;
+import org.netbeans.editor.Utilities;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorKit;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.awt.Mnemonics;
+import org.openide.awt.StatusDisplayer;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
+import org.openide.text.CloneableEditorSupport;
+import org.openide.text.Line;
+import org.openide.text.PositionBounds;
+import org.openide.text.PositionRef;
+import org.openide.util.Exceptions;
+import org.openide.util.RequestProcessor;
+import org.openide.windows.TopComponent;
 
 /**
  *
@@ -64,6 +113,10 @@ public class AdhocEditorKit extends ExtKit {
 
     @Override
     public Action getActionByName(String name) {
+        switch (name) {
+            case ExtKit.buildPopupMenuAction:
+                return new PopupBuilder();
+        }
         return plainTextEditorKit.getActionByName(name);
     }
 
@@ -75,6 +128,330 @@ public class AdhocEditorKit extends ExtKit {
     @Override
     protected Action[] getCustomActions() {
         return plainTextEditorKit.getCustomActions();
+    }
+
+    @Override
+    protected BaseTextUI createTextUI() {
+        return super.createTextUI();
+    }
+
+    private static final RequestProcessor ADHOC_POPULATE_MENU_POOL
+            = new RequestProcessor("populate-adhoc-popup", 1, true);
+
+    private class PopupBuilder extends AbstractAction {
+
+        PopupBuilder() {
+            putValue(NAME, ExtKit.buildPopupMenuAction);
+        }
+
+        @Messages({"copy=&Copy",
+            "cut=Cu&t",
+            "paste=&Paste"
+        })
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            System.out.println("populate popup action performed");
+            JTextComponent target = (JTextComponent) e.getSource();
+            EditorUI ui = Utilities.getEditorUI(target);
+            JPopupMenu menu = new JPopupMenu();
+            try {
+                Action importAction = ImportIntoSampleAction.createInstance(target);
+                menu.add(importAction);
+                System.out.println("added import action " + importAction.getValue(NAME));
+                menu.add(new JSeparator());
+                JMenuItem cutItem = new JMenuItem(getActionByName(cutAction));
+                Mnemonics.setLocalizedText(cutItem, Bundle.cut());
+                System.out.println("added cut item " + cutItem.getText());
+                menu.add(cutItem);
+                JMenuItem copyItem = new JMenuItem(getActionByName(copyAction));
+                Mnemonics.setLocalizedText(copyItem, Bundle.copy());
+                System.out.println("added copy item " + copyItem.getText());
+                menu.add(copyItem);
+                JMenuItem pasteItem = new JMenuItem(getActionByName(pasteAction));
+                Mnemonics.setLocalizedText(pasteItem, Bundle.paste());
+                System.out.println("added paste item " + pasteItem.getText());
+                menu.add(pasteItem);
+                menu.add(new JSeparator());
+                menu.add(AdhocErrorHighlighter.toggleHighlightParserErrorsAction());
+                menu.add(AdhocErrorHighlighter.toggleHighlightLexerErrorsAction());
+                menu.add(AdhocErrorHighlighter.toggleHighlightAmbiguitiesAction());
+                menu.add(new JSeparator());
+                menu.add(createLazyGotoSubmenu(target));
+            } catch (Exception ex) {
+                Exceptions.printStackTrace(ex);
+            }
+            ui.setPopupMenu(menu);
+        }
+
+        @Messages({"goto=Go To",
+            "waitFor=Please wait...",
+            "# {0} - tokenName",
+            "tokenDefinition=Token Definition for ''{0}''",
+            "noNav=Could not find items to navigate to"
+        })
+        JMenuItem createLazyGotoSubmenu(JTextComponent target) {
+            System.out.println("create lazy submenu");
+            JMenu sub = new JMenu(Bundle._goto());
+            JMenuItem waitItem = new JMenuItem(Bundle.waitFor());
+            waitItem.setEnabled(false);
+            sub.add(waitItem);
+            PopulateListener pl = new PopulateListener(sub, waitItem, target);
+            sub.addItemListener(pl);
+            return sub;
+        }
+
+        class PopulateListener implements ItemListener, Runnable {
+
+            private final AtomicLinkedQueue<Action> actions = new AtomicLinkedQueue<>();
+            private final JMenu sub;
+            private final JMenuItem waitItem;
+            private final JTextComponent target;
+            private final RequestProcessor.Task task = ADHOC_POPULATE_MENU_POOL.create(this, false);
+            private volatile boolean completed;
+
+            public PopulateListener(JMenu sub, JMenuItem waitItem, JTextComponent target) {
+                this.sub = sub;
+                this.waitItem = waitItem;
+                this.target = target;
+            }
+
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                boolean done = completed;
+                System.out.println("item state changed - task done? " + done + ": " + e);
+                if (done) {
+                    e.getItemSelectable().removeItemListener(this);
+                }
+                Object[] obs = e.getItemSelectable().getSelectedObjects();
+                if (obs != null && obs.length > 0 && !done) {
+                    System.out.println("ITEM SELECTED, SCHEDULE TASK");
+                    task.cancel();
+                    task.schedule(350);
+                } else {
+                    System.out.println("ITEM DESELECTED, CANCEL TASK");
+                    task.cancel();
+                }
+            }
+
+            @Override
+            public void run() {
+                if (!EventQueue.isDispatchThread()) {
+                    System.out.println("start populate");
+                    if (Thread.interrupted()) {
+                        System.out.println("cancel populate 1");
+                        return;
+                    }
+                    Segment seg = new Segment();
+                    target.getDocument().render(() -> {
+                        try {
+                            target.getDocument().getText(0, target.getDocument().getLength(), seg);
+                        } catch (BadLocationException ex) {
+                            Exceptions.printStackTrace(ex);
+                        }
+                    });
+                    if (Thread.interrupted()) {
+                        System.out.println("cancel populate 2");
+                        return;
+                    }
+                    if (seg.length() > 0) {
+                        EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(getContentType());
+                        if (Thread.interrupted()) {
+                            System.out.println("cancel populate 3");
+                            return;
+                        }
+                        try {
+                            EmbeddedAntlrParserResult res = parser.parse(seg);
+                            if (res != null && res.isUsable()) {
+                                if (Thread.interrupted()) {
+                                    System.out.println("cancel populate 4");
+                                    return;
+                                }
+                                ParseTreeProxy prox = res.proxy();
+                                if (prox != null && !prox.isUnparsed()) {
+                                    int caret = target.getCaretPosition();
+                                    ProxyToken tok = prox.tokenAtPosition(caret);
+                                    if (!prox.isErroneousToken(tok)) {
+                                        ProxyTokenType tokenType = prox.tokenTypeForInt(tok.getType());
+                                        Path grammarPath = AdhocMimeTypes.grammarFilePathForMimeType(getContentType());
+                                        FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarPath.toFile()));
+                                        Extraction ext = NbAntlrUtils.extractionFor(fo);
+                                        if (ext != null && !ext.isPlaceholder()) {
+                                            if (Thread.interrupted()) {
+                                                System.out.println("cancel populate 5");
+                                                return;
+                                            }
+                                            List<Action> actionsLocal = new ArrayList<>();
+                                            if (tokenType.symbolicName != null) {
+                                                Action gotoToken = createActionFor(tokenType.symbolicName, ext);
+                                                if (gotoToken != null) {
+                                                    actionsLocal.add(gotoToken);
+                                                }
+                                            }
+                                            Set<String> seen = new HashSet<>();
+                                            for (AntlrProxies.ParseTreeElement pte : prox.allTreeElements()) {
+                                                switch (pte.kind()) {
+                                                    case RULE:
+                                                        if (Thread.interrupted()) {
+                                                            System.out.println("cancel populate 6 - " + pte.name());
+                                                            return;
+                                                        }
+                                                        if (seen.contains(pte.name())) {
+                                                            continue;
+                                                        }
+                                                        List<ProxyToken> toks = prox.tokensForElement(pte);
+                                                        if (!toks.isEmpty()) {
+                                                            ProxyToken first = toks.get(0);
+                                                            ProxyToken last = toks.get(toks.size() - 1);
+                                                            int start = first.getStartIndex();
+                                                            int end = last.getEndIndex();
+                                                            if (caret >= start && caret <= end) {
+                                                                String name = pte.name();
+                                                                seen.add(name);
+                                                                Action act = createActionFor(name, ext);
+                                                                if (act != null) {
+                                                                    actionsLocal.add(act);
+                                                                }
+                                                            }
+                                                        }
+                                                }
+                                            }
+                                            System.out.println("CREATED " + actionsLocal.size() + " actions");
+                                            for (Action a : actionsLocal) {
+                                                this.actions.add(a);
+                                            }
+                                        }
+                                    } else {
+                                        System.out.println("got erroneous token");
+                                    }
+                                    completed = true;
+                                    EventQueue.invokeLater(this);
+                                } else {
+                                    System.out.println("got an unparsed proxy");
+                                }
+                            }
+                        } catch (Exception ex) {
+                            Exceptions.printStackTrace(ex);
+                        }
+                    } else {
+                        System.out.println("zero length segment");
+                    }
+                } else {
+                    if (!sub.isPopupMenuVisible()) {
+                        completed = false;
+                        return;
+                    }
+                    System.out.println("Add actions to popup");
+                    synchronized (sub.getTreeLock()) {
+                        boolean hasAny = !actions.isEmpty();
+                        sub.removeAll();
+                        if (hasAny) {
+                            actions.drain(act -> {
+                                sub.add(act);
+                            });
+                        } else {
+                            JMenuItem noNav = new JMenuItem(Bundle.noNav());
+                            noNav.setEnabled(false);
+                            sub.add(noNav);
+                        }
+                    }
+                    // Hack hack hack - menu popups don't expect their
+                    // contents to change on the fly, and we get 4px tall menu items
+                    Container parent = sub.getParent();
+                    if (parent != null) {
+                        JPopupMenu subPop = sub.getPopupMenu();
+                        subPop.invalidate();
+                        subPop.doLayout();
+                        subPop.revalidate();
+                        subPop.repaint();
+                        sub.setPopupMenuVisible(false);
+                        sub.setPopupMenuVisible(true);
+                    }
+                    sub.invalidate();
+                    sub.revalidate();
+                    sub.repaint();
+                }
+            }
+        }
+
+        private Action createActionFor(String name, Extraction ext) {
+            AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved
+                    = ext.resolveName(AntlrKeys.RULE_NAME_REFERENCES, name, true);
+            if (resolved != null) {
+                Extraction originExt = resolved.attributedTo();
+                DataObject dob = originExt.source().lookupOrDefault(DataObject.class, null);
+                if (dob != null) {
+                    CloneableEditorSupport ck = dob.getLookup().lookup(CloneableEditorSupport.class);
+                    if (ck != null) {
+                        PositionRef start = ck.createPositionRef(resolved.element().start(), Position.Bias.Backward);
+                        PositionRef end = ck.createPositionRef(resolved.element().end(), Position.Bias.Forward);
+                        PositionBounds pb = new PositionBounds(start, end);
+                        try {
+                            return new GotoRegion(resolved.element().name(), resolved.element().kind(), originExt.source().name(), pb);
+                        } catch (IOException ex) {
+                            Exceptions.printStackTrace(ex);
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+    }
+
+    @Messages({
+        "# {0} - definitionOfWhat",
+        "# {1} - ruleType",
+        "# {2} - fileName",
+        "gotoDefinitionOf=Go To ''{0}'' ({1}) in {2}",
+        "# {0} - whatFailed",
+        "failed=Failed: {0}"
+    })
+    static final class GotoRegion extends AbstractAction {
+
+        private final PositionBounds bounds;
+
+        GotoRegion(String ruleName, RuleTypes type, String sourceName, PositionBounds bounds) throws IOException {
+            String typeName = Localizers.displayName(type);
+            putValue(NAME, Bundle.gotoDefinitionOf(ruleName, typeName, sourceName));
+            System.out.println("create goto region " + getValue(NAME));
+            this.bounds = bounds;
+        }
+
+        private void defaultNavigate() throws IOException {
+            StyledDocument doc = bounds.getBegin().getCloneableEditorSupport().openDocument();
+            Line ln = NbEditorUtilities.getLine(doc, bounds.getBegin().getOffset(), false);
+            if (ln != null) {
+                StatusDisplayer.getDefault().setStatusText((String) getValue(NAME));
+                ln.show(Line.ShowOpenType.REUSE_NEW, Line.ShowVisibilityType.FOCUS);
+            } else {
+                StatusDisplayer.getDefault().setStatusText(Bundle.failed(getValue(NAME)));
+            }
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            try {
+                StyledDocument doc = bounds.getBegin().getCloneableEditorSupport().getDocument();
+                if (doc == null) {
+                    defaultNavigate();
+                } else {
+                    // Use EditorRegistry, for the sake of the Antlr preview, which hacks its
+                    // custom editor panes into it
+                    JTextComponent comp = EditorRegistry.findComponent(doc);
+                    if (comp != null) {
+                        TopComponent tc = (TopComponent) SwingUtilities.getAncestorOfClass(TopComponent.class, comp);
+                        comp.setCaretPosition(bounds.getBegin().getOffset());
+                        if (TopComponent.getRegistry().getActivated() != tc) {
+                            tc.requestActive();
+                        }
+                        comp.requestFocus();
+                    } else {
+                        defaultNavigate();
+                    }
+                }
+            } catch (IOException ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        }
     }
 
     @Override
@@ -107,11 +484,6 @@ public class AdhocEditorKit extends ExtKit {
     @Override
     public Document createDefaultDocument() {
         return new Doc(mimeType);
-    }
-
-    @Override
-    protected EditorUI createEditorUI() {
-        return new NbEditorUI();
     }
 
     // Give the lexer a way to find out what document it's lexing

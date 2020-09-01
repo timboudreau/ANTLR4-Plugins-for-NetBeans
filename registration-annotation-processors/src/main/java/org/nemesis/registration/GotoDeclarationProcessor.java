@@ -337,9 +337,9 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
                         EDITOR_ACTION_REGISTRATION.qname(),
                         NB_ANTLR_UTILS.qname()
                 )
-//                .staticBlock(lb -> {
-//                    lb.statement("LOGGER.setLevel(Level.ALL)").endBlock();
-//                })
+                //                .staticBlock(lb -> {
+                //                    lb.statement("LOGGER.setLevel(Level.ALL)").endBlock();
+                //                })
                 .field("KEYS", fb -> {
                     fb.withModifier(PRIVATE, STATIC, FINAL)
                             .initializedAsArrayLiteral(NAME_REFERENCE_SET_KEY.parametrizedName("?"), ab -> {
@@ -402,6 +402,9 @@ public class GotoDeclarationProcessor extends LayerGeneratingDelegate {
                     .stringvalue("instanceOf", TEXT_ACTION.qname())
                     .stringvalue("Name", "goto-declaration")
                     .intvalue("position", gotoCount++)
+                    .write();
+            layer.shadowFile(layerPath, "Editors/" + mimeType + "/Popup", "goto-declaration")
+                    .position(11)
                     .write();
             return cb;
         } catch (Exception ex) {

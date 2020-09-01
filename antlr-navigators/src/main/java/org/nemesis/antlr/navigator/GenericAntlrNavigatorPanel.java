@@ -37,11 +37,14 @@ import javax.swing.JSeparator;
 import javax.swing.KeyStroke;
 import javax.swing.ListCellRenderer;
 import javax.swing.ListModel;
+import javax.swing.text.JTextComponent;
+import javax.swing.text.StyledDocument;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.data.named.NamedSemanticRegion;
 import static org.nemesis.antlr.navigator.SortTypes.NATURAL;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.swing.html.HtmlRenderer;
+import org.netbeans.api.editor.EditorRegistry;
 import org.openide.cookies.EditorCookie;
 import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
@@ -305,7 +308,16 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
 
     private void moveTo(EditorCookie cookie, NamedSemanticRegion<K> el) {
         try {
-            cookie.openDocument();
+            StyledDocument doc = cookie.openDocument();
+            // Prefer EditorRegistry - allows editor the embedded editor
+            // in the Antlr preview (or any other component hacked into
+            // EditorRegistry) to be preferred
+            JTextComponent comp = EditorRegistry.findComponent(doc);
+            if (comp != null) {
+                moveTo(comp, el);
+                return;
+            }
+            
             JEditorPane pane = NbDocument.findRecentEditorPane(cookie);
             if (pane != null) {
                 moveTo(pane, el);
@@ -321,7 +333,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
     }
 
     @SuppressWarnings("deprecation")
-    private void moveTo(JEditorPane pane, NamedSemanticRegion<K> el) {
+    private void moveTo(JTextComponent pane, NamedSemanticRegion<K> el) {
         assert EventQueue.isDispatchThread();
         // References are associated with extracted *bounds*, but usually
         // two sets of NamedSemanticRegions are extracted, one for the container

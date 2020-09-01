@@ -22,12 +22,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
-import javax.swing.JEditorPane;
 import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import javax.swing.border.Border;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
+import javax.swing.text.JTextComponent;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.spi.navigator.NavigatorPanel;
 import org.openide.cookies.EditorCookie;
@@ -126,7 +126,7 @@ abstract class AbstractAntlrNavigatorPanel<R, C extends JComponent & ComponentIs
     }
 
     @SuppressWarnings("deprecation")
-    protected void moveTo(JEditorPane pane, int startOffset, int endOffset) {
+    protected void moveTo(JTextComponent pane, int startOffset, int endOffset) {
         // Move the caret
         pane.setSelectionStart(startOffset);
         pane.setSelectionEnd(endOffset);

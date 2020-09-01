@@ -18,7 +18,6 @@ package org.nemesis.antlr.refactoring;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.strings.Strings;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -94,8 +93,6 @@ public abstract class AntlrRefactoringPluginFactory implements RefactoringPlugin
      */
     public final boolean canRefactor(Class<?> type, FileObject file, Lookup lookup) {
         boolean result = mimeType.equals(file.getMIMEType());
-        System.out.println("CAN REFACTOR " + type.getSimpleName() + " " + file.getNameExt()
-            + " lkp " + lookup.lookupAll(Object.class));
         if (result) {
             for (RefactoringPluginGenerator<?> gen : entries) {
                 if (gen.matches(type)) {
@@ -105,11 +102,6 @@ public abstract class AntlrRefactoringPluginFactory implements RefactoringPlugin
             }
         }
         return result;
-    }
-
-    private AntlrRefactoringPluginFactory(String mimeType, RefactoringPluginGenerator<?>... entries) {
-        this.mimeType = notNull("mimeType", mimeType);
-        this.entries.addAll(Arrays.asList(entries));
     }
 
     private List<RefactoringPluginGenerator<?>> find(AbstractRefactoring refactoring) {
@@ -135,9 +127,6 @@ public abstract class AntlrRefactoringPluginFactory implements RefactoringPlugin
 
     @Override
     public final RefactoringPlugin createInstance(AbstractRefactoring refactoring) {
-        System.out.println("CREATE INSTANCE " + refactoring
-            + " " + refactoring.getRefactoringSource()
-            + " " + refactoring.getContext().lookupAll(Object.class));
         if (!isSupported(refactoring)) {
             ifLoggable(Level.FINEST, () -> {
                 logFinest("{0} does not support {1}",

@@ -130,27 +130,13 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     } // need a defensive copy
 
     static final long INITIAL_LOAD;
-    static final long STARTUP_DELAY = 35000;
+    static final long STARTUP_DELAY = 10000;
 
     static {
         long start = System.currentTimeMillis();
-        // In JDK 14, RuntimeMXBean always returns 0 for uptime and start time
-//        try {
-//            long beanValue = ManagementFactory.getRuntimeMXBean().getUptime();
-//            if (beanValue == 0) {
-//                long st = ManagementFactory.getRuntimeMXBean().getStartTime();
-//                if (st != 0) {
-//                    start = System.currentTimeMillis() - st;
-//                }
-//            } else {
-//                start = beanValue;
-//            }
-//        } catch (Exception ex) {
-//            LOG.log(Level.WARNING, null, ex);
-//        }
-//        if (Boolean.getBoolean("unit.test")) {
-//            start = 0;
-//        }
+        // In JDK 14, RuntimeMXBean always returns 0 for uptime and start time,
+        // so the best we can do is first load of this class, but we can try
+        // elsewhere to ensure it is loaded early
         INITIAL_LOAD = start;
     }
     static final long READY_TIME = INITIAL_LOAD + STARTUP_DELAY;

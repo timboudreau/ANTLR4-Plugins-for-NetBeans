@@ -293,6 +293,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
 //            content.add(errorHighlighter = AdhocErrorsHighlighter.create());
 //            content.add(mimeType, this.reparseIc = reparseIc);
             content.add(new AdhocReparseListeners(mimeType));
+            content.add(new ImportIntoSampleAction());
 //            this.lookup = new DebugLookup(new AbstractLookup(content), mimeType);
             this.lookup = new AbstractLookup(content);
         }

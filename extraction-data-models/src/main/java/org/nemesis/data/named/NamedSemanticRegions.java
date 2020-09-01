@@ -1085,7 +1085,10 @@ public class NamedSemanticRegions<K extends Enum<K>> implements Iterable<NamedSe
 
         @Override
         public NamedRegionReferenceSet<K> references(String name) {
-            int ix = internalIndexOf(name);
+            int ix = NamedSemanticRegions.this.indexOf(name);
+            if (ix < 0) {
+                return null;
+            }
             int[][] ices = this.keyIndex();
             if (ices[ix] == null) {
                 return emptyRefs == null

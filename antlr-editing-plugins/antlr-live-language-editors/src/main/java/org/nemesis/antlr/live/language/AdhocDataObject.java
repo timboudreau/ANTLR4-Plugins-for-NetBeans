@@ -448,6 +448,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
             result.add(SystemAction.get(OpenAction.class).createContextAwareInstance(getLookup()));
             result.add(null);
             result.add(new OpenGrammarAction());
+            result.add(new ImportIntoSampleAction());
             result.add(null);
             result.add(SystemAction.get(CutAction.class).createContextAwareInstance(getLookup()));
             result.add(SystemAction.get(CopyAction.class).createContextAwareInstance(getLookup()));
