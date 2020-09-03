@@ -45,6 +45,10 @@ final class ActivatedTcPreCheckJList<T> extends JList<T> implements ComponentIsA
         return tcActive;
     }
 
+    int cellHeight() {
+        return Math.max(getFixedCellHeight(), MIN_MARGIN);
+    }
+
     @Override
     public void paint(Graphics g) {
         if (firstPaint) {

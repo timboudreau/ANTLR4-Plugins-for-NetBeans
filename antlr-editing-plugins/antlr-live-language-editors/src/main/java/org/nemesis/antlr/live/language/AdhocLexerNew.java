@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.swing.text.Document;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
@@ -111,7 +113,7 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
                         LOG.log(Level.FINE, "Lexer gets new mime {0} parser "
                                 + "result tokens hash {1} hier tokens hash {2}",
                                 new Object[]{result.loggingInfo(), pres.grammarTokensHash(),
-                                     AdhocLanguageHierarchy.hierarchyInfo(mimeType).grammarTokensHash()});
+                                    AdhocLanguageHierarchy.hierarchyInfo(mimeType).grammarTokensHash()});
 
                         AdhocLanguageHierarchy.maybeUpdateTokenInfo(mimeType, pres);
                         Document doc = AdhocLanguageHierarchy.document(info);
@@ -212,14 +214,24 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         return null;
     }
 
+    static Pattern ERRMP = Pattern.compile("tokenLength=(\\d+)\\s>\\s(\\d+).*");
+
     private Token<AdhocTokenId> token(AdhocTokenId targetId, int length) {
         boolean broken = false;
         try {
-//            if (targetId.canBeFlyweight()) {
-//                return info.tokenFactory().getFlyweightToken(targetId, targetId.literalName());
-//            }
+            if (targetId.canBeFlyweight()) {
+                return info.tokenFactory().getFlyweightToken(targetId, targetId.literalName());
+            }
             return info.tokenFactory().createToken(targetId, length);
-        } catch (ArrayIndexOutOfBoundsException ex) {
+        } catch (IndexOutOfBoundsException ex) {
+            if (ex.getMessage() != null) {
+                Matcher m = ERRMP.matcher(ex.getMessage());
+                if (m.find()) {
+                    int realLength = Integer.parseInt(m.group(2));
+                    return info.tokenFactory().createToken(targetId, realLength);
+                }
+            }
+
             List<AdhocTokenId> ids = ids();
             broken = true;
             int ix = ids.indexOf(targetId);

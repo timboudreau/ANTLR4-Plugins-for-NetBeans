@@ -143,14 +143,14 @@ public final class EmbeddedAntlrParsers {
         Path path = FileUtil.toFile(grammar).toPath();
         p = new EmbeddedAntlrParserImpl(logName, path, grammar.getName(), mt);
 
-        LOG.log(Level.FINE, "Create EmbeddedAntlrParser for {0} with "
-                + " {1} subscribers",
-                new Object[]{grammar.getPath(), set.size()});
         Runnable unsubscriber = lastUn = AntlrRunSubscriptions
                 .forType(EmbeddedParser.class)
                 .subscribe(grammar, p);
         p.setUnsubscriber(unsubscriber);
         set.add(p);
+        LOG.log(Level.FINE, "Create EmbeddedAntlrParser for {0} with "
+                + " {1} subscribers",
+                new Object[]{grammar.getPath(), set.size()});
         return p;
     }
 

@@ -724,6 +724,13 @@ public class DynamicLanguagesTest {
             assertNotNull(result, () -> "Got null parser result " + FakeAntlrLoggers.lastText());
             assertTrue(result instanceof AdhocParserResult);
             res = (AdhocParserResult) result;
+            assertNotNull(res.result(), "No embedded result in " + res.result());
+            if (res.result().runResult() == null) {
+                if (res.parseTree().isUnparsed()) {
+                    res.parseTree().rethrow();
+                }
+                fail("No GrammarRunResult in " + res.result());
+            }
             if (res.parseTree().isUnparsed()) {
                 try {
                     res.result().runResult().rethrow();

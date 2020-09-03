@@ -137,6 +137,9 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         // In JDK 14, RuntimeMXBean always returns 0 for uptime and start time,
         // so the best we can do is first load of this class, but we can try
         // elsewhere to ensure it is loaded early
+        if (Boolean.getBoolean("unit.test")) {
+            start = 0;
+        }
         INITIAL_LOAD = start;
     }
     static final long READY_TIME = INITIAL_LOAD + STARTUP_DELAY;
@@ -190,9 +193,11 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
             if (en != null) {
                 en.update(event, consumers);
             } else {
+                LOG.log(Level.FINE, "Defer regeneration event for {0}", key.getNameExt());
                 entries.put(key, new Entry(event, consumers));
             }
             if (!inStartupDelay()) {
+                LOG.log(Level.FINE, "Startup delay ended, release cached events");
                 releaseTask.schedule(0);
             }
         }
@@ -201,6 +206,8 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         public void run() {
             // Ensure we are not run twice
             if (wasRun.compareAndSet(false, true)) {
+                LOG.log(Level.FINE, "Send deferred regeneration events: {0}",
+                        entries);
                 // Loop to ensure we don't miss and throw away entries added
                 // WHILE we are running here
                 Map<FileObject, Entry> copy;

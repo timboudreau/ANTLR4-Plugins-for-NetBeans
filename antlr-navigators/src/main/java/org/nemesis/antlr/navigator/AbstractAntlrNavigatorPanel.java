@@ -15,14 +15,22 @@
  */
 package org.nemesis.antlr.navigator;
 
+import com.mastfrog.function.state.Obj;
+import java.awt.BorderLayout;
 import java.awt.EventQueue;
 import java.awt.Rectangle;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JComponent;
+import static javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW;
+import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.border.Border;
 import javax.swing.text.BadLocationException;
@@ -30,6 +38,7 @@ import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.spi.navigator.NavigatorPanel;
+import org.openide.awt.QuickSearch;
 import org.openide.cookies.EditorCookie;
 import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
@@ -38,6 +47,7 @@ import org.openide.util.LookupListener;
 import org.openide.util.RequestProcessor;
 import org.openide.util.Task;
 import org.openide.util.TaskListener;
+import org.openide.util.Utilities;
 import org.openide.windows.TopComponent;
 
 /**
@@ -52,7 +62,7 @@ import org.openide.windows.TopComponent;
  */
 abstract class AbstractAntlrNavigatorPanel<R, C extends JComponent & ComponentIsActiveChecker> implements NavigatorPanel {
 
-    private JScrollPane component;
+    private JComponent component;
     protected C list;
     /**
      * current context to work on
@@ -91,24 +101,154 @@ abstract class AbstractAntlrNavigatorPanel<R, C extends JComponent & ComponentIs
 
     }
 
+    private void attachSearch(C component) {
+
+    }
+
     @Override
-    public JScrollPane getComponent() {
+    public JComponent getComponent() {
         if (component == null) {
             onBeforeCreateComponent();
             list = createComponent();
-            component = new JScrollPane(list);
+            JScrollPane scrollPane = new JScrollPane(list);
+            JPanel panel = new JPanel(new BorderLayout());
+            panel.add(scrollPane, BorderLayout.CENTER);
+
+            if (this instanceof SearchableNavigatorPanel) {
+                attachQuickSearch(panel, (SearchableNavigatorPanel) this);
+            }
+            component = panel;
             // The usual Swing border-buildup fixes
             Border empty = BorderFactory.createEmptyBorder();
-            component.setBorder(empty);
-            component.setViewportBorder(empty);
+            scrollPane.setBorder(empty);
+            scrollPane.setViewportBorder(empty);
             list.setBorder(empty);
             onAfterCreateComponent(list);
         }
         return component;
     }
 
+    protected final void attachQuickSearch(JPanel panel, SearchableNavigatorPanel search) {
+        CB callback = new CB((SearchableNavigatorPanel) this);
+        QuickSearch qs = QuickSearch.attach(panel, BorderLayout.NORTH, callback);
+        if (search.isSearchAlwaysVisible()) {
+            qs.setAlwaysShown(true);
+        } else {
+            list.getActionMap().put("-antlr-navigator-quicksearch", new AbstractAction() {
+                public void actionPerformed(ActionEvent ae) {
+                    qs.setAlwaysShown(true);
+                    callback.onNextConclusion(() -> {
+                        qs.setAlwaysShown(false);
+                    });
+                }
+            });
+            KeyStroke stroke;
+            if (Utilities.isMac()) {
+                stroke = KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.CTRL_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK, true);
+            } else {
+                stroke = KeyStroke.getKeyStroke(KeyEvent.VK_S, KeyEvent.ALT_DOWN_MASK | KeyEvent.SHIFT_DOWN_MASK, true);
+            }
+            list.getInputMap(WHEN_IN_FOCUSED_WINDOW).put(stroke, "-antlr-navigator-quicksearch");
+        }
+    }
+
     protected void onAfterCreateComponent(C component) {
-        
+
+    }
+
+    static class CB implements QuickSearch.Callback {
+
+        private String searchText;
+        private Runnable stateRestorer;
+        private final SearchableNavigatorPanel nav;
+        private Runnable onNextConclusion;
+        private String lastCompletionPrefix;
+        private String lastCompletionResult;
+        private int lastSearchMatch;
+
+        public CB(SearchableNavigatorPanel nav) {
+            this.nav = nav;
+        }
+
+        void onNextConclusion(Runnable run) {
+            onNextConclusion = run;
+        }
+
+        private void done(boolean accept) {
+            accept &= searchText != null;
+            if (accept) {
+                nav.commitSearch(searchText);
+            } else {
+                if (stateRestorer != null) {
+                    stateRestorer.run();
+                }
+            }
+            searchText = null;
+            stateRestorer = null;
+            if (onNextConclusion != null) {
+                onNextConclusion.run();
+                onNextConclusion = null;
+            }
+            discardSearch();
+        }
+
+        private void discardSearch() {
+            lastCompletionResult = null;
+            lastCompletionPrefix = null;
+            lastSearchMatch = -1;
+        }
+
+        @Override
+        public void quickSearchUpdate(String searchText) {
+            this.searchText = searchText;
+            if (stateRestorer == null) {
+                stateRestorer = nav.cancelledSearchStateRestorer();
+            }
+        }
+
+        @Override
+        public void showNextSelection(boolean forward) {
+            if (searchText == null) {
+                searchText = "";
+                if (stateRestorer == null) {
+                    stateRestorer = nav.cancelledSearchStateRestorer();
+                }
+            }
+            nav.toNextSelection(searchText, forward);
+        }
+
+        @Override
+        public String findMaxPrefix(String prefix) {
+            if (lastCompletionPrefix != null && lastCompletionResult != null) {
+                if (prefix.equals(lastCompletionResult)) {
+                    prefix = lastCompletionPrefix;
+                }
+            }
+            searchText = prefix;
+            if (stateRestorer == null) {
+                stateRestorer = nav.cancelledSearchStateRestorer();
+            }
+            Obj<String> res = Obj.of(prefix);
+            boolean result = nav.searchCompletion(lastSearchMatch + 1, searchText, (String match, int index) -> {
+                res.set(match);
+                lastCompletionResult = match;
+                lastSearchMatch = index;
+            });
+            if (result) {
+                lastCompletionPrefix = prefix;
+            }
+            return res.get();
+        }
+
+        @Override
+        public void quickSearchConfirmed() {
+            done(true);
+        }
+
+        @Override
+        public void quickSearchCanceled() {
+            done(false);
+        }
     }
 
     public void panelActivated(Lookup context) {
@@ -153,6 +293,7 @@ abstract class AbstractAntlrNavigatorPanel<R, C extends JComponent & ComponentIs
                 // but requestActive will be asynchronous
                 EventQueue.invokeLater(() -> {
                     pane.scrollRectToVisible(startRect);
+                    pane.requestFocus();
                 });
             }
         } catch (BadLocationException ex) {
@@ -299,4 +440,3 @@ abstract class AbstractAntlrNavigatorPanel<R, C extends JComponent & ComponentIs
         return new ExtractionTreeNavigatorPanel();
     }
 }
-

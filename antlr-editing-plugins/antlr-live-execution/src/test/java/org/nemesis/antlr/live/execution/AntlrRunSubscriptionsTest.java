@@ -83,25 +83,22 @@ public class AntlrRunSubscriptionsTest {
         // Runs some trivial code that runs the parser and extracts
         // a little info to prove it
 
-        assertTrue(ParserManager.canBeParsed("text/x-g4"), "Parsing support "
+        assertTrue(ParserManager.canBeParsed(ANTLR_MIME_TYPE), "Parsing support "
                 + "for Antlr not registered");
 
         FileObject fo = genProject.file("NestedMaps.g4");
         Bic bic = new Bic();
         InvocationSubscriptions<Map> is = AntlrRunSubscriptions.forType(Map.class);
         Runnable unsub = is.subscribe(fo, bic);
+        GrammarRunResult<Map> r = bic.assertExtracted();
         assertNotNull(unsub);
-        assertNotNull(IR.IR);
         for (int i = 0; i < 100 && IR.lastClassloader() == null; i++) {
             Thread.sleep(10);
         }
         JFSClassLoader cl = IR.lastClassloader();
-        assertNotNull(cl);
-//        System.out.println("\nCONFIG: \n" + AntlrConfiguration.forFile(fo));
+        assertNotNull(cl, "No JFS classloader, or IR instance replaced");
 
-        GrammarRunResult<Map> r = bic.assertExtracted();
         JFS jfs = r.jfs();
-
         JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("com/foo/bar/NestedMaps.g4"));
         assertNotNull(jfo);
         JFSFileObject jfo2 = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("imports/NMLexer.g4"));

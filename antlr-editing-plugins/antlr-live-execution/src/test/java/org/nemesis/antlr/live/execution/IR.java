@@ -55,7 +55,9 @@ public class IR extends InvocationRunner<Map, Void> {
 
     public IR() {
         super(Map.class);
-        IR = this;
+        if (IR != null) {
+            throw new AssertionError("Created twice");
+        }
     }
 
     public void assertCompileCalls(int ct) {
@@ -138,8 +140,9 @@ public class IR extends InvocationRunner<Map, Void> {
     }
 
     static synchronized JFSClassLoader lastClassloader() {
-        return JFSClassLoaderFactory.INSTANCE == null ? null
+        JFSClassLoader ldr = JFSClassLoaderFactory.INSTANCE == null ? null
                 : JFSClassLoaderFactory.INSTANCE.last;
+        return ldr;
     }
 
     static synchronized void clearLast() throws IOException {
@@ -171,7 +174,6 @@ public class IR extends InvocationRunner<Map, Void> {
             try {
                 JFS jfs = this.jfs.get();
                 JFSClassLoader cl = jfs.getClassLoader(true, root, StandardLocation.CLASS_OUTPUT, StandardLocation.SOURCE_OUTPUT, StandardLocation.CLASS_PATH);
-                System.out.println("CREATE A JFSCL: " + cl);
                 synchronized (IR.class) {
                     return last = cl;
                 }

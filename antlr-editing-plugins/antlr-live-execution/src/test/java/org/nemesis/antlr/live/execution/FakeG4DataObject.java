@@ -16,6 +16,7 @@
 package org.nemesis.antlr.live.execution;
 
 import java.io.IOException;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.file.file.AntlrDataObject;
 import org.openide.cookies.EditorCookie;
 import org.openide.cookies.ViewCookie;
@@ -102,7 +103,7 @@ public class FakeG4DataObject extends AntlrDataObject {
 
     public static class FakeG4MimeResolve extends MIMEResolver {
 
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "deprecation"})
         public FakeG4MimeResolve() {
             super();
         }
@@ -110,7 +111,7 @@ public class FakeG4DataObject extends AntlrDataObject {
         @Override
         public String findMIMEType(FileObject fo) {
             if ("g4".equals(fo.getExt())) {
-                return "text/x-g4";
+                return ANTLR_MIME_TYPE;
             }
             return null;
         }

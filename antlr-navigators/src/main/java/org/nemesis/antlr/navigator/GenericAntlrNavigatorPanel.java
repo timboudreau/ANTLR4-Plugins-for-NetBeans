@@ -17,6 +17,8 @@ package org.nemesis.antlr.navigator;
 
 import java.awt.Component;
 import java.awt.EventQueue;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -24,9 +26,13 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.Rectangle2D;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.prefs.Preferences;
 import javax.swing.AbstractAction;
 import javax.swing.JCheckBoxMenuItem;
@@ -43,8 +49,10 @@ import org.nemesis.extraction.Extraction;
 import org.nemesis.data.named.NamedSemanticRegion;
 import static org.nemesis.antlr.navigator.SortTypes.NATURAL;
 import org.nemesis.extraction.key.NamedRegionKey;
+import org.nemesis.swing.Scroller;
 import org.nemesis.swing.html.HtmlRenderer;
 import org.netbeans.api.editor.EditorRegistry;
+import org.openide.awt.QuickSearch;
 import org.openide.cookies.EditorCookie;
 import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
@@ -56,12 +64,14 @@ import org.openide.util.NbPreferences;
  *
  * @author Tim Boudreau
  */
-final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrListNavigatorPanel<NamedSemanticRegion<K>, ActivatedTcPreCheckJList<NamedSemanticRegion<K>>> {
+final class GenericAntlrNavigatorPanel<K extends Enum<K>>
+        extends AbstractAntlrListNavigatorPanel<NamedSemanticRegion<K>, ActivatedTcPreCheckJList<NamedSemanticRegion<K>>>
+        implements SearchableNavigatorPanel {
 
     private static final String PREFERENCES_KEY_NAVIGATOR_SORT = "navigator-sort";
     static final boolean DUPLICATE_DEBUG = Boolean.getBoolean("antlr.navigator.debug.duplicates");
 
-    private SortTypes sort = SortTypes.NATURAL;
+    private SortTypes sort;
     private final String mimeType;
     private final NavigatorPanelConfig<K> config;
     private final Appearance<? super NamedSemanticRegion<K>> appearance;
@@ -71,9 +81,10 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
         this.mimeType = mimeType;
         this.config = config;
         this.appearance = appearance;
+        sort = loadSort(SortTypes.NATURAL);
     }
 
-    protected JList list() {
+    protected ActivatedTcPreCheckJList<NamedSemanticRegion<K>> list() {
         return list;
     }
 
@@ -159,6 +170,25 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
         int newSelectedIndex = config.populateListModel(extraction, debugItems, oldSelection, sort);
         setNewModel(newModel, forChange, newSelectedIndex);
         updateCaretTracking(extraction, ck);
+    }
+
+    SortTypes loadSort(SortTypes defaultSort) {
+        assert defaultSort != null;
+        String key = sortKey();
+        Preferences prefs = NbPreferences.forModule(GenericAntlrNavigatorPanel.class);
+        String value = prefs.get(key, null);
+        if (value == null) {
+            return defaultSort;
+        }
+        for (SortTypes type : SortTypes.values()) {
+            if (type.name().equals(value)) {
+                return type;
+            }
+        }
+        Logger.getLogger(GenericAntlrNavigatorPanel.class.getName()).log(
+                Level.WARNING, "Saved sort value for {0}, ''{1}'' does not match "
+                + " any known sort value", new Object[]{key, value});
+        return defaultSort;
     }
 
     @SuppressWarnings("unchecked")
@@ -317,7 +347,7 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
                 moveTo(comp, el);
                 return;
             }
-            
+
             JEditorPane pane = NbDocument.findRecentEditorPane(cookie);
             if (pane != null) {
                 moveTo(pane, el);
@@ -388,5 +418,175 @@ final class GenericAntlrNavigatorPanel<K extends Enum<K>> extends AbstractAntlrL
     @Override
     protected void setNoModel(int forChange) {
         setNewModel(null, forChange, -1);
+    }
+
+    @Override
+    public void updateSearch(String searchText) {
+        toNextSelection(-1, searchText, true);
+    }
+
+    @Override
+    public void toNextSelection(String searchText, boolean forward) {
+        if (list.getModel().getSize() == 0) {
+            return;
+        }
+        int size = list.getModel().getSize();
+        int oldSelection = list.getSelectedIndex();
+        if (forward) {
+            int from = Math.max(-1, oldSelection);
+            if (from == size - 1) {
+                from = -1;
+            }
+            toNextSelection(from, searchText, true);
+        } else {
+            int from = oldSelection <= 0 ? size : oldSelection;
+            if (from <= 0) {
+                from = oldSelection;
+            }
+            toNextSelection(from, searchText, false);
+        }
+    }
+
+    private void updateSelection(int ix) {
+        list.setSelectedIndex(ix);
+        Point p = list.indexToLocation(ix);
+        Rectangle r = new Rectangle(p.x, p.y, 1, list.cellHeight());
+        Rectangle vis = list.getVisibleRect();
+        if (vis != null && !vis.isEmpty() && !vis.contains(r)) {
+            double cx = r.getCenterX();
+            double cy = r.getCenterY();
+            r.height = vis.height;
+            r.y -= vis.height / 2;
+            r.y = Math.max(0, r.y);
+            Scroller.get(list).abortScroll();
+            list.scrollRectToVisible(r);
+//            Scroller.get(list).beginScroll(r);
+        }
+    }
+
+    private void toNextSelection(int from, String searchText, boolean forward) {
+        searchText = searchText.toLowerCase();
+        int size = list.getModel().getSize();
+        if (size == 0) {
+            return;
+        }
+        if (forward) {
+            int start = Math.max(0, from + 1);
+            for (int i = start; i < size; i++) {
+                NamedSemanticRegion<K> region = list.getModel().getElementAt(i);
+                String name = region.name().toLowerCase();
+                if (name.startsWith(searchText)) {
+                    updateSelection(i);
+                    return;
+                }
+            }
+            for (int i = 0; i < start; i++) {
+                NamedSemanticRegion<K> region = list.getModel().getElementAt(i);
+                String name = region.name().toLowerCase();
+                if (name.startsWith(searchText)) {
+                    updateSelection(i);
+                    return;
+                }
+            }
+        } else {
+            int start = from - 1;
+            int last = list.getModel().getSize() - 1;
+            if (start < 0) {
+                start = last;
+            }
+            if (last >= 0 && start > 0 && start <= last) {
+                for (int i = start; i >= 0; i--) {
+                    NamedSemanticRegion<K> region = list.getModel().getElementAt(i);
+                    String name = region.name().toLowerCase();
+                    if (name.startsWith(searchText)) {
+                        updateSelection(i);
+                        return;
+                    }
+                }
+                for (int i = last; i >= start; i--) {
+                    NamedSemanticRegion<K> region = list.getModel().getElementAt(i);
+                    String name = region.name().toLowerCase();
+                    if (name.startsWith(searchText)) {
+                        updateSelection(i);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public boolean searchCompletion(int lastCompletion, String searchText, CompletionSearchReceiver recv) {
+        if (searchText.isEmpty()) {
+            return false;
+        }
+        // Find all the distinct shared prefixes in the list that
+        // start with the search text, and use the lastCompletionValue
+        // to step through them
+        String dropCase = searchText.toLowerCase();
+        Set<String> prefixen = new HashSet<>();
+        int sz = list.getModel().getSize();
+        for (int i = 0; i < sz; i++) {
+            NamedSemanticRegion<K> region = list.getModel().getElementAt(i);
+            String name = region.name().toLowerCase();
+            if (name.toLowerCase().startsWith(dropCase)) {
+                for (int j = 0; j < sz; j++) {
+                    if (i != j) {
+                        NamedSemanticRegion<K> region2 = list.getModel().getElementAt(j);
+                        String name2 = region2.name().toLowerCase();
+                        if (name2.startsWith(dropCase)) {
+                            String pfx = QuickSearch.findMaxPrefix(name, name2, true);
+                            if (pfx != null && pfx.length() > 0) {
+                                prefixen.add(name2.substring(0, pfx.length()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (prefixen.isEmpty()) {
+            return false;
+        }
+        List<String> l = new ArrayList<>(prefixen);
+        Collections.sort(l);
+        if (lastCompletion >= 0 && lastCompletion < l.size()) {
+            String result = l.get(lastCompletion);
+            recv.onCompleted(result, lastCompletion);
+            return true;
+        } else {
+            String result = l.get(0);
+            recv.onCompleted(result, 0);
+            return true;
+        }
+    }
+
+    @Override
+    public void commitSearch(String searchText) {
+        NamedSemanticRegion<K> reg = list.getSelectedValue();
+        if (reg != null) {
+            ListModel<?> lm = list.getModel();
+            if (lm instanceof EditorAndChangeAwareListModel<?>) {
+                EditorAndChangeAwareListModel<?> em = (EditorAndChangeAwareListModel<?>) lm;
+                moveTo(em.cookie, reg);
+            }
+        }
+    }
+
+    @Override
+    public Runnable cancelledSearchStateRestorer() {
+        Rectangle rect = list.getVisibleRect();
+        int ix = list.getSelectedIndex();
+        return () -> {
+            if (ix >= 0) {
+                int modelSize = list.getModel().getSize();
+                if (ix < modelSize) {
+                    list.setSelectedIndex(ix);
+                }
+            }
+            if (rect != null && !rect.isEmpty()) {
+                Scroller.get(list).abortScroll();
+                list.scrollRectToVisible(rect);
+            }
+        };
     }
 }

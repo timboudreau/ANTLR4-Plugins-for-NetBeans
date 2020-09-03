@@ -47,7 +47,7 @@ public class SimulatedEditorReparse extends UserTask implements Runnable, Docume
     }
 
     public void touch() {
-        task.schedule(100);
+        task.schedule(1);
     }
 
     @Override

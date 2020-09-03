@@ -144,10 +144,14 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                             + " Nothing should be using this."));
             return false;
         }
+        if (info.parser instanceof DeadEmbeddedParser) {
+            forceGrammarFileReparse(info);
+            return true;
+        }
         if (!info.isUpToDate() || info.parser instanceof DeadEmbeddedParser) {
             LOG.log(Level.FINE, "{0} force reparse due to {1} up to date? ",
                     new Object[]{path.getFileName(), new Object[]{info, info.isUpToDate()}});
-//            forceGrammarFileReparse(info);
+            forceGrammarFileReparse(info);
             return true;
         }
         return false;
@@ -227,13 +231,16 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         // the previous parser result without acquiring any locks.  I can't think
         // of a scenario where this fails.
         EmbeddedParsingEnvironment oldInfo = environment.get();
+        LOG.log(Level.FINER, "Parse {0} chars for {1} with parser {2}",
+                new Object[]{textToParse == null ? "null" : textToParse.length(),
+                    grammarName, logName});
 
-        if (oldInfo.modifications.changes().isUpToDate()) {
+        if (oldInfo.parser instanceof DeadEmbeddedParser || oldInfo.modifications.changes().isUpToDate()) {
             LastParseInfo last = lastParseInfo.get();
             if (last != null && last.canReuse(textToParse)) {
                 if (last.parserResult.grammarTokensHash().equals(oldInfo.grammarTokensHash)) {
-                    LOG.log(Level.FINEST, "Reuse last parser result for same text."
-                            + " My tokens hash " + oldInfo.grammarTokensHash);
+                    LOG.log(Level.FINEST, "Reuse last parser result for same text. My tokens hash {0}",
+                            oldInfo.grammarTokensHash);
                     return last.parserResult;
                 }
             } else if (last != null && textToParse != null && last.seq != null && LOG.isLoggable(Level.FINEST)) {

@@ -63,8 +63,10 @@ public class RebuildSubscriptionsTest {
         Document doc = proj.document("NestedMaps.g4");
 
         Runnable unsubscribe = RebuildSubscriptions.subscribe(proj.file("NestedMaps.g4"), sub);
-        assertNotNull(unsubscribe);
-        sub.assertRebuilt(1);;
+        assertNotNull(unsubscribe, "No unsubscriber runnable");
+        sub.assertRebuilt(1, "Subscribing should have caused an immediate "
+                + " ANTLR generation.  It didn't.  Is the startup delay code not "
+                + "detecting that it's running in a test?");
 
         StyledDocument lexerDoc = proj.document("NMLexer.g4");
         assertNotNull(lexerDoc);
@@ -111,8 +113,17 @@ public class RebuildSubscriptionsTest {
             if (this.count.get() < count) {
                 await();
                 assertEquals(count, this.count.get());
+                return;
             }
             assertEquals(count, this.count.get());
+        }
+        public void assertRebuilt(int count, String msg) throws InterruptedException {
+            if (this.count.get() < count) {
+                await();
+                assertEquals(count, this.count.get(), msg);
+                return;
+            }
+            assertEquals(count, this.count.get(), msg);
         }
 
         public void assertNotRebuilt() throws InterruptedException {

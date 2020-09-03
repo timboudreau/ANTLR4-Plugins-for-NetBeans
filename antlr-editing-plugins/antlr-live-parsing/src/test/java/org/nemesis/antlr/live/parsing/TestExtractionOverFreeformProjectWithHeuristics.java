@@ -16,6 +16,7 @@
 package org.nemesis.antlr.live.parsing;
 
 import com.mastfrog.function.throwing.ThrowingRunnable;
+import com.mastfrog.util.thread.OneThreadLatch;
 import java.awt.Component;
 import java.awt.Graphics;
 import java.beans.PropertyChangeListener;
@@ -25,7 +26,9 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import javax.swing.Icon;
 import javax.swing.event.ChangeListener;
 import org.junit.jupiter.api.AfterAll;
@@ -38,10 +41,12 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.ANTLRv4Parser;
+import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
 import static org.nemesis.antlr.live.parsing.TestExtractorGenerationWithTokenVocab.initAntlrTestFixtures;
 import org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner;
+import org.nemesis.antlr.live.parsing.impl.ReparseListeners;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.project.AntlrConfiguration;
 import org.nemesis.antlr.project.Folders;
@@ -67,6 +72,7 @@ import org.netbeans.spi.project.ProjectState;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.util.Lookup;
+import org.openide.util.Pair;
 import org.openide.util.lookup.Lookups;
 
 /**
@@ -101,7 +107,6 @@ public class TestExtractionOverFreeformProjectWithHeuristics {
         FileObject projectRoot = fo(freeformProjectPath);
 
         Project prj = ProjectManager.getDefault().findProject(projectRoot);
-        System.out.println("PROJECT " + prj);
         assertNotNull(prj, "Project plumbing is probably not set up correctly.");
         assertFalse(prj == FileOwnerQuery.UNOWNED, "Got the unowned project");
         assertTrue(prj instanceof FakeProject, "Huh? Wrong project: " + prj);
@@ -112,14 +117,20 @@ public class TestExtractionOverFreeformProjectWithHeuristics {
         assertSame(Folders.ANTLR_GRAMMAR_SOURCES, Folders.ownerOf(combinedGrammarFile));
 
         AntlrConfiguration config = AntlrConfiguration.forFile(markdownParserFile);
-        System.out.println("CONFIG: " + config);
         assertNotNull(config.antlrImportDir());
         assertNotNull(config.antlrSourceDir());
         assertEquals(freeformProjectPath.resolve("grammar"), config.antlrSourceDir());
         assertEquals(freeformProjectPath.resolve("grammar/imports"), config.antlrImportDir());
 
+        System.out.println("\n\n ----------------- do the thing ------------------\n");
+
         EmbeddedAntlrParser par = EmbeddedAntlrParsers.forGrammar("test", fo(markdownParserFile));
+        Listener l = new Listener();
+        par.listen(l);
+
         EmbeddedAntlrParserResult res = par.parse("# Hello world\n\n> This is some stuff here.\n\n");
+//        l.assertUpdated();
+
         assertFalse(res.proxy().isUnparsed());
 
         EmbeddedAntlrParser lpar = EmbeddedAntlrParsers.forGrammar("test", fo(markdownLexerFile));
@@ -128,8 +139,34 @@ public class TestExtractionOverFreeformProjectWithHeuristics {
             return lres.toString() + "\n\nOUTPUT:\n:" + FakeAntlrLoggers.output();
         });
         assertFalse(res.proxy().isUnparsed(), () -> res.runResult().toString() + " - " + FakeAntlrLoggers.output());
+    }
 
-        System.out.println("result: " + res);
+    static class Listener implements BiConsumer<Extraction, GrammarRunResult<?>> {
+
+        OneThreadLatch latch = new OneThreadLatch();
+        private final AtomicReference<Pair<Extraction, GrammarRunResult<?>>> last = new AtomicReference<>();
+
+        @Override
+        public void accept(Extraction t, GrammarRunResult<?> u) {
+            last.set(Pair.of(t, u));
+            latch.releaseAll();
+        }
+
+        public Pair<Extraction, GrammarRunResult<?>> assertUpdated() throws InterruptedException {
+            Pair<Extraction, GrammarRunResult<?>> p = last.get();
+            if (p == null) {
+                for (int i = 0; i < 10; i++) {
+                    latch.await(10, TimeUnit.MILLISECONDS);
+                    p = last.get();
+                    if (p != null) {
+                        break;
+                    }
+                }
+            }
+            assertNotNull(p);
+            return p;
+        }
+
     }
 
     static class S implements Subscriber {
@@ -167,6 +204,11 @@ public class TestExtractionOverFreeformProjectWithHeuristics {
                 .addToNamedLookup("antlr/invokers/org/nemesis/antlr/live/parsing/impl/EmbeddedParser", ProxiesInvocationRunner.class)
                 .verboseGlobalLogging(HeuristicImplementationFactory.class,
                         HeuristicFoldersHelperImplementation.class,
+                        EmbeddedAntlrParserImpl.class,
+                        ProxiesInvocationRunner.class,
+                        ReparseListeners.class,
+                        EmbeddedAntlrParsers.class,
+                        EmbeddedAntlrParser.class,
                         "org.nemesis.antlr.project.impl.InferredConfig"
                 ) //                .insanelyVerboseLogging()
                 ;

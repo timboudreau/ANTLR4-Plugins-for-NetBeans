@@ -45,8 +45,6 @@ limitations under the License.
     </licenses>
     <packaging>nbm</packaging>
     <properties>
-        <!-- ugh, the initializing the module system bug -->
-        <!--<maven.test.skip>true</maven.test.skip>-->
         <enforcer.skip>true</enforcer.skip>
     </properties>
     <build>

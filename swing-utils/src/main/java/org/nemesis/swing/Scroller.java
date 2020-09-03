@@ -22,10 +22,15 @@ import java.awt.FlowLayout;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
-import java.awt.event.ComponentListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.util.Arrays;
 import javax.swing.BoundedRangeModel;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
@@ -43,12 +48,13 @@ import javax.swing.WindowConstants;
  *
  * @author Tim Boudreau
  */
-public final class Scroller implements ActionListener, ComponentListener, MouseWheelListener {
+public final class Scroller {
 
     private final Rectangle target = new Rectangle();
     private final JScrollPane pane;
     private final JComponent comp;
-    private final Timer timer = new Timer(30, this);
+    private final InnerListener listener = new InnerListener();
+    private final Timer timer = new Timer(30, listener);
 
     @SuppressWarnings(value = "LeakingThisInConstructor")
     Scroller(JComponent comp, JScrollPane pane) {
@@ -83,10 +89,17 @@ public final class Scroller implements ActionListener, ComponentListener, MouseW
         beginScroll(targetRect);
     }
 
+    public void abortScroll() {
+        done();
+    }
+
     int realTargetHeight;
     int tick = 1;
 
     public void beginScroll(Rectangle bounds) {
+        if (timer.isRunning()) {
+            abortScroll();
+        }
         if (bounds.height <= 0) {
             bounds.height = 17;
         }
@@ -95,18 +108,73 @@ public final class Scroller implements ActionListener, ComponentListener, MouseW
         }
         tick = 0;
         target.setBounds(bounds);
-        comp.addComponentListener(this);
-        comp.addMouseWheelListener(this);
+        if (!Arrays.asList(comp.getComponentListeners()).contains(listener)) {
+            comp.addComponentListener(listener);
+            comp.addMouseWheelListener(listener);
+            comp.addMouseListener(listener);
+            comp.addPropertyChangeListener("ancestor", listener);
+        }
         startTimer();
     }
 
     int start = 0;
+
     void startTimer() {
         BoundedRangeModel vmdl = pane.getVerticalScrollBar().getModel();
         int val = vmdl.getValue();
         start = val;
 //        System.out.println("\nSTART " + val + " target " + target.y);
         timer.start();
+    }
+
+    class InnerListener extends ComponentAdapter implements ActionListener, MouseWheelListener, MouseListener, PropertyChangeListener {
+
+        @Override
+        public void componentHidden(ComponentEvent e) {
+            done();
+        }
+
+        @Override
+        public void mouseWheelMoved(MouseWheelEvent e) {
+            done();
+        }
+
+        @Override
+        public void mouseClicked(MouseEvent e) {
+            // do nothing
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            done();
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            // do nothing
+        }
+
+        @Override
+        public void mouseEntered(MouseEvent e) {
+            // do nothing
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+            // do nothing
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            Scroller.this.actionPerformed(e);
+        }
+
+        @Override
+        public void propertyChange(PropertyChangeEvent evt) {
+            if ("ancestor".equals(evt.getPropertyName())) {
+                done();
+            }
+        }
     }
 
     interface EasingFunction {
@@ -154,8 +222,10 @@ public final class Scroller implements ActionListener, ComponentListener, MouseW
     void done() {
         realTargetHeight = 0;
         timer.stop();
-        comp.removeComponentListener(this);
-        comp.removeMouseWheelListener(this);
+        comp.removeComponentListener(listener);
+        comp.removeMouseWheelListener(listener);
+        comp.removeMouseListener(listener);
+        comp.removePropertyChangeListener("ancestor", listener);
     }
 
 //    @Override
@@ -180,7 +250,8 @@ public final class Scroller implements ActionListener, ComponentListener, MouseW
             done();
         }
     }
-    public void actionPerformed(ActionEvent e) {
+
+    void actionPerformed(ActionEvent e) {
         if (!comp.isDisplayable() || !comp.isVisible() || !comp.isShowing()) {
             timer.stop();
             return;
@@ -256,30 +327,5 @@ public final class Scroller implements ActionListener, ComponentListener, MouseW
             jf.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
             jf.setVisible(true);
         });
-    }
-
-    @Override
-    public void componentResized(ComponentEvent e) {
-
-    }
-
-    @Override
-    public void componentMoved(ComponentEvent e) {
-
-    }
-
-    @Override
-    public void componentShown(ComponentEvent e) {
-
-    }
-
-    @Override
-    public void componentHidden(ComponentEvent e) {
-        done();
-    }
-
-    @Override
-    public void mouseWheelMoved(MouseWheelEvent e) {
-        done();
     }
 }
