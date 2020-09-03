@@ -17,11 +17,11 @@ package org.nemesis.antlr.completion.grammar;
 
 import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.collections.IntMap;
+import com.mastfrog.util.collections.IntSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.PrimitiveIterator;
-import java.util.Set;
 import java.util.function.BiConsumer;
 
 /**
@@ -55,7 +55,7 @@ final class IntArrayMapping {
         return values.containsKey(key);
     }
 
-    public Set<Integer> keySet() {
+    public IntSet keySet() {
         return values.keySet();
     }
 

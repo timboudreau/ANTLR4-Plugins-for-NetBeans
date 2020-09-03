@@ -19,7 +19,6 @@ import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.collections.IntSet;
 import java.util.Collection;
 import java.util.PrimitiveIterator;
-import java.util.Set;
 
 /**
  * A tailored data structure for the data CodeCompletionCore collects which is
@@ -45,7 +44,7 @@ class IntSetMapping {
         return true;
     }
 
-    public Set<Integer> keySet() {
+    public IntSet keySet() {
         return values.keySet();
     }
 
@@ -54,9 +53,7 @@ class IntSetMapping {
     }
 
     boolean containsKey(int key) {
-        // broken in mf 2.6.6 - for now
-//        return values.containsKey(key);
-        return values.getIfPresent(key, null) != null;
+        return values.containsKey(key);
     }
 
     void forEach(IntMap.IntMapConsumer<? super IntSet> cons) {
@@ -68,10 +65,14 @@ class IntSetMapping {
     }
 
     void putReplace(int key, Collection<Integer> all) {
+        // Assertions disabled for performance, since NetBeans is usually
+        // run with -ea
         if (all instanceof IntSet) {
             values.put(key, (IntSet) all);
 //            assert values.getIfPresent(key, null) == all : "Wrong object returned";
-//            assert values.containsKey(key) : "After put of " + all + " with key " + key + ", key is absent: " + values.keySet() + " - all: " + values;
+//            assert values.containsKey(key) : "After put of " + all + " with key "
+//                    + key + ", key is absent: " + values.keySet() + " - all: "
+//                    + values;
         } else {
             IntSet result = IntSet.create(all);
             values.put(key, result);
@@ -107,5 +108,4 @@ class IntSetMapping {
     public String toString() {
         return values.toString();
     }
-
 }

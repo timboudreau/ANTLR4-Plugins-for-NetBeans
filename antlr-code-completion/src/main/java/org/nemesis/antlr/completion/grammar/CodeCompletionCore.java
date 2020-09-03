@@ -66,24 +66,24 @@ public class CodeCompletionCore {
     /**
      * JDO returning information about matching tokens and rules
      */
-    public static class CandidatesCollection {
+    static final class CandidatesCollection {
 
         /**
          * Collection of Token ID candidates, each with a follow-on List of
          * subsequent tokens
          */
-        public IntSetMapping tokens = new IntSetMapping();
+        public final IntSetMapping tokens = new IntSetMapping();
 
         /**
          * Collection of Rule candidates, each with the callstack of rules to
          * reach the candidate
          */
-        public IntArrayMapping rules = new IntArrayMapping();
+        public final IntArrayMapping rules = new IntArrayMapping();
         /**
          * Collection of matched Preferred Rules each with their start and end
          * offsets
          */
-        public IntArrayMapping rulePositions = new IntArrayMapping();
+        public final IntArrayMapping rulePositions = new IntArrayMapping();
 
         public boolean isEmpty() {
             return tokens.isEmpty() && rules.isEmpty() && rulePositions.isEmpty();
@@ -91,7 +91,8 @@ public class CodeCompletionCore {
 
         @Override
         public String toString() {
-            return "CandidatesCollection{" + "tokens=" + tokens + ", rules=" + rules + ", ruleStrings=" + rulePositions + '}';
+            return "CandidatesCollection{" + "tokens=" + tokens + ", rules="
+                    + rules + ", ruleStrings=" + rulePositions + '}';
         }
     }
 

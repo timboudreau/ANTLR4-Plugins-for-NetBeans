@@ -459,6 +459,7 @@ public class AntlrRunSubscriptions {
                                 JFSCompileBuilder bldr = new JFSCompileBuilder(res.jfsSupplier);
                                 bldr.withMaxErrors(1).setOptions(
                                         JavacOptions.fastDefaults()
+                                                .withDebugInfo(JavacOptions.DebugInfo.LINES)
                                                 .runAnnotationProcessors(false)
                                                 .withCharset(jfs.encoding())
                                 ).runAnnotationProcessors(false);

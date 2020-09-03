@@ -143,7 +143,7 @@ public class AdhocEditorKit extends ExtKit {
         return super.createTextUI();
     }
 
-    private static final RequestProcessor ADHOC_POPULATE_MENU_POOL
+    static final RequestProcessor ADHOC_POPULATE_MENU_POOL
             = new RequestProcessor("populate-adhoc-popup", 1, true);
 
     private class PopupBuilder extends AbstractAction {
@@ -154,7 +154,8 @@ public class AdhocEditorKit extends ExtKit {
 
         @Messages({"copy=&Copy",
             "cut=Cu&t",
-            "paste=&Paste"
+            "paste=&Paste",
+            "importMenu=Import"
         })
         @Override
         public void actionPerformed(ActionEvent e) {
@@ -162,8 +163,7 @@ public class AdhocEditorKit extends ExtKit {
             EditorUI ui = Utilities.getEditorUI(target);
             JPopupMenu menu = new JPopupMenu();
             try {
-                Action importAction = ImportIntoSampleAction.createInstance(target);
-                menu.add(importAction);
+                menu.add(ImportIntoSampleAction.submenu(target));
                 Action copyTokenSequenceAction = new CopyTokenSequenceAction(target);
                 menu.add(copyTokenSequenceAction);
                 menu.add(new JSeparator());

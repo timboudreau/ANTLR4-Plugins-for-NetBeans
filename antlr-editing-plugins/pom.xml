@@ -73,7 +73,6 @@ limitations under the License.
         <module>antlr-language-code-completion</module>
         <module>antlr-language-formatting</module>
         <module>antlr-language-formatting-ui</module>
-        <module>parse-recorder</module>
         <module>tiny-ebnf-parser</module>
         <module>antlr-project-helpers-ant</module>
     </modules>

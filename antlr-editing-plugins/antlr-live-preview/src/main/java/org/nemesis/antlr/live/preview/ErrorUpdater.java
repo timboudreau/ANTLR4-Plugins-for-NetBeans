@@ -23,7 +23,6 @@ import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.lang.ref.Reference;
@@ -80,7 +79,9 @@ import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.javac.JavacDiagnostic;
 import org.nemesis.source.api.GrammarSource;
 import org.netbeans.api.editor.EditorRegistry;
-import org.netbeans.editor.BaseDocument;
+import org.netbeans.api.editor.document.LineDocument;
+import org.netbeans.api.editor.document.LineDocumentUtils;
+import static org.netbeans.lib.lexer.TokenList.LOG;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
@@ -487,24 +488,45 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
             if (e.hasFileOffsetsAndTokenIndex()) {
                 int ix = e.tokenIndex();
                 if (ix >= 0) {
-                    AntlrProxies.ProxyToken pt = prx.tokens().get(ix);
-                    int start = pt.getStartIndex();
-                    int end = pt.getEndIndex();
-                    editorPane.setSelectionStart(start);
-                    editorPane.setSelectionEnd(end);
-                    activate = true;
+                    if (ix == prx.tokenCount()) {
+                        LOG.log(Level.WARNING, "ProxySyntaxError generated with "
+                                + "wrong token index - is same as token count, "
+                                + "max is token count minus one for {0} (line={1}, "
+                                + "charPositionInLine={2} start={3} stop={4}",
+                                new Object[]{e, e.line(), e.charPositionInLine(),
+                                    e.startIndex(), e.stopIndex()});
+                        int start = e.startIndex();
+                        int end = e.endIndex();
+                        editorPane.setSelectionStart(start);
+                        editorPane.setSelectionEnd(end);
+                        activate = true;
+                    } else {
+                        AntlrProxies.ProxyToken pt = prx.tokens().get(Math.min(prx.tokenCount() - 1, ix));
+                        int start = pt.getStartIndex();
+                        int end = pt.getEndIndex();
+                        editorPane.setSelectionStart(start);
+                        editorPane.setSelectionEnd(end);
+                        activate = true;
+                    }
                 }
             } else {
-                Element lineRoot = ((BaseDocument) editorPane.getDocument()).getParagraphElement(0).getParentElement();
-                Element line = lineRoot.getElement(e.line());
-                if (line == null) {
-                    Toolkit.getDefaultToolkit().beep();
-                } else {
-                    int docOffset = line.getStartOffset() + e.charPositionInLine();
-                    editorPane.setSelectionStart(docOffset);
-                    editorPane.setSelectionEnd(docOffset);
-                    activate = true;
-                }
+                LineDocument ld = LineDocumentUtils.as(editorPane.getDocument(), LineDocument.class);
+                int len = ld.getLength();
+                int lineStart = Math.min(len-1,LineDocumentUtils.getLineStart(ld, e.line())
+                        + e.charPositionInLine());
+                editorPane.setSelectionStart(lineStart);
+                editorPane.setSelectionEnd(lineStart);
+
+//                Element lineRoot = ((BaseDocument) editorPane.getDocument()).getParagraphElement(0).getParentElement();
+//                Element line = lineRoot.getElement(e.line());
+//                if (line == null) {
+//                    Toolkit.getDefaultToolkit().beep();
+//                } else {
+//                    int docOffset = line.getStartOffset() + e.charPositionInLine();
+//                    editorPane.setSelectionStart(docOffset);
+//                    editorPane.setSelectionEnd(docOffset);
+//                    activate = true;
+//                }
             }
             if (activate) {
                 Mutex.EVENT.readAccess(() -> {
