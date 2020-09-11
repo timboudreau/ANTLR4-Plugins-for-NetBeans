@@ -19,7 +19,7 @@ limitations under the License.
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.mastfrog</groupId>
     <artifactId>antlr-netbeans-parent</artifactId>
-    <version>2.0.75</version>
+    <version>2.0.76</version>
     <packaging>pom</packaging>
     <name>Antlr-NetBeans-Parent</name>
     <description>NetBeans ANTLR modules parent POM</description>
@@ -40,6 +40,7 @@ limitations under the License.
         <mastfrog.util.graph.version>2.7.0.4</mastfrog.util.graph.version>
         <mastfrog.function.version>2.7.0.1</mastfrog.function.version>
         <mastfrog.subscriptions.version>2.7.0.2</mastfrog.subscriptions.version>
+        <mastfrog.converters.version>2.7.0.1</mastfrog.converters.version>
         <java.vogon.version>2.7.0.2</java.vogon.version>
         <antlr.message.format>gnu</antlr.message.format>
         <old.junit.version>4.12</old.junit.version>
@@ -705,7 +706,7 @@ limitations under the License.
             <dependency>
                 <groupId>com.mastfrog</groupId>
                 <artifactId>converters</artifactId>
-                <version>${mastfrog.version}</version>
+                <version>${mastfrog.converters.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.mastfrog</groupId>
