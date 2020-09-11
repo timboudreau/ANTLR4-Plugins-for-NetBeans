@@ -31,7 +31,7 @@ import javax.tools.FileObject;
  *
  * @author Tim Boudreau
  */
-public interface JFSFileObject extends FileObject {
+public interface JFSFileObject extends FileObject, Comparable<JFSFileObject> {
 
     /**
      * Get the content as a byte array.
@@ -176,5 +176,10 @@ public interface JFSFileObject extends FileObject {
         } catch (NoSuchAlgorithmException ex) {
             return Exceptions.chuck(ex);
         }
+    }
+
+    @Override
+     default int compareTo(JFSFileObject o) {
+        return path().compareTo(o.path());
     }
 }

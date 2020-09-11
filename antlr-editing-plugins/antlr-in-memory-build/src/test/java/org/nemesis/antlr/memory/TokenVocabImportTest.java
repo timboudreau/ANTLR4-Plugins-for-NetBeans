@@ -98,12 +98,11 @@ public class TokenVocabImportTest {
             System.out.println("CLO: " + sib.dependencyGraph().closureOf(PARSER_PATH));
             System.out.println("CLO2: " + sib.dependencyGraph().closureOf(LEXER_PATH));
 
-            System.out.println("\nFILE STAT " + sib.filesStatus);
-            System.out.println("\nGENFILES " + sib.newlyGeneratedFiles);
+            System.out.println("\nGENFILES " + sib.inputFiles);
 
-            System.out.println("\nCHANGES " + sib.filesStatus.changes());
+            System.out.println("\nCHANGES " + sib.inputChanges());
 
-            assertTrue(sib.filesStatus.changes().isUpToDate());
+            assertTrue(sib.inputChanges().isUpToDate());
 
             assertNotNull(parserResult);
             assertTrue(parserResult.isSuccess(), parserResult::toString);
@@ -112,15 +111,18 @@ public class TokenVocabImportTest {
             assertNotNull(tokensFile);
             assertEquals(2, parserResult.allGrammars.size(), parserResult.allGrammars::toString);
 
-            assertTrue(parserResult.newlyGeneratedFiles.contains(tokensFile.toReference()), parserResult.newlyGeneratedFiles::toString);
+            assertFalse(parserResult.inputFiles.isEmpty(), "Input files are empty: " + parserResult);
+            assertTrue(parserResult.inputFiles.contains(tokensFile.toCoordinates()), parserResult.inputFiles::toString);
+            assertFalse(parserResult.outputFiles.isEmpty(), "Output files are empty: " + parserResult);
             assertTrue(parserResult.errors.isEmpty(), parserResult.errors::toString);
-            assertTrue(parserResult.isUsable(), parserResult::toString);
+            assertTrue(parserResult.isUsable(), () -> {return "Not usable? " + parserResult.toString();});
             Set<String> jfsContents = new HashSet<>();
             Set<String> generatedFilesAccordingToParserResult = new HashSet<>();
             parserResult.jfs.listAll((loc, file) -> {
                 jfsContents.add(file.getName());
+                System.out.println("JFS: " + file.getName());
             });
-            parserResult.newlyGeneratedFiles.forEach(nm -> {
+            parserResult.outputFiles.forEach(nm -> {
                 generatedFilesAccordingToParserResult.add(nm.path().toString());
             });
             Set<String> expectedGenerated = new HashSet<>(EXPECTED_JFS_CONTENTS);
@@ -139,24 +141,24 @@ public class TokenVocabImportTest {
             assertTrue(graph.parents(UnixPath.get("com/poozle/MarkdownLexer.tokens")).contains(UnixPath.get("com/poozle/MarkdownParser.g4")));
             assertTrue(graph.children(UnixPath.get("com/poozle/MarkdownParser.g4")).contains(UnixPath.get("com/poozle/MarkdownLexer.tokens")));
 
-            for (JFSCoordinates.Resolvable gen : parserResult.newlyGeneratedFiles) {
+            for (JFSCoordinates gen : parserResult.inputFiles) {
                 System.out.println(" - " + gen.path());
             }
             AntlrGenerationResult result2 = bldr.building(PACKAGE_PATH, PACKAGE_PATH).run(PARSER_NAME, ps, true);
             result2.rethrow();
-            assertTrue(parserResult.areOutputFilesUpdated(UnixPath.get("com/poozle/MarkdownParser.g4")));
+            assertTrue(parserResult.areOutputFilesUpToDate(UnixPath.get("com/poozle/MarkdownParser.g4")));
 
-            assertTrue(result2.filesStatus.changes().isUpToDate());
+            assertTrue(result2.inputChanges().isUpToDate());
             lexerDoc.insertString(lexerDoc.getLength()-1, " ", null);
-            assertFalse(result2.filesStatus.changes().isUpToDate());
+            assertFalse(result2.inputChanges().isUpToDate());
             lexerDoc.remove(lexerDoc.getLength()-2, 1);
-            assertTrue(result2.filesStatus.changes().isUpToDate(), "Hashing should result in no "
+            assertTrue(result2.inputChanges().isUpToDate(), "Hashing should result in no "
                     + "modifications if a string is inserted then removed from a mapped document");
 
             lexerDoc.insertString(lexerDoc.getLength()-1, "fragment WURB='blee';\n", null);
-            System.out.println("CHANGES NOW " + result2.filesStatus.changes());
-            assertFalse(result2.filesStatus.changes().isUpToDate());
-            assertTrue(result2.filesStatus.changes().modified().contains(LEXER_PATH));
+            System.out.println("CHANGES NOW " + result2.inputChanges());
+            assertFalse(result2.inputChanges().isUpToDate());
+            assertTrue(result2.inputChanges().modified().contains(LEXER_PATH));
         } catch (Exception ex) {
             String out = new String(baos.toByteArray(), UTF_8);
             AssertionError err = new AssertionError("Build output: " + out, ex);

@@ -60,6 +60,9 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
 
     public AntlrRuntimeErrorsHighlighter(HighlightsLayerFactory.Context ctx) {
         super(ctx, true);
+        if (LOG.isLoggable(Level.INFO)) {
+            LOG.log(Level.INFO, "Create an errors highlighter", new Exception("Create error higlighter " + id()));
+        }
     }
 
     public String toString() {
@@ -77,8 +80,10 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
             fileName = Objects.toString(o);
         }
         JTextComponent editor = ctx.getComponent();
+        boolean displayable = editor == null ? false : editor.isDisplayable();
+        boolean showing = editor == null ? false : editor.isShowing();
         int h = editor == null ? 0 : System.identityHashCode(editor);
-        return fileName + "-" + h;
+        return fileName + "-" + h + " displayable=" + displayable + " showing=" + showing;
     }
 
     @Override

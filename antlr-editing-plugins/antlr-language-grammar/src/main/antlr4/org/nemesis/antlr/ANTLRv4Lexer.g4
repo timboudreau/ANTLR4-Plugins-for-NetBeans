@@ -642,6 +642,21 @@ HDR_IMPRT_CONTENT :
     ;
 
 mode Action;
+
+// PENDING: nesting actions causes all kinds of weirdness if the
+// action code contains the string '{' without a corresponding }.  It
+// would be better to deal with this much more simply.
+
+ACTION_CONTENT :
+    SQuote LBrace SQuote
+    | SQuote RBrace SQuote
+//    -> type(ACTION_CONTENT)
+    ;
+
+SUB_ACTION_CONTENT :
+    ~[{}]+? -> type(ACTION_CONTENT), more
+    ;
+
 NESTED_ACTION
    : LBrace -> more , pushMode(Action)
    ;
@@ -663,10 +678,6 @@ END_ACTION :
 
 UNTERMINATED_ACTION :
     EOF -> popMode
-    ;
-
-ACTION_CONTENT :
-    ~[{}]+
     ;
 
 

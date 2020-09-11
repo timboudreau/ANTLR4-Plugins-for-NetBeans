@@ -30,7 +30,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.WeakHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -1007,7 +1006,7 @@ public final class Extraction implements Externalizable {
             }
         } else {
             rc = new HashMap<>();
-            perResolverCache = new WeakHashMap<>();
+            perResolverCache = new HashMap<>();
             rc.put(key, perResolverCache);
         }
         SemanticRegions<UnknownNameReference<T>> u = unknowns(key);

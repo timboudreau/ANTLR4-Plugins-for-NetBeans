@@ -51,7 +51,11 @@ public abstract class InvocationRunner<T, A> implements ThrowingFunction<A, T> {
 
     }
 
-    final A configureCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res,
+    public boolean isStillValid(A a) {
+        return true;
+    }
+
+    public final A configureCompilation(ANTLRv4Parser.GrammarFileContext tree, AntlrGenerationResult res,
             Extraction extraction, JFS jfs, JFSCompileBuilder bldr, String packageName,
             Consumer<Supplier<ClassLoader>> classloaderSupplierConsumer,
             Consumer<UnixPath> singleJavaSourceConsumer) throws IOException {

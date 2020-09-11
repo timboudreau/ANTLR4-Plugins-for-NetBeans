@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedByInterruptException;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -89,6 +90,7 @@ final class NioBytesStorageAllocator implements JFSStorageAllocator<NioBytesStor
         private StoredBytes file;
         private final JFSStorage storage;
         private volatile long lastModified;
+        private volatile boolean discarded;
         final Name name;
         private final Object lock = NioBytesStorageAllocator.this;
 
@@ -146,6 +148,7 @@ final class NioBytesStorageAllocator implements JFSStorageAllocator<NioBytesStor
 
             @Override
             public void close() throws IOException {
+                boolean interruptedState = Thread.interrupted();
                 super.close();
                 synchronized (lock) {
                     StoredBytes file = file();
@@ -159,10 +162,23 @@ final class NioBytesStorageAllocator implements JFSStorageAllocator<NioBytesStor
                         }
                     } else {
                         if (bytes.length > 0) {
-                            BytesStorageWrapper.this.file = NioBytesStorageAllocator.this.storage.allocate(bytes);
+                            for (int i = 0; i < 5; i++) {
+                                try {
+                                    BytesStorageWrapper.this.file = NioBytesStorageAllocator.this.storage.allocate(bytes);
+                                    break;
+                                } catch (ClosedByInterruptException ex) {
+                                    interruptedState = true;
+                                    if (i == 4) {
+                                        throw ex;
+                                    }
+                                }
+                            }
                         }
                     }
                     lastModified = System.currentTimeMillis();
+                }
+                if (interruptedState) {
+                    Thread.currentThread().interrupt();
                 }
             }
         }
@@ -192,7 +208,10 @@ final class NioBytesStorageAllocator implements JFSStorageAllocator<NioBytesStor
             try {
                 synchronized (lock) {
                     if (file != null) {
-                        file.delete();
+                        if (!discarded) {
+                            file.delete();
+                            discarded = true;
+                        }
                     }
                 }
             } catch (IOException ex) {

@@ -55,7 +55,7 @@ public final class AntlrParseResult extends Parser.Result implements ExtractionP
     private final Extraction extraction;
     private final Set<SyntaxError> syntaxErrors = new TreeSet<>();
     private BiFunction<Snapshot, SyntaxError, ErrorDescription> errorConverter;
-    private final List<ErrorDescription> addedErrorDescriptions = Collections.synchronizedList( new ArrayList<>( 25 ) );
+    private final List<ErrorDescription> addedErrorDescriptions = Collections.synchronizedList( new ArrayList<>( 128 ) );
     private static volatile long IDS;
     private final long id = IDS++;
     private final Vocabulary lexerVocabulary;

@@ -31,7 +31,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.util.Objects;
+import java.util.Set;
 import javax.tools.JavaFileManager.Location;
+import org.nemesis.jfs.spi.JFSUtilities;
 
 /**
  *
@@ -39,6 +41,11 @@ import javax.tools.JavaFileManager.Location;
  */
 class JFSFileObjectImpl implements JFSFileObject {
 
+    static Set<JFSFileObjectImpl> LIVE_INSTANCES = JFSUtilities.newWeakSet();
+
+    static {
+        JFSUtilities.registerMetric("liveJFSFiles", LIVE_INSTANCES::size, true);
+    }
     final JFSBytesStorage storage;
     private final Location location;
     private final Name name;
@@ -50,6 +57,7 @@ class JFSFileObjectImpl implements JFSFileObject {
         this.location = location;
         this.name = name;
         this.encoding = encoding;
+        LIVE_INSTANCES.add(this);
     }
 
     boolean isDeleted() {
@@ -63,7 +71,11 @@ class JFSFileObjectImpl implements JFSFileObject {
 
     private void checkDeleted() throws IOException {
         if (deleted) {
-            throw new IOException(name + " was already deleted");
+            IOException ex = new JFSException(storage.storage().jfs(), name + " was already deleted");
+            if (discardedAt != null) {
+                ex.addSuppressed(discardedAt);
+            }
+            throw ex;
         }
     }
 
@@ -120,10 +132,7 @@ class JFSFileObjectImpl implements JFSFileObject {
     @Override
     public String toString() {
         String result = name + " (" + storage.length() + ")";
-//        if (storage instanceof DocumentBytesStorageWrapper
-//                || storage instanceof FileBytesStorageWrapper) {
         result += " -> " + storage;
-//        }
         return result;
     }
 
@@ -157,6 +166,9 @@ class JFSFileObjectImpl implements JFSFileObject {
 
     @Override
     public void hash(MessageDigest digest) throws IOException {
+        if (deleted) {
+            return;
+        }
         if (storage instanceof HashingStorage && ((HashingStorage) storage).hash(digest)) {
             return;
         }
@@ -184,6 +196,7 @@ class JFSFileObjectImpl implements JFSFileObject {
     @Override
     public OutputStream openOutputStream() throws IOException {
         checkDeleted();
+        this.storage.storage().jfs().checkpoints.touch(this);
         return storage.openOutputStream();
     }
 
@@ -218,12 +231,24 @@ class JFSFileObjectImpl implements JFSFileObject {
         if (deleted) {
             return false;
         }
-        storage.discard();
+        discard();
         boolean result = storage.storage().delete(name, storage);
         if (result) {
             deleted = true;
         }
         return result;
+    }
+
+    void undiscard() {
+        deleted = false;
+    }
+
+    Exception discardedAt;
+
+    void discard() {
+        storage.discard();
+        deleted = true;
+        discardedAt = new Exception("Discard " + name);
     }
 
     @Override

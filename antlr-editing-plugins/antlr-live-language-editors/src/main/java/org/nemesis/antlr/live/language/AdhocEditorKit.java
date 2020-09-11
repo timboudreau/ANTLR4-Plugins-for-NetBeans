@@ -672,7 +672,6 @@ public class AdhocEditorKit extends ExtKit {
             // Looking up the language during Document creation can deadlock
             // by reentering LanguageHierarchy.language(), so initialize that
             // on demand
-
             private final InputAttributes attrs = new InputAttributes();
             private final Doc doc;
             private volatile int createdAtLastCall = -1;

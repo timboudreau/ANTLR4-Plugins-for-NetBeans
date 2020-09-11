@@ -18,6 +18,7 @@ package org.nemesis.jfs;
 import com.mastfrog.util.path.UnixPath;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.Serializable;
+import java.util.Collection;
 import javax.tools.JavaFileManager.Location;
 
 /**
@@ -26,7 +27,7 @@ import javax.tools.JavaFileManager.Location;
  *
  * @author Tim Boudreau
  */
-public interface JFSCoordinates {
+public interface JFSCoordinates extends Comparable<JFSCoordinates> {
 
     public static JFSCoordinates create(Location loc, UnixPath path) {
         return new JFSFileCoordinates(notNull("path", path),
@@ -68,12 +69,36 @@ public interface JFSCoordinates {
      */
     Location location();
 
+    default boolean is(UnixPath path) {
+        return notNull("path", path).equals(path());
+    }
+
     default JFSCoordinates toCoordinates() {
         return this;
     }
 
     default boolean isSameCoordinates(JFSCoordinates other) {
         return path().equals(other.path()) && location().equals(other.location());
+    }
+
+    @Override
+    default int compareTo(JFSCoordinates o) {
+        Location myLoc = location();
+        Location otherLoc = o.location();
+        if (myLoc != otherLoc || !myLoc.equals(otherLoc)) {
+            if (myLoc.isOutputLocation() != otherLoc.isOutputLocation()) {
+                if (myLoc.isOutputLocation()) {
+                    return 1;
+                } else {
+                    return -1;
+                }
+            }
+            int result = myLoc.getName().compareTo(otherLoc.getName());
+            if (result != 0) {
+                return result;
+            }
+        }
+        return path().compareTo(o.path());
     }
 
     /**
@@ -89,5 +114,23 @@ public interface JFSCoordinates {
          * @return A file object or null
          */
         JFSFileObject resolveOriginal();
+    }
+
+    /**
+     * Find the (first) JFSCoordinates corresponding to a given path in a
+     * collection thereof.
+     *
+     * @param <T> The subtype
+     * @param path A path
+     * @param coll A collection of coordinates
+     * @return A coordinate from the collection, or null
+     */
+    static <T extends JFSCoordinates> T forPath(UnixPath path, Collection<? extends T> coll) {
+        for (T item : coll) {
+            if (path.equals(item.path())) {
+                return item;
+            }
+        }
+        return null;
     }
 }

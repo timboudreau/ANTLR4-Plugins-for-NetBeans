@@ -52,7 +52,10 @@ import javax.tools.StandardJavaFileManager;
 import javax.tools.StandardLocation;
 import static javax.tools.StandardLocation.SOURCE_PATH;
 import javax.tools.ToolProvider;
+import org.nemesis.jfs.Checkpoint;
 import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSCoordinates;
+import org.nemesis.jfs.JFSFileModifications;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.JFSJavaFileObject;
 
@@ -157,7 +160,6 @@ public class CompileJavaSources {
             LOG.log(Level.WARNING, "JFS encoding {0} does not match the encoding set for this compile, {1}.  Setting it based on the JFS.",
                     new Object[]{jfs.encoding(), options.encoding()});
             options.withCharset(jfs.encoding());
-
         }
         CompileResult.Builder result = CompileResult.builder(Paths.get(""));
         result.setInitialFileStatus(jfs.status(setOf(sourceLocations)));
@@ -168,6 +170,7 @@ public class CompileJavaSources {
             }
             L diagnosticListener = new L(result);
             JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+
             List<String> compilerOptions = this.options.copy().withCharset(jfs.encoding()).options(compiler);
             Iterable<JavaFileObject> toCompile = singleSource != null
                     ? singleSource(jfs, singleSource, sourceLocations)
@@ -175,8 +178,11 @@ public class CompileJavaSources {
             JavaCompiler.CompilationTask task = compiler.getTask(compilerOutput,
                     jfs, diagnosticListener, compilerOptions, null,
                     toCompile);
+
             List<Path> paths = new LinkedList<>();
+            Set<JFSCoordinates> coords = new HashSet<>();
             for (JavaFileObject jfo : toCompile) {
+                coords.add(((JFSFileObject) jfo).toCoordinates());
                 LOG.log(Level.FINER, "Compile {0}", jfo);
                 paths.add(((JFSFileObject) jfo).path());
                 result.addSource(jfo);
@@ -184,11 +190,20 @@ public class CompileJavaSources {
             if (paths.isEmpty() && options.isOnlyRebuildNewerSources()) {
                 LOG.log(Level.FINE, "Nothing needed rebuilding - "
                         + "return a dummy compile result");
+                // XXX need to collect the class files that were output here
                 return CompileResult.precompiled(true);
             }
+            Checkpoint checkpoint = jfs.newCheckpoint();
             long then = System.currentTimeMillis();
             boolean javacResult = task.call();
             long elapsed = System.currentTimeMillis() - then;
+            Set<JFSCoordinates> outputFiles = checkpoint.updatedFiles();
+            result.withOutputFiles(outputFiles);
+            JFSFileModifications outputModifications = JFSFileModifications.of(jfs, outputFiles);
+            JFSFileModifications inputModifications = JFSFileModifications.of(jfs, coords);
+            result.setInitialFileStatus(inputModifications);
+            result.setOutputFileStatus(outputModifications);
+            result.withInputFiles(coords);
             result.withJavacResult(javacResult);
             result.withFiles(paths);
             result.elapsed(elapsed);

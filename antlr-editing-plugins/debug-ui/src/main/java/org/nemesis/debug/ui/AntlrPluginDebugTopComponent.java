@@ -73,6 +73,7 @@ public final class AntlrPluginDebugTopComponent extends TopComponent implements 
     private final Ren ren = new Ren();
 
     public static Reference<DefaultListModel<?>> MODEL_REF;
+    private volatile boolean open;
 
     public AntlrPluginDebugTopComponent() {
         MODEL_REF = new WeakReference<>(mdl); // to avoid reference checks finding it
@@ -314,6 +315,7 @@ public final class AntlrPluginDebugTopComponent extends TopComponent implements 
     public void componentOpened() {
         super.componentOpened();
         Emitters.subscribe(em);
+        open = true;
     }
 
     @Override
@@ -334,6 +336,7 @@ public final class AntlrPluginDebugTopComponent extends TopComponent implements 
     public void componentClosed() {
         super.componentClosed();
         Emitters.unsubscribe(em);
+        open = false;
     }
 
     void writeProperties(java.util.Properties p) {
@@ -357,7 +360,7 @@ public final class AntlrPluginDebugTopComponent extends TopComponent implements 
     final Em em = new Em();
 
     boolean isCollectionEnabled() {
-        return enableCheckbox.isSelected();
+        return open && enableCheckbox.isSelected();
     }
 
     private final Map<Long, JLabel> threadLabels = new HashMap<>();
@@ -397,6 +400,9 @@ public final class AntlrPluginDebugTopComponent extends TopComponent implements 
 
         @Override
         public void enterContext(int depth, long globalOrder, long timestamp, String threadName, long threadId, boolean reentry, String ownerType, String ownerToString, String action, Supplier<String> details, long creationThreadId, String creationThreadString) {
+            if (!open) {
+                return;
+            }
             if (depth == 0) {
                 outerContextEnteredAt = timestamp;
             }

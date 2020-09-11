@@ -28,11 +28,13 @@ import org.openide.loaders.DataObject;
  */
 public class FakeFolderLoader extends DataLoader {
 
+    @SuppressWarnings("deprecation")
     public FakeFolderLoader() {
         super(DataFolder.class);
     }
 
     @Override
+    @SuppressWarnings("deprecation")
     protected DataObject handleFindDataObject(FileObject fo, RecognizedFiles rf) throws IOException {
         if (fo.isFolder()) {
             rf.markRecognized(fo);

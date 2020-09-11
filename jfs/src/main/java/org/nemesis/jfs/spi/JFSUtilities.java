@@ -26,7 +26,10 @@ import java.nio.file.Path;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.DocumentEvent;
@@ -50,6 +53,7 @@ import org.nemesis.jfs.JFSUrlStreamHandlerFactory;
 public abstract class JFSUtilities {
 
     private final boolean priorityListeners;
+
     protected JFSUtilities() {
         priorityListeners = doDocumentListenersHavePriority();
     }
@@ -165,6 +169,104 @@ public abstract class JFSUtilities {
             return type.cast(((Path) obj).toFile());
         }
         return null;
+    }
+
+    /**
+     * Optional means of registering system statistics (live instances, bytes
+     * allocated, and so forth) for monitoring, mbean usage, debugging leaks,
+     * etc.
+     *
+     * @param name The name of the statistic
+     * @param supp Supplier for the statistic (this should be CHEAP and not
+     * acquire locks!).
+     * @param keepStats Whether clients are likely to be interested in
+     * statistical analysis of polled values - min, max, mean.
+     */
+    public static void registerMetric(String name, IntSupplier supp, boolean keepStats) {
+        getDefault()._registerMetric(name, supp, keepStats);
+    }
+
+    /**
+     * Optional means of registering system statistics (live instances, bytes
+     * allocated, and so forth) for monitoring, mbean usage, debugging leaks,
+     * etc.
+     *
+     * @param name The name of the statistic
+     * @param supp Supplier for the statistic (this should be CHEAP and not
+     * acquire locks!).
+     * @param keepStats Whether clients are likely to be interested in
+     * statistical analysis of polled values - min, max, mean.
+     */
+    public static void registerMetric(String name, LongSupplier supp, boolean keepStats) {
+        getDefault()._registerMetric(name, supp, keepStats);
+    }
+
+    /**
+     * Optional means of registering system statistics (live instances, bytes
+     * allocated, and so forth) for monitoring, mbean usage, debugging leaks,
+     * etc.
+     *
+     * @param name The name of the statistic
+     * @param supp Supplier for the statistic (this should be CHEAP and not
+     * acquire locks!).
+     * @param keepStats Whether clients are likely to be interested in
+     * statistical analysis of polled values - min, max, mean.
+     */
+    public static void registerMetric(String name, BooleanSupplier supp, boolean keepStats) {
+        getDefault()._registerMetric(name, supp, keepStats);
+    }
+
+    /**
+     * Optional means of registering system statistics (live instances, bytes
+     * allocated, and so forth) for monitoring, mbean usage, debugging leaks,
+     * etc.
+     *
+     * @param name The name of the statistic
+     * @param supp Supplier for the statistic (this should be CHEAP and not
+     * acquire locks!).
+     * @param keepStats Whether clients are likely to be interested in
+     * statistical analysis of polled values - min, max, mean.
+     */
+    protected void _registerMetric(String name, IntSupplier supp, boolean keepStats) {
+
+    }
+
+    /**
+     * Optional means of registering system statistics (live instances, bytes
+     * allocated, and so forth) for monitoring, mbean usage, debugging leaks,
+     * etc.
+     *
+     * @param name The name of the statistic
+     * @param supp Supplier for the statistic (this should be CHEAP and not
+     * acquire locks!).
+     * @param keepStats Whether clients are likely to be interested in
+     * statistical analysis of polled values - min, max, mean.
+     */
+    protected void _registerMetric(String name, LongSupplier supp, boolean keepStats) {
+
+    }
+
+    /**
+     * Optional means of registering system statistics (live instances, bytes
+     * allocated, and so forth) for monitoring, mbean usage, debugging leaks,
+     * etc.
+     *
+     * @param name The name of the statistic
+     * @param supp Supplier for the statistic (this should be CHEAP and not
+     * acquire locks!).
+     * @param keepStats Whether clients are likely to be interested in
+     * statistical analysis of polled values - min, max, mean.
+     */
+    protected void _registerMetric(String name, BooleanSupplier supp, boolean keepStats) {
+
+    }
+
+    public static boolean areMetricsSupported() {
+        return getDefault()._areMetricsSupported();
+    }
+
+    protected boolean _areMetricsSupported() {
+        return false;
     }
 
     /**
@@ -285,6 +387,7 @@ public abstract class JFSUtilities {
                         = (DummyTimestamps) doc.getProperty(DummyTimestamps.class);
                 if (result == null) {
                     long initial = 0;
+                    // Try to grab the value from the NetBeans onen if present
                     Object o = doc.getProperty("last-modification-timestamp");
                     if (o instanceof AtomicLong) {
                         initial = ((AtomicLong) o).get();
@@ -304,9 +407,7 @@ public abstract class JFSUtilities {
             }
 
             private void touch() {
-                timestamp.getAndUpdate((old) -> {
-                    return System.currentTimeMillis();
-                });
+                timestamp.set(System.currentTimeMillis());
             }
 
             @Override
@@ -321,7 +422,6 @@ public abstract class JFSUtilities {
 
             @Override
             public void changedUpdate(DocumentEvent e) {
-                touch();
             }
         }
     }

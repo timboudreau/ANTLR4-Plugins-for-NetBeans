@@ -54,7 +54,7 @@ import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 public class AdhocDataLoader extends DataLoader implements BiConsumer<String, String> {
 
     private static final RequestProcessor TYPE_CHANGE_THREAD_POOL
-            = new RequestProcessor("AdhocDataLoader-type-changer", 1);
+            = new RequestProcessor("AdhocDataLoader-type-changer", 1, false);
 
     public AdhocDataLoader() {
         super("org.nemesis.antlr.live.language.AdhocDataObject");

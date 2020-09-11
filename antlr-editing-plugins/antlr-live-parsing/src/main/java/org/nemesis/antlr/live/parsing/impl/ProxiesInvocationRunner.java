@@ -38,6 +38,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
 import javax.tools.StandardLocation;
+import static javax.tools.StandardLocation.CLASS_OUTPUT;
+import static javax.tools.StandardLocation.SOURCE_OUTPUT;
+import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.antlr.runtime.misc.IntArray;
 import org.antlr.v4.Tool;
 import org.antlr.v4.runtime.ANTLRErrorListener;
@@ -94,7 +97,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             .builder()
             // Mark it uncloseable, or closing the JFSClassLoader will inadvertently
             // close it as well
-//            .uncloseable()
+            //            .uncloseable()
             .includingJarOf(ANTLRErrorListener.class)
             .includingJarOf(Tool.class)
             .includingJarOf(IntArray.class)
@@ -115,7 +118,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             .loadingFromParent(AntlrProxies.TerminalNodeTreeElement.class)
             .loadingFromParent(AntlrProxies.RuleNodeTreeElement.class)
             .loadingFromParent(AntlrProxies.ErrorNodeTreeElement.class)
-//            .loadingFromParent(ProxiesInvocationRunner.class.getName())
+            //            .loadingFromParent(ProxiesInvocationRunner.class.getName())
             // XXX, we should move the mime type guesswork to something
             // with a smaller footprint and omit this
             .loadingFromParent(AdhocMimeTypes.class);
@@ -135,16 +138,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         return () -> {
             StringBuilder sb = new StringBuilder("GrammarPackage: ").append(grammarPackageName)
                     .append("\nExtraction Source:").append(extraction.source())
-                    .append("\nJFS:\n");
-            jfs.listAll((loc, fo) -> {
-                sb.append(loc).append(": ").append(fo.getName()).append('\n');
-            });
-            if (res.infoMessages != null && !res.infoMessages.isEmpty()) {
-                sb.append("\n").append("Generation info:\n");
-                for (String msg : res.infoMessages) {
-                    sb.append(msg).append('\n');
-                }
-            }
+                    .append("\nJFS:\n").append(jfs.list(SOURCE_PATH, SOURCE_OUTPUT, CLASS_OUTPUT));
             sb.append("\n").append("ExitCode: ").append(res.code);
             if (res.errors != null && !res.errors.isEmpty()) {
                 sb.append("\nAntlr Generation Errors:\n");
@@ -205,10 +199,17 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
     }
 
     @Override
+    public boolean isStillValid(GenerationResult a) {
+        return a.res != null && a.res.generatedFile() != null
+                && a.res.generatedFile().resolveOriginal() != null;
+    }
+
+    @Override
     protected GenerationResult onBeforeCompilation(ANTLRv4Parser.GrammarFileContext tree,
             AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr,
             String grammarPackageName, Consumer<Supplier<ClassLoader>> csc,
             Consumer<UnixPath> singleSource) throws IOException {
+//        System.out.println("PIE ON BEFORE COMP " + extraction.source().name() + " ");
         return Debug.runObjectIO(this, "onBeforeCompilation", compileMessage(res, extraction, jfs, bldr, grammarPackageName), () -> {
             GrammarKind kind = GrammarKind.forTree(tree);
             Path path = res.originalFilePath;
@@ -283,6 +284,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
     @Override
     public EmbeddedParser apply(GenerationResult res) throws Exception {
+//        System.out.println("PIE GETS NEW GENERATION RESULT");
         return Debug.runObjectThrowing(this, "Create new embedded parser", () -> "", () -> {
             if (!res.res.isSuccess()) {
                 Debug.message("Generation Failure", () -> {
@@ -538,8 +540,8 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 
         @Override
         public String toString() {
-            return super.toString() + "(" + ref + " - " + typeName + " generationInfo: "
-                    + genInfo.toString().replace("\n", "; ") + ")";
+            return "PIE" + "(" + ref + " - " + typeName + " gi: "
+                    + genInfo.toString().replaceAll("\n", "; ").replaceAll("\\s+", " ") + ")";
         }
 
         <T> T clRun(ThrowingSupplier<T> th) throws Exception {

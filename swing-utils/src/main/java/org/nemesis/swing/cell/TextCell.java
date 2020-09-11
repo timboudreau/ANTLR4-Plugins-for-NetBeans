@@ -37,7 +37,8 @@ import org.nemesis.swing.html.HtmlRenderer;
  * A single cell of text which may have its own foreground, background, font,
  * font style and scaling, left and right and bottom margins, padding,
  * properties, and optionally a RectangularShape which wraps around the
- * background.
+ * background, and can have child cells with similar characteristics -
+ * basically a celled cell-renderer minus the swing cell-rendering goo.
  *
  * @author Tim Boudreau
  */

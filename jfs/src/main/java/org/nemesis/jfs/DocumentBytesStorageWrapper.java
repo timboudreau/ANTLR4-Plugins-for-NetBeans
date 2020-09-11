@@ -141,7 +141,7 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
                 }
             });
             if (ex[0] != null) {
-                throw new IOException("Exception fetching text from "
+                throw new JFSException(storage.jfs(), "Exception fetching text from "
                         + doc, ex[0]);
             }
             Segment result = (Segment) segment.clone();
@@ -227,7 +227,7 @@ final class DocumentBytesStorageWrapper implements JFSBytesStorage, DocumentList
                 break;
             } catch (BadLocationException ex) {
                 if (i == maxTries - 1) {
-                    throw new IOException("Exception setting document bytes in " + doc);
+                    throw new JFSException(storage.jfs(), "Exception setting document bytes in " + doc);
                 } else {
                     JFS.LOG.log(Level.FINEST, "Reattempting document update", ex);
                 }

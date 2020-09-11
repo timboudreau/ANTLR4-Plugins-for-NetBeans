@@ -50,6 +50,12 @@ final class TimedWeakReference<T> extends WeakReference<T> implements Runnable {
         return System.currentTimeMillis() > expiry;
     }
 
+    void discard() {
+        strong = null;
+        expiry = 0;
+        INSTANCES.remove(this);
+    }
+
     @Override
     public T get() {
         T st = strong;

@@ -67,6 +67,7 @@ public interface JFSBytesStorage {
         }
         CharsetDecoder dec = encoding.newDecoder();
         if (ignoreEncodingErrors) {
+            // XXX does not actually ignore encoding errors
             ByteBuffer buf = asByteBuffer();
             try {
                 return dec.decode(buf);

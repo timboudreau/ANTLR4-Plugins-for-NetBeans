@@ -55,7 +55,6 @@ final class HeapBytesStorageImpl implements JFSBytesStorage, HashingStorage {
         }
     }
 
-
     @Override
     public synchronized String toString() {
         return  "HeapBytesStorageImpl(" + (bytes == null ? "unalloacated" : bytes.length) + " bytes)";
@@ -124,7 +123,7 @@ final class HeapBytesStorageImpl implements JFSBytesStorage, HashingStorage {
     class BytesOutput extends ByteArrayOutputStream {
 
         BytesOutput() {
-            super(8192);
+            super(2048);
         }
 
         @Override

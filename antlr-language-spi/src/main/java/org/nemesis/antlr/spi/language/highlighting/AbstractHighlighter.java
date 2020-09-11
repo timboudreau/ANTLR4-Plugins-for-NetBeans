@@ -382,9 +382,13 @@ public abstract class AbstractHighlighter {
 
         @Override
         public void propertyChange( PropertyChangeEvent evt ) {
-            if ( "ancestor".equals( evt.getPropertyName() ) ) {
-                setActive( evt.getNewValue() != null );
-            }
+            // This seems to get us in some weird trouble - hiding a tooltip
+            // appears to sometimes cause PopupManager.removeFromRootPane()
+            // to cause the editor to get re-parented, generating a flurry of
+            // unsubscribe/subscribes
+//            if ( "ancestor".equals( evt.getPropertyName() ) ) {
+//                setActive( evt.getNewValue() != null );
+//            }
         }
 
         void setActive( boolean active ) {

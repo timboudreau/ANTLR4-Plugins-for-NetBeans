@@ -18,6 +18,7 @@ package org.nemesis.antlr.compilation;
 import com.mastfrog.function.throwing.ThrowingFunction;
 import com.mastfrog.function.throwing.ThrowingSupplier;
 import com.mastfrog.util.strings.Strings;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -25,7 +26,9 @@ import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.StandardLocation;
+import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.debug.api.Debug;
+import org.nemesis.jfs.javac.CompileResult;
 
 /**
  *
@@ -84,7 +87,11 @@ public final class WithGrammarRunner {
         return (GrammarRunResult<T>) res;
     }
 
-    private AntlrGenerationAndCompilationResult lastGenerationResult;
+    AntlrGenerationAndCompilationResult lastGenerationResult;
+
+    public AntlrGenerationAndCompilationResult lastGenerationResult() {
+        return lastGenerationResult;
+    }
 
     public <A, T> GrammarRunResult<T> runWithArg(Object key, ThrowingFunction<A, T> reflectiveRunner,
             A arg, Set<GrammarProcessingOptions> options) {
@@ -130,6 +137,18 @@ public final class WithGrammarRunner {
             } else {
                 Debug.message("use-last-generation-result");
                 res = lastGenerationResult;
+                if (res != null && res.generationResult() != null) {
+                    AntlrGenerationResult gr = res.generationResult();
+                    if (!gr.isUpToDate()) {
+                        Set<GrammarProcessingOptions> opts = EnumSet.copyOf(options);
+                        CompileResult cr = res.compilationResult();
+                        if (cr != null && (!cr.isUsable() || !cr.areClassesUpToDateWithSources(res.jfs()))
+                                || cr.timestamp() < gr.timestamp) {
+                            opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
+                        }
+                        res = generateAndCompile(grammarFileName, opts);
+                    }
+                }
             }
             if (!res.isUsable()) {
                 if (lastGenerationResult != null && !lastGenerationResult.isUsable()) {
@@ -138,6 +157,9 @@ public final class WithGrammarRunner {
                 Debug.failure("unusable-result", res::toString);
                 if (options.contains(GrammarProcessingOptions.RETURN_LAST_GOOD_RESULT_ON_FAILURE)) {
                     GrammarRunResult<Object> lg = lastGood(key);
+                    if (lg != null && lg.lastGood() != null) {
+                        lg = lg.lastGood();
+                    }
                     return new GrammarRunResult<>(lg == null ? null : lg.get(), null, res, lg);
                 }
                 return new GrammarRunResult<>(null, null, res, lastGood(key));

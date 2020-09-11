@@ -79,7 +79,8 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
     }
 
     boolean canBeFlyweight() {
-        return type.literalName != null && !type.literalName.isEmpty();
+        return type.literalName != null && !type.literalName.isEmpty()
+                && !AntlrProxies.ERRONEOUS_TOKEN_NAME.equals(type.literalName);
     }
 
     /**

@@ -91,7 +91,7 @@ public class Output extends AntlrLoggers implements AntlrOutput, Runnable {
     }
 
     Output(Charset charset, int maxAge) throws IOException {
-        this(JFS.builder().withCharset(charset).useOffHeapStorage(),
+        this(JFS.builder().withCharset(charset),
                 maxAge);
     }
 

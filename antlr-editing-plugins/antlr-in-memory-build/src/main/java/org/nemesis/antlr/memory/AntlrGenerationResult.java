@@ -28,21 +28,25 @@ import java.util.BitSet;
 import org.nemesis.jfs.result.UpToDateness;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.tools.JavaFileManager.Location;
 import org.antlr.v4.tool.Grammar;
 import org.nemesis.antlr.memory.AntlrGenerator.RerunInterceptor;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
+import org.nemesis.debug.api.Trackables;
 import org.nemesis.jfs.JFSFileModifications;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSCoordinates;
+import org.nemesis.jfs.JFSFileModifications.FileChanges;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.result.ProcessingResult;
 
@@ -59,45 +63,52 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final Grammar mainGrammar;
     public final List<ParsedAntlrError> errors;
     public final long grammarFileLastModified;
-    public final List<String> infoMessages;
-    public final Set<JFSCoordinates.Resolvable> newlyGeneratedFiles;
-    public final Map<JFSCoordinates.Resolvable, Long> modifiedFiles;
     public final Set<Grammar> allGrammars;
     public final JFS jfs;
     public final Location grammarSourceLocation;
     public final Location javaSourceOutputLocation;
     public final String packageName;
-    public final JFSCoordinates.Resolvable grammarFile;
+    public final JFSCoordinates grammarFile;
     public final UnixPath sourceDir;
     public final UnixPath importDir;
     public final boolean generateAll;
     public final Set<AntlrGenerationOption> options;
     public final Charset grammarEncoding;
-    public final JFSFileModifications filesStatus;
     public final String tokensHash;
     public final Path originalFilePath;
     public final Supplier<JFS> jfsSupplier;
-    public final Map<UnixPath, Set<UnixPath>> outputFiles;
-    public final Map<String, Set<UnixPath>> inputFiles;
-    public final Map<String, UnixPath> primaryFiles;
-    public final Map<UnixPath, Set<UnixPath>> dependencies;
+    public final Set<JFSCoordinates> outputFiles;
+    public final Set<JFSCoordinates> inputFiles;
+    public final Map<JFSCoordinates, Set<JFSCoordinates>> outputDependencies;
+    public final Map<String, Set<JFSCoordinates>> inputFilesForGrammarName;
+    public final Map<String, JFSCoordinates> primaryFileForGrammarName;
+    public final Map<JFSCoordinates, Set<JFSCoordinates>> dependencies;
     public final long timestamp;
     public final JFSPathHints hints;
     final RerunInterceptor interceptor;
+    private final JFSFileModifications outputFileModifications;
+    private final JFSFileModifications inputFileModifications;
 
+    @SuppressWarnings("LeakingThisInConstructor")
     AntlrGenerationResult(boolean success, int code, Throwable thrown,
             String grammarName, Grammar grammar, List<ParsedAntlrError> errors,
-            JFSCoordinates.Resolvable grammarFile, long grammarFileLastModified,
-            List<String> infoMessages, Set<JFSCoordinates.Resolvable> postFiles,
-            Map<JFSCoordinates.Resolvable, Long> touched, Set<Grammar> allGrammars,
+            JFSCoordinates grammarFile, long grammarFileLastModified,
+            Set<Grammar> allGrammars,
             JFS jfs, Location inputLocation, Location outputLocation,
             String packageName, UnixPath virtualSourceDir, UnixPath virtualInputDir,
             boolean generateAll, Set<AntlrGenerationOption> options,
             Charset grammarEncoding, String tokensHash, Path originalFilePath,
-            Supplier<JFS> jfsSupplier, Map<UnixPath, Set<UnixPath>> outputFiles,
-            Map<String, Set<UnixPath>> inputFiles, Map<String, UnixPath> primaryFiles,
-            Map<UnixPath, Set<UnixPath>> dependencies,
-            long timestamp, JFSPathHints hints, RerunInterceptor interceptor) {
+            Supplier<JFS> jfsSupplier, Map<JFSCoordinates, Set<JFSCoordinates>> outputFiles,
+            Map<String, Set<JFSCoordinates>> inputFiles, Map<String, JFSCoordinates> primaryFiles,
+            Map<JFSCoordinates, Set<JFSCoordinates>> dependencies,
+            long timestamp, JFSPathHints hints, RerunInterceptor interceptor,
+            Set<JFSCoordinates> allOutputFiles, Set<JFSCoordinates> allInputFiles,
+            JFSFileModifications outputFileModifications,
+            JFSFileModifications inputFileModifications) {
+        this.outputFiles = allOutputFiles;
+        this.inputFiles = allInputFiles;
+        this.outputFileModifications = outputFileModifications;
+        this.inputFileModifications = inputFileModifications;
         this.success = success;
         this.jfsSupplier = jfsSupplier;
         this.code = code;
@@ -107,12 +118,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.mainGrammar = grammar;
         this.errors = Collections.unmodifiableList(errors);
         this.grammarFileLastModified = grammarFileLastModified;
-        this.infoMessages = Collections.unmodifiableList(infoMessages);
-        this.newlyGeneratedFiles = Collections.unmodifiableSet(postFiles);
-        this.modifiedFiles = Collections.unmodifiableMap(touched);
         this.allGrammars = Collections.unmodifiableSet(allGrammars);
         this.jfs = jfs;
-        this.filesStatus = jfs.status(inputLocation);
         this.grammarSourceLocation = inputLocation;
         this.javaSourceOutputLocation = outputLocation;
         this.grammarFile = grammarFile;
@@ -124,33 +131,55 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.grammarEncoding = grammarEncoding;
         this.tokensHash = tokensHash;
         this.originalFilePath = notNull("originalFilePath", originalFilePath);
-        this.primaryFiles = primaryFiles;
-        this.outputFiles = outputFiles;
-        this.inputFiles = inputFiles;
+        this.primaryFileForGrammarName = primaryFiles;
+        this.outputDependencies = outputFiles;
+        this.inputFilesForGrammarName = inputFiles;
         this.dependencies = dependencies;
         this.hints = hints;
         this.interceptor = interceptor;
+        Trackables.track(AntlrGenerationResult.class, this);
+    }
+
+    /**
+     * Get a new AntlrGenerationResult with the contents of this one, but with
+     * the JFSSupplier's current JFS and file modification sets which will only
+     * show a modification if one of the files they track is modified in the
+     * future.
+     *
+     * @return A new result
+     */
+    public AntlrGenerationResult recycle() {
+        JFS newJFS = jfsSupplier.get();
+        JFSFileModifications inModifications = inputFileModifications == null ? null
+                : inputFileModifications.overJFS(jfs).withUpdatedState();
+        JFSFileModifications outModifications = outputFileModifications == null ? null
+                : outputFileModifications.overJFS(jfs).withUpdatedState();
+        return new AntlrGenerationResult(success, code, thrown, grammarName, mainGrammar,
+                errors, grammarFile, grammarFileLastModified, allGrammars,
+                newJFS, grammarSourceLocation, javaSourceOutputLocation, packageName,
+                sourceDir, importDir, generateAll, options, grammarEncoding, tokensHash,
+                originalFilePath, jfsSupplier, outputDependencies, inputFilesForGrammarName,
+                primaryFileForGrammarName, dependencies, System.currentTimeMillis(),
+                hints, interceptor, outputFiles, inputFiles, outModifications,
+                inModifications);
+    }
+
+    public JFSFileModifications inputFileModifications() {
+        return inputFileModifications == null ? JFSFileModifications.empty()
+                : inputFileModifications.snapshot();
+    }
+
+    public JFSFileModifications outputFileModifications() {
+        return inputFileModifications == null ? JFSFileModifications.empty()
+                : inputFileModifications.snapshot();
     }
 
     public AntlrGenerationResult cleanOldOutput() throws IOException {
         if (!jfs.isEmpty()) {
             jfs.whileWriteLocked(() -> {
-                Set<JFSCoordinates.Resolvable> all = new HashSet<>(newlyGeneratedFiles.size()
-                        + modifiedFiles.size());
-                all.addAll(newlyGeneratedFiles);
-                all.addAll(modifiedFiles.keySet());
                 Set<JFSFileObject> set = new HashSet<>();
-                for (JFSCoordinates.Resolvable f : all) {
-                    JFSFileObject ob = f.resolveOriginal();
-                    if (ob != null) {
-                        if (ob.storageKind().isMasqueraded()) {
-                            continue;
-                        }
-                        set.add(ob);
-                    }
-                }
-                for (JFSCoordinates.Resolvable f : newlyGeneratedFiles) {
-                    JFSFileObject ob = f.resolveOriginal();
+                for (JFSCoordinates f : outputFiles) {
+                    JFSFileObject ob = f.resolve(jfs);
                     if (ob != null) {
                         if (ob.storageKind().isMasqueraded()) {
                             continue;
@@ -181,6 +210,15 @@ public final class AntlrGenerationResult implements ProcessingResult {
         if (jfsPath.equals(grammarFile.path())) {
             return this;
         }
+        JFS jfs = jfsSupplier.get();
+        JFSCoordinates targetGrammarCoordinates = JFSCoordinates.forPath(jfsPath, inputFiles);
+        JFSFileObject fo = null;
+        if (targetGrammarCoordinates == null) {
+            fo = jfs.get(grammarSourceLocation, jfsPath);
+            if (fo != null) {
+                targetGrammarCoordinates = fo.toCoordinates();
+            }
+        }
         String filePath = jfsPath.toString();
         Grammar target = null;
         for (Grammar g : allGrammars) {
@@ -189,10 +227,24 @@ public final class AntlrGenerationResult implements ProcessingResult {
                 break;
             }
         }
+        String targetGrammarName = target == null || target.name == null ? jfsPath.rawName() : target.name;
+        Map<String, JFSCoordinates> fakePrimaries = new HashMap<>();
+        String mainGrammarName = this.grammarName == null ? "" : this.grammarName;
+        for (Map.Entry<String, JFSCoordinates> e : primaryFileForGrammarName.entrySet()) {
+            if (mainGrammarName.equals(e.getKey())) {
+                if (!grammarFile.equals(e.getValue())) {
+                    fakePrimaries.put(targetGrammarName, e.getValue());
+                    continue;
+                }
+            }
+            fakePrimaries.put(e.getKey(), e.getValue());
+        }
         if (target == null) {
             return null;
         }
-        JFSFileObject fo = jfs.get(grammarSourceLocation, jfsPath);
+        if (fo == null) {
+            fo = targetGrammarCoordinates.resolve(jfs);
+        }
         if (fo == null) {
             return null;
         }
@@ -205,41 +257,90 @@ public final class AntlrGenerationResult implements ProcessingResult {
                 }
             }
         }
-        Long ts = modifiedFiles.get(fo.toReference());
-        if (ts == null) {
-            ts = fo.getLastModified();
-        }
+        long ts = fo.getLastModified();
 
         return new AntlrGenerationResult(success, code, thrown, target.name, target, filteredErrors,
-                fo.toReference(), ts, infoMessages, newlyGeneratedFiles, modifiedFiles,
-                allGrammars, jfs, grammarSourceLocation, javaSourceOutputLocation, packageName,
+                fo.toReference(), ts,
+                allGrammars, jfs, targetGrammarCoordinates.location(), javaSourceOutputLocation, packageName,
                 sourceDir, importDir, generateAll, options,
-                grammarEncoding, tokensHash, originalFilePath, jfsSupplier, outputFiles, inputFiles,
-                primaryFiles, dependencies, timestamp, hints, interceptor);
+                grammarEncoding, tokensHash, originalFilePath, jfsSupplier, outputDependencies, inputFilesForGrammarName,
+                fakePrimaries, dependencies, timestamp, hints, interceptor, outputFiles, inputFiles,
+                outputFileModifications, inputFileModifications);
     }
 
-    public boolean areOutputFilesUpdated(UnixPath of) {
-        Set<UnixPath> all = outputFiles.get(of);
-        if (all == null || all.isEmpty()) {
+    public boolean areOutputFilesUpToDate() {
+        if (grammarFile == null) {
             return false;
         }
-        for (UnixPath p : all) {
-            JFSCoordinates coords = JFSCoordinates.create(javaSourceOutputLocation, p);
-            JFSFileObject fo = coords.resolve(jfs);
-            if (fo != null) {
-                Long oldLastModified = this.modifiedFiles.get(fo.toReference());
-                if (oldLastModified != null) {
-                    if (fo.getLastModified() > oldLastModified) {
-                        return true;
-                    }
-                }
+        return areOutputFilesUpToDate(grammarFile);
+    }
+
+    public boolean areOutputFilesUpToDate(JFSCoordinates of) {
+        return areOutputFilesUpToDate(of, jfsSupplier.get());
+    }
+
+    public boolean areOutputFilesUpToDate(UnixPath of) {
+        return areOutputFilesUpToDate(of, jfsSupplier.get());
+    }
+
+    public boolean areOutputFilesUpToDate(UnixPath of, JFS in) {
+        JFSFileModifications.FileChanges changes = outputFileModifications.changes(in);
+        JFSCoordinates coords = JFSCoordinates.forPath(of, inputFiles);
+        if (coords == null) {
+            return false;
+        }
+        return areOutputFilesUpToDate(coords, in);
+    }
+
+    public boolean areOutputFilesUpToDate(JFSCoordinates coords, JFS in) {
+        JFSFileObject fo = coords.resolve(in);
+        if (fo == null) {
+            return false;
+        }
+        long lastModified = fo.getLastModified();
+        if (lastModified <= 0) {
+            return false;
+        }
+        Set<JFSCoordinates> output = outputDependencies.get(coords);
+        if (output == null) {
+            return false;
+        }
+        for (JFSCoordinates c : output) {
+            JFSFileObject outFile = c.resolve(in);
+            if (outFile == null) {
+                return false;
+            }
+            long lm = outFile.getLastModified();
+            if (lm <= 0) {
+                // deleted since we resolved it
+                return false;
+            }
+            if (lm < lastModified) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
     public boolean isUpToDate() {
-        return filesStatus.changes().isUpToDate();
+        return isUpToDate(jfs);
+    }
+
+    public boolean isUpToDate(JFS jfs) {
+        if (grammarFile != null) {
+            return areOutputFilesUpToDate(grammarFile, jfs);
+        }
+        boolean result = inputFileModifications.changes().isUpToDate();
+        if (result) {
+            for (JFSCoordinates coords : outputFiles) {
+                JFSFileObject fo = coords.resolve(jfs);
+                if (fo == null) {
+                    result = false;
+                    break;
+                }
+            }
+        }
+        return result;
     }
 
     public boolean isReusable() {
@@ -263,10 +364,17 @@ public final class AntlrGenerationResult implements ProcessingResult {
         }
     }
 
+    public FileChanges inputChanges() {
+        return inputFileModifications == null ? FileChanges.forNoFiles() : inputFileModifications.changes();
+    }
+
+    public FileChanges outputChanges() {
+        return outputFileModifications == null ? FileChanges.forNoFiles() : outputFileModifications.changes();
+    }
+
     public AntlrGeneratorBuilder<AntlrGenerationResult> toBuilder() {
-        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(jfsSupplier, bldr -> {
-            return bldr.building(sourceDir, importDir());
-        });
+        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(jfsSupplier,
+                new BuildConvert(sourceDir, importDir));
         result.forceAtn = options.contains(AntlrGenerationOption.FORCE_ATN);
         result.generateATNDot = options.contains(AntlrGenerationOption.GENERATE_ATN);
         result.genDependencies = options.contains(AntlrGenerationOption.GENERATE_DEPENDENCIES);
@@ -283,7 +391,24 @@ public final class AntlrGenerationResult implements ProcessingResult {
         result.packageName = packageName;
         result.originalFile = originalFilePath;
         result.tokensHash = tokensHash;
+        result.pathHints = hints;
+        result.interceptor = interceptor;
         return result;
+    }
+
+    private static final class BuildConvert implements Function<AntlrGeneratorBuilder<AntlrGenerationResult>, AntlrGenerationResult> {
+
+        private final UnixPath importDir;
+        private final UnixPath sourceDir;
+
+        BuildConvert(UnixPath sourceDir, UnixPath importDir) {
+            this.sourceDir = sourceDir;
+            this.importDir = importDir;
+        }
+
+        public AntlrGenerationResult apply(AntlrGeneratorBuilder<AntlrGenerationResult> bldr) {
+            return bldr.building(sourceDir, importDir);
+        }
     }
 
     public UnixPath sourceDir() {
@@ -326,23 +451,26 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return errors;
     }
 
-    public List<String> infoMessages() {
-        return infoMessages;
-    }
-
     @Override
     public boolean isUsable() {
         return success
-                && (!modifiedFiles.isEmpty() || !newlyGeneratedFiles.isEmpty());
+                && inputFiles != null && outputFiles != null
+                && !inputFiles.isEmpty() && !outputFiles.isEmpty();
     }
 
     @Override
     public UpToDateness currentStatus() {
-        return filesStatus.changes().status();
+        if (outputFiles == null || inputFiles == null || outputFiles.isEmpty() || inputFiles.isEmpty()) {
+            return UpToDateness.UNKNOWN;
+        }
+        if (areOutputFilesUpToDate()) {
+            return UpToDateness.CURRENT;
+        }
+        return UpToDateness.STALE;
     }
 
     public JFS jfs() {
-        return jfs;
+        return jfsSupplier.get();
     }
 
     public Optional<Throwable> thrown() {
@@ -374,8 +502,9 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public String toString() {
         return "AntlrRunResult{" + "success=" + success + ", code=" + code
                 + ", thrown=" + thrown + ", grammarName=" + grammarName
-                + ", grammar=" + mainGrammar + ", errors=" + errors
-                + ", infos=" + infoMessages + ", postFiles=" + newlyGeneratedFiles + '}';
+                + ", errors=" + errors
+                + ", inputFiles=" + inputFiles
+                + ", outputFiles=" + outputFiles + '}';
     }
 
     private ObjectGraph<UnixPath> depGraph;
@@ -385,17 +514,18 @@ public final class AntlrGenerationResult implements ProcessingResult {
             return depGraph;
         }
         Set<UnixPath> all = new HashSet<>();
-        for (Map.Entry<String, UnixPath> e : primaryFiles.entrySet()) {
+        for (Map.Entry<String, UnixPath> e : toPathMapSingle(primaryFileForGrammarName).entrySet()) {
             all.add(e.getValue());
         }
-        for (Map.Entry<String, Set<UnixPath>> in : inputFiles.entrySet()) {
+        for (Map.Entry<String, Set<UnixPath>> in : toPathMapNames(inputFilesForGrammarName).entrySet()) {
             all.addAll(in.getValue());
         }
-        for (Map.Entry<UnixPath, Set<UnixPath>> dep : this.outputFiles.entrySet()) {
+        for (Map.Entry<UnixPath, Set<UnixPath>> dep : toPathMap(this.outputDependencies).entrySet()) {
             all.add(dep.getKey());
             all.addAll(dep.getValue());
         }
-        for (Map.Entry<UnixPath, Set<UnixPath>> dep : this.dependencies.entrySet()) {
+        Map<UnixPath, Set<UnixPath>> localDependencies = toPathMap(dependencies);
+        for (Map.Entry<UnixPath, Set<UnixPath>> dep : localDependencies.entrySet()) {
             all.add(dep.getKey());
             all.addAll(dep.getValue());
         }
@@ -409,7 +539,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
         }
         for (int i = 0; i < sorted.size(); i++) {
             UnixPath path = sorted.get(i);
-            Set<UnixPath> direct = dependencies.get(path);
+            Set<UnixPath> direct = localDependencies.get(path);
             if (direct != null) {
                 for (UnixPath dep : direct) {
                     int dix = sorted.indexOf(dep);
@@ -420,7 +550,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
                     reverseReferences[dix].set(i);
                 }
             }
-//            Set<UnixPath> out = outputFiles.get(path);
+//            Set<UnixPath> out = outputDependencies.get(path);
 //            if (out != null) {
 //                for (UnixPath oneOutputFile : out) {
 //                    int dix = sorted.indexOf(oneOutputFile);
@@ -434,12 +564,12 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return depGraph = og;
     }
 
-    public UnixPath pathForGrammar(String grammarName) {
+    public JFSCoordinates pathForGrammar(String grammarName) {
         for (Grammar g : allGrammars) {
             if (Objects.equals(g.name, grammarName)) {
-                UnixPath result = primaryFiles.get(g.name);
+                JFSCoordinates result = primaryFileForGrammarName.get(g.name);
                 if (result == null) {
-                    result = primaryFiles.get(g.fileName);
+                    result = primaryFileForGrammarName.get(g.fileName);
                 }
                 if (result != null) {
                     return result;
@@ -449,15 +579,63 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return null;
     }
 
-    public Set<UnixPath> outputFilesForGrammar(String grammarName) {
-        UnixPath path = pathForGrammar(grammarName);
+    public Set<JFSCoordinates> outputFilesForGrammar(String grammarName) {
+        JFSCoordinates path = pathForGrammar(grammarName);
         if (path == null) {
             return Collections.emptySet();
         }
-        Set<UnixPath> out = outputFiles.get(path);
+        Set<JFSCoordinates> out = outputDependencies.get(path);
         if (out == null) {
             out = Collections.emptySet();
         }
         return out;
+    }
+
+    private static Map<UnixPath, Set<UnixPath>> toPathMap(Map<JFSCoordinates, Set<JFSCoordinates>> m) {
+        if (m.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<UnixPath, Set<UnixPath>> result = new HashMap<>(m.size());
+        for (Map.Entry<JFSCoordinates, Set<JFSCoordinates>> e : m.entrySet()) {
+            UnixPath up = e.getKey().path();
+            if (!e.getValue().isEmpty()) {
+                Set<UnixPath> set = new HashSet<>(e.getValue().size());
+                result.put(up, set);
+                for (JFSCoordinates coord : e.getValue()) {
+                    set.add(coord.path());
+                }
+            }
+        }
+        return result;
+    }
+
+    private static Map<String, UnixPath> toPathMapSingle(Map<String, JFSCoordinates> m) {
+        if (m.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, UnixPath> result = new HashMap<>(m.size());
+        for (Map.Entry<String, JFSCoordinates> e : m.entrySet()) {
+            String up = e.getKey();
+            result.put(up, e.getValue().path());
+        }
+        return result;
+    }
+
+    private static Map<String, Set<UnixPath>> toPathMapNames(Map<String, Set<JFSCoordinates>> m) {
+        if (m.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, Set<UnixPath>> result = new HashMap<>(m.size());
+        for (Map.Entry<String, Set<JFSCoordinates>> e : m.entrySet()) {
+            String up = e.getKey();
+            if (!e.getValue().isEmpty()) {
+                Set<UnixPath> set = new HashSet<>(e.getValue().size());
+                result.put(up, set);
+                for (JFSCoordinates coord : e.getValue()) {
+                    set.add(coord.path());
+                }
+            }
+        }
+        return result;
     }
 }

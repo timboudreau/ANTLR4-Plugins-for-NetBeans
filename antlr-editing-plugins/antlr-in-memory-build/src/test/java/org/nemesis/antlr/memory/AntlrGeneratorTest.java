@@ -19,17 +19,18 @@ import javax.tools.JavaFileManager.Location;
 import javax.tools.JavaFileObject;
 import static javax.tools.JavaFileObject.Kind.CLASS;
 import javax.tools.StandardLocation;
+import static javax.tools.StandardLocation.CLASS_OUTPUT;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.nio.BlockStorageKind;
 
@@ -64,7 +65,7 @@ public class AntlrGeneratorTest {
         assertNotNull(result.mainGrammar);
         assertEquals(GRAMMAR_NAME, result.mainGrammar.name);
         assertEquals(GRAMMAR_NAME, result.grammarName);
-        assertFalse(result.modifiedFiles.isEmpty());
+        assertFalse(result.outputFiles.isEmpty());
 
         assertSetsEqual(expectedFileNames(), createdPaths);
         assertEquals(SOURCE_DEST, result.grammarSourceLocation);
@@ -72,8 +73,9 @@ public class AntlrGeneratorTest {
         assertTrue(result.errors.isEmpty());
         assertNotNull(result.grammarFile);
         assertEquals(pkg, result.packageName);
-        assertTrue(result.grammarFile.resolveOriginal().getName().endsWith("/" + GRAMMAR_FILE_NAME));
-        assertEquals(UnixPath.get(result.grammarFile.resolveOriginal().getName()).getParent(), packagePath);
+        assertNotNull(result.grammarFile.resolve(jfs));
+        assertTrue(result.grammarFile.resolve(jfs).getName().endsWith("/" + GRAMMAR_FILE_NAME));
+        assertEquals(UnixPath.get(result.grammarFile.resolve(jfs).getName()).getParent(), packagePath);
 
         List<JavaFileObject> all = new ArrayList<>();
         jfs.list(SOURCE_DEST, "", EnumSet.of(CLASS), true).forEach(all::add);
@@ -94,14 +96,14 @@ public class AntlrGeneratorTest {
             assertFalse(newResult.isUsable());
         }
 
-        assertEquals(packagePath.resolve("NestedMapGrammar.g4"), result.primaryFiles.get("NestedMapGrammar"));
-        assertEquals(packagePath.resolve("NestedMapGrammar.g4"), result.primaryFiles.get("NestedMapGrammarLexer"));
+        assertEquals(JFSCoordinates.create(CLASS_OUTPUT, packagePath.resolve("NestedMapGrammar.g4")), result.primaryFileForGrammarName.get("NestedMapGrammar"));
+        assertEquals(JFSCoordinates.create(CLASS_OUTPUT, packagePath.resolve("NestedMapGrammar.g4")), result.primaryFileForGrammarName.get("NestedMapGrammarLexer"));
 
-        Set<UnixPath> outputFiles = result.outputFiles.get(packagePath.resolve("NestedMapGrammar.g4"));
-        Set<UnixPath> output2 = result.outputFilesForGrammar("NestedMapGrammar");
+        Set<UnixPath> outputFiles = toPathSet(result.outputDependencies.get(JFSCoordinates.create(CLASS_OUTPUT, packagePath.resolve("NestedMapGrammar.g4"))));
+        Set<UnixPath> output2 = toPathSet(result.outputFilesForGrammar("NestedMapGrammar"));
         assertNotNull(outputFiles);
         assertNotNull(output2);
-        assertSame(outputFiles, output2);
+        assertEquals(outputFiles, output2);
         assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammarParser.java")));
         assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammarLexer.java")));
         assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammarListener.java")));
@@ -111,11 +113,22 @@ public class AntlrGeneratorTest {
         assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammar.tokens")));
         assertTrue(outputFiles.contains(packagePath.resolve("NestedMapGrammar.interp")));
 
-        assertEquals(1, result.inputFiles.size());
-        Set<UnixPath> in = result.inputFiles.get("NestedMapGrammar");
+        assertEquals(1, result.inputFilesForGrammarName.size());
+        Set<UnixPath> in = toPathSet(result.inputFilesForGrammarName.get("NestedMapGrammar"));
         assertNotNull(in);
         assertEquals(1, in.size());
         assertEquals(packagePath.resolve("NestedMapGrammar.g4"), in.iterator().next());
+    }
+
+    static Set<UnixPath> toPathSet(Set<JFSCoordinates> set) {
+        if (set == null) {
+            return null;
+        }
+        Set<UnixPath> result = new HashSet<>();
+        for (JFSCoordinates c : set) {
+            result.add(c.path());
+        }
+        return result;
     }
 
     private String output() {

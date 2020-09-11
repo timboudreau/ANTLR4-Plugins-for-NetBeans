@@ -36,6 +36,7 @@ import org.nemesis.debug.api.Debug;
 import org.nemesis.misc.utils.CachingSupplier;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.WeakSet;
 
 /**
  *
@@ -46,13 +47,13 @@ public final class EmbeddedAntlrParsers {
     private static final Logger LOG = Logger.getLogger(EmbeddedAntlrParsers.class.getName());
     private final Map<FileObject, Set<EmbeddedAntlrParserImpl>> liveParsersForFile
             = CollectionUtils.concurrentSupplierMap(() -> {
-                return Collections.synchronizedSet(CollectionUtils.weakSet());
+                return Collections.<EmbeddedAntlrParserImpl>synchronizedSet(new WeakSet<>());
             });
 
     private static final Supplier<EmbeddedAntlrParsers> INSTANCE_SUPPLIER
             = CachingSupplier.of(EmbeddedAntlrParsers::new);
 
-    private static EmbeddedAntlrParsers instance() {
+    static EmbeddedAntlrParsers instance() {
         return INSTANCE_SUPPLIER.get();
     }
 

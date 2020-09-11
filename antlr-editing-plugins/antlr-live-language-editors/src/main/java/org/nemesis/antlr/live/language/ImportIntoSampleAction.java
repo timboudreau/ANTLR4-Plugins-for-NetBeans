@@ -192,7 +192,6 @@ final class ImportIntoSampleAction extends AbstractAction implements ContextAwar
         ForTextComponent(JTextComponent target) {
             putValue(NAME, Bundle._import());
             putValue("hideWhenDisabled", true);
-            System.out.println("create an import action");
             this.target = target;
         }
 

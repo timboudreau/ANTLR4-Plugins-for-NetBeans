@@ -19,10 +19,10 @@ import com.mastfrog.util.collections.CollectionUtils;
 import java.lang.ref.WeakReference;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -54,26 +54,29 @@ final class ProgrammaticParseResultHookRegistry {
 
     private final Map<String, Set<ResultHookReference<?>>> byMimeType
             = CollectionUtils.concurrentSupplierMap(
-                    ProgrammaticParseResultHookRegistry::set);
+                    ProgrammaticParseResultHookRegistry::set );
 
     private final Map<FileObject, Set<ResultHookReference<?>>> byFile
             = CollectionUtils.concurrentSupplierMap(
-                    ProgrammaticParseResultHookRegistry::set);
+                    ProgrammaticParseResultHookRegistry::set );
 
     private static final Logger LOG = Logger.getLogger(
-            ProgrammaticParseResultHookRegistry.class.getName());
+            ProgrammaticParseResultHookRegistry.class.getName() );
 
     static Set<ResultHookReference<?>> set() {
-        // XXX should be WeakHashSet?
-        return Collections.synchronizedSet(new HashSet<>(5));
+        // Yes, we want synchronization here.  Using ConcurrentHashMap
+        // in order to avoid ConcurrentModificationException
+        // if another thread is registering a hook while one is being
+        // deregistered
+        return Collections.synchronizedSet( ConcurrentHashMap.newKeySet( 8 ) );
     }
 
     static ProgrammaticParseResultHookRegistry instance() {
         ProgrammaticParseResultHookRegistry result = INSTANCE;
-        if (result == null) {
-            synchronized (ProgrammaticParseResultHookRegistry.class) {
+        if ( result == null ) {
+            synchronized ( ProgrammaticParseResultHookRegistry.class ) {
                 result = INSTANCE;
-                if (result == null) {
+                if ( result == null ) {
                     result = INSTANCE = new ProgrammaticParseResultHookRegistry();
                 }
             }
@@ -86,163 +89,177 @@ final class ProgrammaticParseResultHookRegistry {
     }
 
     public synchronized static void shutdown() { // for tests
-        if (INSTANCE != null) {
+        if ( INSTANCE != null ) {
             INSTANCE._shutdown();
             INSTANCE = null;
         }
     }
 
     private void _shutdown() {
-        LOG.log(Level.FINE, "ProgrammaticParseResultHookRegistry.shutdown "
-                + " clearing {0} and {1}", new Object[]{
+        LOG.log( Level.FINE, "ProgrammaticParseResultHookRegistry.shutdown "
+                             + " clearing {0} and {1}", new Object[]{
                     byMimeType.keySet(),
                     byFile.keySet()
-                });
+                } );
         try {
-            byMimeType.entrySet().forEach((e) -> {
-                new HashSet<>(e.getValue()).forEach((r) -> {
+            byMimeType.entrySet().forEach( ( e ) -> {
+                new HashSet<>( e.getValue() ).forEach( ( r ) -> {
                     r.run();
-                });
-            });
+                } );
+            } );
         } finally {
             byMimeType.clear();
             try {
-                new HashSet<>(byFile.entrySet()).forEach((e) -> {
-                    e.getValue().forEach((r) -> {
+                new HashSet<>( byFile.entrySet() ).forEach( ( e ) -> {
+                    e.getValue().forEach( ( r ) -> {
                         r.run();
-                    });
-                });
+                    } );
+                } );
             } finally {
                 byFile.clear();
             }
         }
     }
 
-    public static void deregisterAllOfType(String mimeType) {
-        LOG.log(Level.FINER, "Deregister all hooks for {0}", mimeType);
-        instance()._deregisterAllOfType(mimeType);
+    public static void deregisterAllOfType( String mimeType ) {
+        LOG.log( Level.FINER, "Deregister all hooks for {0}", mimeType );
+        instance()._deregisterAllOfType( mimeType );
     }
 
-    private void _deregisterAllOfType(String mimeType) {
+    private void _deregisterAllOfType( String mimeType ) {
         try {
-            byMimeType.entrySet().stream().filter((e) -> (mimeType.equals(e.getKey()))).forEach((e) -> {
-                new HashSet<>(e.getValue()).forEach((r) -> {
+            byMimeType.entrySet().stream().filter( ( e ) -> ( mimeType.equals( e.getKey() ) ) ).forEach( ( e ) -> {
+                new HashSet<>( e.getValue() ).forEach( ( r ) -> {
                     r.run();
-                });
-            });
-            byMimeType.remove(mimeType);
+                } );
+            } );
+            byMimeType.remove( mimeType );
         } finally {
             Set<FileObject> toRemove = new HashSet<>();
             byFile.entrySet().stream().filter((e) -> (mimeType.equals(e.getKey().getMIMEType()))).forEach((e) -> {
-                new HashSet<>(e.getValue()).forEach((r) -> {
-                    toRemove.add(e.getKey());
-                    r.run();
-                });
-            });
-            for (FileObject fo : toRemove) {
-                byFile.remove(fo);
+                        new HashSet<>( e.getValue() ).forEach( ( r ) -> {
+                            toRemove.add( e.getKey() );
+                            r.run();
+                        } );
+                    } );
+            for ( FileObject fo : toRemove ) {
+                byFile.remove( fo );
             }
         }
     }
 
-    public static <T extends ParserRuleContext> void register(FileObject fo, ParseResultHook<T> hook) {
-        instance()._register(fo, hook);
+    public static <T extends ParserRuleContext> void register( FileObject fo, ParseResultHook<T> hook ) {
+        instance()._register( fo, hook );
     }
 
-    public static <T extends ParserRuleContext> void register(String mimeType, ParseResultHook<T> hook) {
-        instance()._register(mimeType, hook);
+    public static <T extends ParserRuleContext> void register( String mimeType, ParseResultHook<T> hook ) {
+        instance()._register( mimeType, hook );
     }
 
-    private static <T extends ParserRuleContext> void deregister(String mimeType, ResultHookReference<T> hook) {
-        instance()._deregister(mimeType, hook);
+    private static <T extends ParserRuleContext> void deregister( String mimeType, ResultHookReference<T> hook ) {
+        instance()._deregister( mimeType, hook );
     }
 
-    private static <T extends ParserRuleContext> void deregister(FileObject fo, ResultHookReference<T> hook) {
-        instance()._deregister(fo, hook);
+    private static <T extends ParserRuleContext> void deregister( FileObject fo, ResultHookReference<T> hook ) {
+        instance()._deregister( fo, hook );
     }
 
-    public static <T extends ParserRuleContext> boolean deregister(String mimeType, ParseResultHook<T> hook) {
-        return instance()._deregister(mimeType, hook);
+    public static <T extends ParserRuleContext> boolean deregister( String mimeType, ParseResultHook<T> hook ) {
+        return instance()._deregister( mimeType, hook );
     }
 
-    public static <T extends ParserRuleContext> boolean deregister(FileObject fo, ParseResultHook<T> hook) {
-        return instance()._deregister(fo, hook);
+    public static <T extends ParserRuleContext> boolean deregister( FileObject fo, ParseResultHook<T> hook ) {
+        return instance()._deregister( fo, hook );
     }
 
-    private static boolean removeFromSet(Set<ResultHookReference<?>> s, ParseResultHook<?> hook) {
+    private static boolean removeFromSet( Set<ResultHookReference<?>> s, ParseResultHook<?> hook ) {
         boolean result = false;
-        LOG.log(Level.FINEST, "Remove programmatic ParseResultHook {0}", hook);
-        for (Iterator<ResultHookReference<?>> it = s.iterator(); it.hasNext();) {
-            ResultHookReference<?> r = it.next();
-            if (hook == r.get()) {
-                it.remove(); // avoid CME by preemptively removing
-                r.run();
+        LOG.log( Level.FINEST, "Remove programmatic ParseResultHook {0}", hook );
+        // Well, this is baroque
+        Set<ResultHookReference<?>> toIterate = new HashSet<>();
+        synchronized ( s ) {
+            toIterate.addAll( s );
+        }
+        Set<ResultHookReference<?>> toRemove = new HashSet<>( 2 );
+        for ( ResultHookReference<?> r : toIterate ) {
+            if ( hook == r.get() ) {
+                toRemove.add( r );
                 result = true;
+            }
+        }
+        if ( !toRemove.isEmpty() ) {
+//            System.out.println( "  WILL REMOVE HOOKS " + toRemove );
+            synchronized ( s ) {
+                s.removeAll( toRemove );
+            }
+//            System.out.println( "  REMAINING HOOKS " + s );
+            for ( ResultHookReference<?> removed : toRemove ) {
+                removed.run();
             }
         }
         return result;
     }
 
-    private <T extends ParserRuleContext> boolean _deregister(String mimeType, ParseResultHook<T> hook) {
-        return removeFromSet(byMimeType.get(mimeType), hook);
+    private <T extends ParserRuleContext> boolean _deregister( String mimeType, ParseResultHook<T> hook ) {
+        return removeFromSet( byMimeType.get( mimeType ), hook );
     }
 
-    private <T extends ParserRuleContext> boolean _deregister(FileObject fo, ParseResultHook<T> hook) {
-        return removeFromSet(byFile.get(fo), hook);
+    private <T extends ParserRuleContext> boolean _deregister( FileObject fo, ParseResultHook<T> hook ) {
+        return removeFromSet( byFile.get( fo ), hook );
     }
 
-    <T extends ParserRuleContext> void _register(FileObject fo, ParseResultHook<T> hook) {
-        Set<ResultHookReference<?>> hooks = byFile.get(fo);
-        for (ResultHookReference r : hooks) {
-            if (r.get() == hook) {
+    <T extends ParserRuleContext> void _register( FileObject fo, ParseResultHook<T> hook ) {
+        Set<ResultHookReference<?>> hooks = byFile.get( fo );
+        for ( ResultHookReference r : hooks ) {
+            if ( r.get() == hook ) {
                 return;
             }
         }
-        hooks.add(new FileResultHookReference<>(hook, fo));
+        hooks.add( new FileResultHookReference<>( hook, fo ) );
     }
 
-    <T extends ParserRuleContext> void _register(String mimeType, ParseResultHook<T> hook) {
-        byMimeType.get(mimeType).add(new MimeTypeResultHookReference<>(hook, mimeType));
+    <T extends ParserRuleContext> void _register( String mimeType, ParseResultHook<T> hook ) {
+        byMimeType.get( mimeType ).add( new MimeTypeResultHookReference<>( hook, mimeType ) );
     }
 
-    <T extends ParserRuleContext> void _deregister(String mimeType, ResultHookReference<T> hook) {
-        byMimeType.get(mimeType).remove(hook);
+    <T extends ParserRuleContext> void _deregister( String mimeType, ResultHookReference<T> hook ) {
+        byMimeType.get( mimeType ).remove( hook );
     }
 
-    <T extends ParserRuleContext> void _deregister(FileObject fo, ResultHookReference<T> hook) {
-        byFile.get(fo).remove(hook);
+    <T extends ParserRuleContext> void _deregister( FileObject fo, ResultHookReference<T> hook ) {
+        byFile.get( fo ).remove( hook );
     }
 
     static void onReparse(ParserRuleContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) {
-        instance()._onReparse(tree, mimeType, extraction, populate, fixes);
+        instance()._onReparse( tree, mimeType, extraction, populate, fixes );
     }
 
     final void _onReparse(ParserRuleContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) {
-        Set<ResultHookReference<?>> allHooks = new HashSet<>(byMimeType.get(mimeType));
-        extraction.source().lookup(FileObject.class, file -> {
-            allHooks.addAll(byFile.get(file));
-        });
-        LOG.log(Level.FINER, "Run {0} programmatically registered hooks for reparse of {1}",
-                new Object[]{allHooks.size(), extraction.source()});
-        allHooks.forEach((hook) -> {
+        Set<ResultHookReference<?>> allHooks = new HashSet<>( byMimeType.get( mimeType ) );
+        extraction.source().lookup( FileObject.class, file -> {
+                                allHooks.addAll( byFile.get( file ) );
+                            } );
+        LOG.log( Level.FINER, "Run {0} programmatically registered hooks for reparse of {1}",
+                 new Object[]{ allHooks.size(), extraction.source() } );
+        allHooks.forEach( ( hook ) -> {
             try {
-                LOG.log(Level.FINEST, "Run {0} for {1}", new Object[] {hook, extraction.source()});
-                hook.onReparse(tree, mimeType, extraction, populate, fixes);
-            } catch (Exception ex) {
-                LOG.log(Level.WARNING, "Exception in " + hook + " for "
-                        + mimeType + " against " + extraction.source(), ex);
+                LOG.log( Level.FINEST, "Run {0} for {1}", new Object[]{ hook, extraction.source() } );
+                hook.onReparse( tree, mimeType, extraction, populate, fixes );
+            } catch ( Exception ex ) {
+                LOG.log( Level.WARNING, "Exception in " + hook + " for "
+                                        + mimeType + " against " + extraction.source(), ex );
             }
-        });
+        } );
     }
 
     static abstract class ResultHookReference<T extends ParserRuleContext> extends WeakReference<ParseResultHook<T>> implements Runnable {
 
         volatile boolean destroyed;
-        private final Set<String> warned = new HashSet<>(2);
+        private final Set<String> warned = new HashSet<>( 2 );
         private final String stringValue;
 
-        public ResultHookReference(ParseResultHook<T> referent) {
-            super(referent, Utilities.activeReferenceQueue());
+        public ResultHookReference( ParseResultHook<T> referent ) {
+            super( referent, Utilities.activeReferenceQueue() );
             stringValue = referent.toString();
         }
 
@@ -250,33 +267,33 @@ final class ProgrammaticParseResultHookRegistry {
 
         @Override
         public synchronized final void run() {
-            if (destroyed) {
+            if ( destroyed ) {
                 return;
             }
-            LOG.log(Level.FINE, "Programmatic parse result hook {0} was gc'd "
-                    + "or explicitly removed", stringValue);
+            LOG.log( Level.FINE, "Programmatic parse result hook {0} was gc'd "
+                                 + "or explicitly removed", stringValue );
             destroyed = true;
             onDestroyed();
         }
 
         protected abstract void onDestroyed();
 
-        protected void beforeReparse(ParseResultHook<T> hook, String mimeType, Extraction ext) {
+        protected void beforeReparse( ParseResultHook<T> hook, String mimeType, Extraction ext ) {
 
         }
 
-        final void onBeforeReparse(ParseResultHook<T> hook, String mimeType, Extraction extraction) {
+        final void onBeforeReparse( ParseResultHook<T> hook, String mimeType, Extraction extraction ) {
             assert hook != null;
-            beforeReparse(hook, mimeType, extraction);
-            if (LOG.isLoggable(Level.FINER)) {
+            beforeReparse( hook, mimeType, extraction );
+            if ( LOG.isLoggable( Level.FINER ) ) {
                 LOG.log(Level.FINER, "Begin programmatic hook reparse of {0} by {1} ({2}) for {3} in {4} registered on {5}",
                         new Object[]{extraction.source(), hook, hook.getClass().getName(), mimeType, getClass().getName(), targetString()});
             }
         }
 
-        final void onAfterReparse(ParseResultHook<T> hook, String mimeType, Extraction extraction, long elapsedMs) {
+        final void onAfterReparse( ParseResultHook<T> hook, String mimeType, Extraction extraction, long elapsedMs ) {
             assert hook != null;
-            if (LOG.isLoggable(Level.FINER)) {
+            if ( LOG.isLoggable( Level.FINER ) ) {
                 LOG.log(Level.FINER, "Programmatic hook reparse of {0} by {1} ({2}) for {3} in {4} registered on {5} took {6}",
                         new Object[]{extraction.source(), hook, hook.getClass().getName(), mimeType, getClass().getName(), targetString(), elapsedMs});
             }
@@ -284,27 +301,27 @@ final class ProgrammaticParseResultHookRegistry {
 
         protected final void onReparse(ParserRuleContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
             ParseResultHook<T> hook = get();
-            if (hook != null) {
-                if (hook.type().isInstance(tree)) {
+            if ( hook != null ) {
+                if ( hook.type().isInstance( tree ) ) {
                     long then = System.currentTimeMillis();
-                    onBeforeReparse(hook, mimeType, extraction);
-                    hook.onReparse(hook.type().cast(tree), mimeType, extraction, populate, fixes);
-                    onAfterReparse(hook, mimeType, extraction, System.currentTimeMillis() - then);
+                    onBeforeReparse( hook, mimeType, extraction );
+                    hook.onReparse( hook.type().cast( tree ), mimeType, extraction, populate, fixes );
+                    onAfterReparse( hook, mimeType, extraction, System.currentTimeMillis() - then );
                 } else {
                     String clName = tree.getClass().getName();
-                    if (!warned.contains(clName)) {
-                        warned.add(clName);
-                        Logger.getLogger(ResultHookReference.class.getName()).log(Level.WARNING,
-                                "Will not run hook {0}({1}) against  parse tree of "
-                                + "type {2} because the hook is parameterized on {3}. "
-                                + "Probably that is the wrong type",
+                    if ( !warned.contains( clName ) ) {
+                        warned.add( clName );
+                        Logger.getLogger( ResultHookReference.class.getName() ).log( Level.WARNING,
+                                                                                     "Will not run hook {0}({1}) against  parse tree of "
+                                                                                     + "type {2} because the hook is parameterized on {3}. "
+                                                                                     + "Probably that is the wrong type",
                                 new Object[]{hook, hook.getClass().getName(),
                                     tree.getClass().getName(), hook.type().getClass().getName()});
                     }
                 }
             } else {
-                LOG.log(Level.FINER, "Hook discovered to have been "
-                        + "gc'd on attempt to run: {0}", stringValue);
+                LOG.log( Level.FINER, "Hook discovered to have been "
+                                      + "gc'd on attempt to run: {0}", stringValue );
                 run();
             }
         }
@@ -316,22 +333,22 @@ final class ProgrammaticParseResultHookRegistry {
         private final L l = new L();
         private final String stringVal;
 
-        public FileResultHookReference(ParseResultHook<T> referent, FileObject fo) {
-            super(referent);
+        public FileResultHookReference( ParseResultHook<T> referent, FileObject fo ) {
+            super( referent );
             stringVal = referent.toString();
             this.fo = fo;
-            fo.addFileChangeListener(FileUtil.weakFileChangeListener( l, fo ));
+            fo.addFileChangeListener( FileUtil.weakFileChangeListener( l, fo ) );
         }
 
         @Override
-        protected void beforeReparse(ParseResultHook<T> hook, String mimeType, Extraction ext) {
-            Optional<FileObject> optActual = ext.source().lookup(FileObject.class);
-            if (optActual.isPresent()) {
-                if (!fo.equals(optActual.get())) {
-                    throw new IllegalStateException("Hook is being passed an extraction of "
-                            + "the wrong file."
-                            + "\nExpect:  " + fo.getPath()
-                            + "\nBut got: " + optActual.get().getPath());
+        protected void beforeReparse( ParseResultHook<T> hook, String mimeType, Extraction ext ) {
+            Optional<FileObject> optActual = ext.source().lookup( FileObject.class );
+            if ( optActual.isPresent() ) {
+                if ( !fo.equals( optActual.get() ) ) {
+                    throw new IllegalStateException( "Hook is being passed an extraction of "
+                                                     + "the wrong file."
+                                                     + "\nExpect:  " + fo.getPath()
+                                                     + "\nBut got: " + optActual.get().getPath() );
                 }
             }
         }
@@ -343,18 +360,18 @@ final class ProgrammaticParseResultHookRegistry {
 
         @Override
         protected void onDestroyed() {
-            LOG.log(Level.FINEST, "FileResultHookReference destroyed for {0} - {1}",
-                    new Object[]{fo, stringVal});
-            fo.removeFileChangeListener(l);
-            deregister(fo, (ResultHookReference) this);
+            LOG.log( Level.FINEST, "FileResultHookReference destroyed for {0} - {1}",
+                     new Object[]{ fo, stringVal } );
+            fo.removeFileChangeListener( l );
+            deregister( fo, ( ResultHookReference ) this );
         }
 
         class L extends FileChangeAdapter {
 
             @Override
-            public void fileDeleted(FileEvent fe) {
-                LOG.log(Level.FINE, "Remove programmatic file hook for {0} "
-                        + "due to deletion", fe.getFile());
+            public void fileDeleted( FileEvent fe ) {
+                LOG.log( Level.FINE, "Remove programmatic file hook for {0} "
+                                     + "due to deletion", fe.getFile() );
                 run();
             }
         }
@@ -365,8 +382,8 @@ final class ProgrammaticParseResultHookRegistry {
         private final String mimeType;
         private final String stringVal;
 
-        public MimeTypeResultHookReference(ParseResultHook<T> referent, String mimeType) {
-            super(referent);
+        public MimeTypeResultHookReference( ParseResultHook<T> referent, String mimeType ) {
+            super( referent );
             stringVal = referent.toString();
             this.mimeType = mimeType;
         }
@@ -378,9 +395,9 @@ final class ProgrammaticParseResultHookRegistry {
 
         @Override
         protected void onDestroyed() {
-            LOG.log(Level.FINEST, "FileResultHookReference destroyed for {0} - {1}",
-                    new Object[]{mimeType, stringVal});
-            deregister(mimeType, this);
+            LOG.log( Level.FINEST, "FileResultHookReference destroyed for {0} - {1}",
+                     new Object[]{ mimeType, stringVal } );
+            deregister( mimeType, this );
         }
     }
 }

@@ -155,7 +155,8 @@ public final class GrammarSource<T> implements Serializable {
      * @return A grammar source or null
      */
     public static <T> GrammarSource<T> find(T document, String mimeType) {
-        return GSAccessor.getDefault().newGrammarSource(mimeType, document);
+        GrammarSource<T> result = GSAccessor.getDefault().newGrammarSource(mimeType, document);
+        return result;
     }
 
     private String id;

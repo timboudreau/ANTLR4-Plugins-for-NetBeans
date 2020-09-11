@@ -35,4 +35,11 @@ public interface ProcessingResult {
             throw result.get();
         }
     }
+
+    default <T> T getWrapped(Class<T> type) {
+        if (type.isInstance(this)) {
+            return type.cast(this);
+        }
+        return null;
+    }
 }

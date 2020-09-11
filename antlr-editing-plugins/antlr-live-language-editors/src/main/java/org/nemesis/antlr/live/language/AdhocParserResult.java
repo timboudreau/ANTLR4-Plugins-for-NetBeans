@@ -18,6 +18,7 @@ package org.nemesis.antlr.live.language;
 import java.util.function.Consumer;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.debug.api.Trackables;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.netbeans.modules.parsing.spi.Parser;
 
@@ -34,6 +35,7 @@ public final class AdhocParserResult extends Parser.Result {
         super(sn);
         this.embeddedResult = embeddedResult;
         this.invalidator = invalidator;
+        Trackables.track(AdhocParserResult.class, this);
     }
 
     public EmbeddedAntlrParserResult result() {

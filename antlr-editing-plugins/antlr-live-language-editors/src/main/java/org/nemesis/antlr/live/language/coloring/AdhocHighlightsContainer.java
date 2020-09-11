@@ -80,7 +80,7 @@ public class AdhocHighlightsContainer extends AbstractHighlightsContainer implem
             if (diffEnd == -1) {
                 fire(diffStart, length);
             } else {
-                fire(diffStart, diffEnd);
+                fire(diffStart, Math.min(length, diffEnd));
             }
         }
     }

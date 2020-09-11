@@ -18,6 +18,7 @@ package org.nemesis.antlr.live.parsing;
 import java.nio.file.Path;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.debug.api.Trackables;
 
 /**
  *
@@ -39,6 +40,9 @@ public final class EmbeddedAntlrParserResult {
         this.runResult = runResult;
         this.grammarTokensHash = grammarTokensHash;
         this.grammarName = grammarName;
+        if (runResult != null) {
+            Trackables.track(EmbeddedAntlrParserResult.class, this);
+        }
     }
 
     public Path grammarFile() {
@@ -90,12 +94,12 @@ public final class EmbeddedAntlrParserResult {
                 EmbeddedAntlrParserResult.class.getSimpleName())
                 .append('(')
                 .append(grammarTokensHash)
-                .append(", ").append(proxy.loggingInfo())
+                .append(", ").append(proxy == null ? null : proxy.loggingInfo())
                 .append(", ").append(runResult)
                 .append(", text='");
 
         return EmbeddedAntlrParserImpl.truncated(
-                proxy.text() == null ? "--null--" : proxy.text(),
+                proxy == null || proxy.text() == null ? "--null--" : proxy.text(),
                 sb, 20).append("')").toString();
     }
 }

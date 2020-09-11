@@ -22,10 +22,12 @@ import java.awt.event.FocusListener;
 import java.awt.event.HierarchyBoundsListener;
 import java.awt.event.HierarchyListener;
 import java.awt.event.InputMethodListener;
+import java.awt.event.KeyListener;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelListener;
 import java.beans.PropertyChangeListener;
+import java.beans.PropertyVetoException;
 import java.beans.VetoableChangeListener;
 import javax.swing.event.AncestorListener;
 
@@ -207,4 +209,58 @@ public class TextCellCellRenderer extends TextCellLabel {
         // do nothing
     }
 
+    @Override
+    protected void fireVetoableChange(String propertyName, Object oldValue, Object newValue) throws PropertyVetoException {
+        // do nothing
+    }
+
+    @Override
+    public void firePropertyChange(String propertyName, char oldValue, char newValue) {
+        // do nothing
+    }
+
+    @Override
+    public void firePropertyChange(String propertyName, int oldValue, int newValue) {
+        // do nothing
+    }
+
+    @Override
+    public void firePropertyChange(String propertyName, boolean oldValue, boolean newValue) {
+        // do nothing
+    }
+
+    @Override
+    public void firePropertyChange(String propertyName, double oldValue, double newValue) {
+        // do nothing
+    }
+
+    @Override
+    public void firePropertyChange(String propertyName, float oldValue, float newValue) {
+        // do nothing
+    }
+
+    @Override
+    public void firePropertyChange(String propertyName, long oldValue, long newValue) {
+        // do nothing
+    }
+
+    @Override
+    public void firePropertyChange(String propertyName, short oldValue, short newValue) {
+        // do nothing
+    }
+
+    @Override
+    public void firePropertyChange(String propertyName, byte oldValue, byte newValue) {
+        // do nothing
+    }
+
+    @Override
+    protected void firePropertyChange(String propertyName, Object oldValue, Object newValue) {
+        // do nothing
+    }
+
+    @Override
+    public synchronized void addKeyListener(KeyListener l) {
+        // do nothing
+    }
 }

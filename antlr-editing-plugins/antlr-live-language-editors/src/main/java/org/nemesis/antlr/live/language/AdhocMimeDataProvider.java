@@ -234,6 +234,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
                     if (!isReentry) {
                         hier.languageUpdated();
                         gooseLanguage(mime);
+                        me.goose();
                     }
                 } else {
                     Debug.failure("no hierarchy", me::toString);

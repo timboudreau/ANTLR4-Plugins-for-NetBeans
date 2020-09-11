@@ -52,7 +52,7 @@ public class JavacOptions {
     public static JavacOptions fastDefaults() {
         return new JavacOptions()
                 .withDebugInfo(JavacOptions.DebugInfo.NONE)
-                .onlyRebuildNewerSources(true)
+                .onlyRebuildNewerSources(false)
                 .sourceAndTargetLevel(8)
                 .runAnnotationProcessors(false)
                 .withCharset(UTF_8);

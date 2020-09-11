@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 import org.nemesis.jfs.spi.JFSUtilities;
 import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
+import org.nemesis.jfs.JFSException;
 
 /**
  *
@@ -205,7 +206,7 @@ final class BlockMapper implements BlockStorage {
                     lim = buf.limit();
                     buf.put(bytes);
                 } catch (Exception e) {
-                    throw new IOException("Exception getting write buffer for " + blocks + " with phys size " + physicalSize
+                    throw new JFSException("Exception getting write buffer for " + blocks + " with phys size " + physicalSize
                             + " and blocks mapped to phys buffer " + blocks.toPhysicalRange(bytesConverter)
                             + " over available " + bufferMapper.size() + " in buffer with limit " + lim + " for byte array of "
                             + bytes.length, e);
@@ -234,7 +235,7 @@ final class BlockMapper implements BlockStorage {
                     physicalSize = size;
                 }
             } catch (Exception e) {
-                throw new IOException("Exception getting write buffer for " + blocks + " with phys size " + physicalSize
+                throw new JFSException("Exception getting write buffer for " + blocks + " with phys size " + physicalSize
                         + " and blocks mapped to phys buffer " + blocks.toPhysicalRange(bytesConverter), e);
             }
 //            });
@@ -255,7 +256,7 @@ final class BlockMapper implements BlockStorage {
                 buf.get(b);
                 return b;
             } catch (Exception e) {
-                throw new IOException("Exception reading buffer for " + blocks + " with phys size " + physicalSize
+                throw new JFSException("Exception reading buffer for " + blocks + " with phys size " + physicalSize
                         + " and blocks mapped to phys buffer " + blocks.toPhysicalRange(bytesConverter)
                         + " over allocated " + bufferMapper.size() + " buffer limit " + (buf == null ? "null" : buf.limit()
                         + " position " + (buf == null ? "null" : buf.position())), e);
@@ -569,7 +570,7 @@ final class BlockMapper implements BlockStorage {
         public int read(byte[] bytes, int off, int len) throws IOException {
             ByteBuffer b = buffer();
             if (off + len > bytes.length) {
-                throw new IOException("offset + length=" + (off + len) + " but array length is " + bytes.length);
+                throw new JFSException("offset + length=" + (off + len) + " but array length is " + bytes.length);
             }
             int rem = b.remaining();
             if (rem == 0) {

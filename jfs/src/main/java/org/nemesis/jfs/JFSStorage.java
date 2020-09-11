@@ -36,6 +36,7 @@ import javax.tools.JavaFileManager.Location;
 import javax.tools.JavaFileObject;
 import static javax.tools.JavaFileObject.Kind.CLASS;
 import static javax.tools.JavaFileObject.Kind.SOURCE;
+import org.nemesis.jfs.Checkpoint.Checkpoints;
 import org.nemesis.jfs.spi.JFSUtilities;
 
 /**
@@ -258,7 +259,10 @@ final class JFSStorage {
         JFSFileObjectImpl fo
                 = java ? new JFSJavaFileObjectImpl(wrapper, location, name, encoding)
                         : new JFSFileObjectImpl(wrapper, location, name, encoding);
-        files.put(name, fo);
+        JFSFileObjectImpl old = files.put(name, fo);
+        if (old != null) {
+            old.discard();
+        }
         if (listener != null) {
             listener.accept(location, fo);
         }
@@ -272,7 +276,10 @@ final class JFSStorage {
         JFSFileObjectImpl fo
                 = java ? new JFSJavaFileObjectImpl(wrapper, location, name, encoding())
                         : new JFSFileObjectImpl(wrapper, location, name, encoding());
-        files.put(name, fo);
+        JFSFileObjectImpl old = files.put(name, fo);
+        if (old != null) {
+            old.discard();
+        }
         if (listener != null) {
             listener.accept(location, fo);
         }
@@ -281,21 +288,37 @@ final class JFSStorage {
 
     JFSFileObjectImpl allocate(Name name, boolean java) {
         JFSBytesStorage storage = alloc.allocate(this, name, location);
-        java |= name.kind() == CLASS || name.kind() == SOURCE;
-        JFSFileObjectImpl fo
-                = java ? new JFSJavaFileObjectImpl(storage, location, name, alloc.encoding())
-                        : new JFSFileObjectImpl(storage, location, name, alloc.encoding());
-        files.put(name, fo);
-        if (listener != null) {
-            listener.accept(location, fo);
-        }
-        return fo;
+
+        JFSFileObjectImpl result = files.computeIfAbsent(name, nm -> {
+            JFSFileObjectImpl fo = java || name.kind() == CLASS || name.kind() == SOURCE
+                    ? new JFSJavaFileObjectImpl(storage, location, name, alloc.encoding())
+                    : new JFSFileObjectImpl(storage, location, name, alloc.encoding());
+            if (listener != null) {
+                listener.accept(location, fo);
+            }
+            return fo;
+        });
+        result.undiscard();
+        return result;
     }
 
     JFSFileObjectImpl find(Name name) {
         return find(name, false);
     }
 
+    JFSFileObjectImpl find(Name name, boolean create, Checkpoints checkpoints) {
+        boolean java = shouldBeJavaFileObject(name);
+        JFSFileObjectImpl result = files.get(name);
+        if (result == null && create) {
+            result = allocate(name, java);
+            checkpoints.touch(result);
+        } else if (result != null && java && !(result instanceof JavaFileObject)) {
+            result = result.toJavaFileObject();
+            files.put(name, result);
+        }
+        return result;
+
+    }
     JFSFileObjectImpl find(Name name, boolean create) {
         boolean java = shouldBeJavaFileObject(name);
         JFSFileObjectImpl result = files.get(name);

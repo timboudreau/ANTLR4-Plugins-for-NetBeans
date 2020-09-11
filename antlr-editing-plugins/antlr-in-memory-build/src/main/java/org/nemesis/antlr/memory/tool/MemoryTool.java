@@ -84,10 +84,10 @@ public final class MemoryTool extends Tool {
     private static final String OUTPUT_WINDOW_FRIENDLY_ERROR_FORMAT = "vs2005";
     private final boolean initialized;
     private List<EpsilonRuleInfo> epsilonIssues;
-    private final Map<UnixPath, Set<UnixPath>> outputFiles = new HashMap<>(32);
-    private final Map<String, Set<UnixPath>> inputFiles = new HashMap<>(8);
-    private final Map<String, UnixPath> primaryInputFileForGrammarName = new HashMap<>(8);
-    private final Map<UnixPath, Set<UnixPath>> dependencies = new HashMap<>(8);
+    private final Map<JFSCoordinates, Set<JFSCoordinates>> outputFiles = new HashMap<>(32);
+    private final Map<String, Set<JFSCoordinates>> inputFiles = new HashMap<>(8);
+    private final Map<String, JFSCoordinates> primaryInputFileForGrammarName = new HashMap<>(8);
+    private final Map<JFSCoordinates, Set<JFSCoordinates>> dependencies = new HashMap<>(8);
     public JFSPathHints hints;
 
     MemoryTool(ToolContext ctx, String... args) {
@@ -142,11 +142,11 @@ public final class MemoryTool extends Tool {
         // super constructor when we are not actually using the filesystem
         if (initialized) {
             ErrM em = (ErrM) errMgr;
-            Path currFile = currentFile.get();
+            JFSCoordinates currFile = currentFile.get();
             if (currFile != null) {
                 // Ensure error messages have the complete (relative)
                 // file path, so we can map them easily in error highlighting
-                msg.fileName = currFile.toString();
+                msg.fileName = currFile.path().toString();
             }
             // There are a few cases in Antlr sources where
             // a direct call is made to tool.error() or tool.warning()
@@ -166,11 +166,11 @@ public final class MemoryTool extends Tool {
         if (initialized) {
             ErrM em = (ErrM) errMgr;
 
-            Path currFile = currentFile.get();
+            JFSCoordinates currFile = currentFile.get();
             if (currFile != null) {
                 // Ensure error messages have the complete (relative)
                 // file path, so we can map them easily in error highlighting
-                msg.fileName = currFile.toString();
+                msg.fileName = currFile.path().toString();
             }
             // There are a few cases in Antlr sources where
             // a direct call is made to tool.error() or tool.warning()
@@ -373,10 +373,6 @@ public final class MemoryTool extends Tool {
         ParsedAntlrError.computeFileOffsets(l, this::lines);
     }
 
-    public List<String> infoMessages() {
-        return ((ErrM) this.errMgr).infos;
-    }
-
     @Override
     public void log(String msg) {
         ToolContext ctx = ToolContext.get(this);
@@ -404,52 +400,52 @@ public final class MemoryTool extends Tool {
         return dir().resolve(rel);
     }
 
-    public Map<String, Set<UnixPath>> inputFiles() {
+    public Map<String, Set<JFSCoordinates>> inputFiles() {
         return Collections.unmodifiableMap(inputFiles);
     }
 
-    public Map<UnixPath, Set<UnixPath>> outputFiles() {
+    public Map<JFSCoordinates, Set<JFSCoordinates>> outputFiles() {
         return Collections.unmodifiableMap(outputFiles);
     }
 
-    public Map<String, UnixPath> primaryInputFiles() {
+    public Map<String, JFSCoordinates> primaryInputFiles() {
         return Collections.unmodifiableMap(primaryInputFileForGrammarName);
     }
 
-    public Map<UnixPath, Set<UnixPath>> dependencies() {
+    public Map<JFSCoordinates, Set<JFSCoordinates>> dependencies() {
         return Collections.unmodifiableMap(dependencies);
     }
 
-    public void notePrimaryInput(Grammar g, UnixPath path) {
+    public void notePrimaryInput(Grammar g, JFSCoordinates path) {
         assert g != null : "no grammar";
         assert g.name != null : "no grammar name";
         primaryInputFileForGrammarName.put(g.name, path);
     }
 
-    public void noteOutputFile(Grammar g, String filename, UnixPath path) {
+    public void noteOutputFile(Grammar g, String filename, JFSCoordinates path) {
         assert currentFile != null;
-        UnixPath curr = currentFile.get();
+        JFSCoordinates curr = currentFile.get();
         if (curr != null) {
-            Set<UnixPath> output = outputFiles.get(curr);
+            Set<JFSCoordinates> output = outputFiles.get(curr);
             if (output == null) {
-                output = new HashSet<>();
+                output = new HashSet<>(16);
                 outputFiles.put(curr, output);
             }
             output.add(path);
         }
     }
 
-    public void noteInputFile(Grammar g, String filename, UnixPath path) {
-        Set<UnixPath> input = inputFiles.get(filename);
+    public void noteInputFile(Grammar g, String filename, JFSCoordinates path) {
+        Set<JFSCoordinates> input = inputFiles.get(filename);
         if (input == null) {
             input = new HashSet<>();
             inputFiles.put(g.name, input);
         }
-        UnixPath currentPath = currentFile.get();
+        JFSCoordinates currentPath = currentFile.get();
         if (currentPath != null && currentPath.equals(path)) {
-            Set<UnixPath> deps = dependencies.get(currentPath);
+            Set<JFSCoordinates> deps = dependencies.get(currentPath);
             if (deps == null) {
-                deps = new HashSet<>();
+                deps = new HashSet<>(8);
                 dependencies.put(currentPath, deps);
             }
             deps.add(path);
@@ -466,13 +462,13 @@ public final class MemoryTool extends Tool {
         // Do that here?
         JFSFileObject fo = ctx.jfs.getSourceFileForOutput(pth.toString(),
                 ctx.outputLocation);
-        noteOutputFile(g, fileName, pth);
+        noteOutputFile(g, fileName, fo.toCoordinates());
         return fo.openWriter();
     }
 
-    void addDependency(UnixPath from, UnixPath to) {
+    void addDependency(JFSCoordinates from, JFSCoordinates to) {
         if (from != null && !from.equals(to)) {
-            Set<UnixPath> set = dependencies.get(from);
+            Set<JFSCoordinates> set = dependencies.get(from);
             if (set == null) {
                 set = new LinkedHashSet<>();
                 dependencies.put(from, set);
@@ -481,8 +477,8 @@ public final class MemoryTool extends Tool {
         }
     }
 
-    void withCurrentPath(UnixPath path, Runnable r) {
-        UnixPath old = currentFile.get();
+    void withCurrentPath(JFSCoordinates path, Runnable r) {
+        JFSCoordinates old = currentFile.get();
         try {
             currentFile.set(path);
             r.run();
@@ -492,8 +488,8 @@ public final class MemoryTool extends Tool {
         }
     }
 
-    public void withCurrentPathThrowing(UnixPath path, Thrower r) throws IOException {
-        UnixPath old = currentFile.get();
+    public void withCurrentPathThrowing(JFSCoordinates path, Thrower r) throws IOException {
+        JFSCoordinates old = currentFile.get();
         try {
             currentFile.set(path);
             r.run();
@@ -503,8 +499,8 @@ public final class MemoryTool extends Tool {
         }
     }
 
-    public <T> T withCurrentPath(UnixPath path, Supplier<T> supp) {
-        UnixPath old = currentFile.get();
+    public <T> T withCurrentPath(JFSCoordinates path, Supplier<T> supp) {
+        JFSCoordinates old = currentFile.get();
         try {
             currentFile.set(path);
             T result = supp.get();
@@ -515,8 +511,8 @@ public final class MemoryTool extends Tool {
         }
     }
 
-    public <T> T withCurrentPathThrowing(UnixPath path, IOSupp<T> supp) throws IOException {
-        UnixPath old = currentFile.get();
+    public <T> T withCurrentPathThrowing(JFSCoordinates path, IOSupp<T> supp) throws IOException {
+        JFSCoordinates old = currentFile.get();
         try {
             currentFile.set(path);
             T result = supp.get();
@@ -539,7 +535,7 @@ public final class MemoryTool extends Tool {
             String rawName = UnixPath.get(fileName).rawName();
             if (currentFile.get() != null) {
                 JFSCoordinates coords = hints.forFileName(rawName,
-                        currentFile.get(), "g4", "g");
+                        currentFile.get().path(), "g4", "g");
                 if (coords != null) {
                     attemptedPaths.add(new LoadAttempt(coords.path(), ctx.inputLocation));
                     fo = ctx.jfs.get(ctx.inputLocation, coords.path());
@@ -596,7 +592,7 @@ public final class MemoryTool extends Tool {
         }
         if (fo != null) {
             JFSFileObject finalFile = fo;
-            UnixPath grammarPath = fo.path();
+            JFSCoordinates grammarPath = fo.toCoordinates();
             Grammar result = withCurrentPath(grammarPath, () -> {
                 c.accept(finalFile);
                 Grammar g = readOneGrammar(finalFile, fileName, ctx);
@@ -684,7 +680,7 @@ public final class MemoryTool extends Tool {
                     + g.fileName + " from " + ctx.inputLocation
                     + ":" + finalFile);
             try {
-                UnixPath path = finalFile.path();
+                JFSCoordinates path = finalFile.toCoordinates();
                 notePrimaryInput(g, path);
                 noteInputFile(g, fileName, path);
                 process(g, false);
@@ -854,10 +850,10 @@ public final class MemoryTool extends Tool {
     static class Circularity extends RuntimeException {
 
         final String attemptedLoad;
-        final Path from;
+        final JFSCoordinates from;
         final LinkedHashSet<String> loading;
 
-        Circularity(List<String> loading, String attemptedLoad, Path from) {
+        Circularity(List<String> loading, String attemptedLoad, JFSCoordinates from) {
             super("Circular load of '" + attemptedLoad + " when already loading " + loading + " from " + from);
             this.attemptedLoad = attemptedLoad;
             this.from = from;
@@ -899,7 +895,7 @@ public final class MemoryTool extends Tool {
                 log("grammar", "load " + name + " from " + g.fileName + ": " + importedFile);
                 if (importedFile != null) {
                     JFSFileObject fo = importedFile;
-                    UnixPath path = fo.path();
+                    JFSCoordinates path = fo.toCoordinates();
                     return withCurrentPathThrowing(path, () -> {
 
                         CharSequence chars = fo.getCharContent(true);
@@ -975,7 +971,7 @@ public final class MemoryTool extends Tool {
                 lexerg.originalGrammar = g;
                 g.implicitLexer = lexerg;
                 lexerg.implicitLexerOwner = g;
-                UnixPath gFile = primaryInputFileForGrammarName.get(g.name);
+                JFSCoordinates gFile = primaryInputFileForGrammarName.get(g.name);
                 notePrimaryInput(lexerg, gFile);
                 processNonCombinedGrammar(lexerg, gencode);
             }
@@ -995,7 +991,7 @@ public final class MemoryTool extends Tool {
     }
 
     public Grammar loadDependentGrammar(String name, JFSFileObject fo) throws IOException {
-        UnixPath grammarPath = fo.path();
+        JFSCoordinates grammarPath = fo.toCoordinates();
         log("LOAD DEP GRAMMAR " + grammarPath);
         return withCurrentPathThrowing(grammarPath, () -> {
             CharSequenceCharStream in = new CharSequenceCharStream(fo.getCharContent(true));
@@ -1008,6 +1004,7 @@ public final class MemoryTool extends Tool {
         });
     }
 
+    @Override
     public Grammar createGrammar(GrammarRootAST ast) {
         final Grammar g;
         if (ast == null) { // no such source inputLocation or file
@@ -1058,7 +1055,7 @@ public final class MemoryTool extends Tool {
                 result = ((AttemptedExit) thrown.getCause()).code();
             }
         }
-        if (result == 0 && thrown != null && thrown.getSuppressed() != null
+        if (result == 0 && thrown.getSuppressed() != null
                 && thrown.getSuppressed().length > 0) {
             for (Throwable t : thrown.getSuppressed()) {
                 if (t instanceof AttemptedExit) {
@@ -1094,7 +1091,6 @@ public final class MemoryTool extends Tool {
     static final class ErrM extends ErrorManager {
 
         private final List<ParsedAntlrError> errorsEncountered = new ArrayList<>(13);
-        private final List<String> infos = new ArrayList<>(3);
         boolean hasEpsilonIssues;
 
         public ErrM(Tool tool) {
@@ -1102,9 +1098,9 @@ public final class MemoryTool extends Tool {
         }
 
         private String replaceWithPath(String name) {
-            UnixPath p = currentFile.get();
+            JFSCoordinates p = currentFile.get();
             if (p != null) {
-                return p.toString();
+                return p.path().toString();
             }
             return name;
         }
@@ -1170,9 +1166,9 @@ public final class MemoryTool extends Tool {
                         }
                 }
                 msg.fileName = replaceWithPath(msg.fileName);
-                UnixPath supplied = currentFile.get();
+                JFSCoordinates supplied = currentFile.get();
                 UnixPath pth = msg.fileName == null ? supplied == null
-                        ? UnixPath.get("_no-file_") : supplied : UnixPath.get(msg.fileName);
+                        ? UnixPath.get("_no-file_") : supplied.path() : UnixPath.get(msg.fileName);
                 int charPositionInLine = msg.charPosition;
                 int line = msg.line;
                 int startOffset = -1;
@@ -1222,14 +1218,14 @@ public final class MemoryTool extends Tool {
 
         @Override
         public void info(String msg) {
-            infos.add(msg);
+            ToolContext ctx = ToolContext.get((MemoryTool) tool);
+            ctx.logStream.println("INFO: " + msg);
             super.info(msg);
         }
 
         @Override
         public void resetErrorState() {
 //            errorsEncountered.clear();
-            infos.clear();
             super.resetErrorState();
         }
     }

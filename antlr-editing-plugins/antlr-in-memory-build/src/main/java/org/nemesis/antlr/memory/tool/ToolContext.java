@@ -34,6 +34,7 @@ import org.antlr.v4.codegen.CodeGenerator;
 import org.antlr.v4.tool.Grammar;
 import com.mastfrog.util.streams.stdio.ThreadMappedStdIO;
 import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileObject;
 
 /**
@@ -55,7 +56,7 @@ final class ToolContext {
     final Location inputLocation;
     final Location outputLocation;
     final PrintStream logStream;
-    static final ThreadLocal<UnixPath> currentFile = new ThreadLocal<>();
+    static final ThreadLocal<JFSCoordinates> currentFile = new ThreadLocal<>();
     static final Logger LOG = Logger.getLogger(MemoryTool.class.getName());
 
     ToolContext(UnixPath dir, JFS jfs, Location inputLocation, Location outputLocation, PrintStream logStream) {

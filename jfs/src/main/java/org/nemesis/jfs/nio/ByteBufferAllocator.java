@@ -33,6 +33,12 @@ import java.util.EnumSet;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
+import java.util.function.Predicate;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.nemesis.jfs.JFSException;
+import org.nemesis.jfs.spi.JFSUtilities;
 
 /**
  *
@@ -46,9 +52,24 @@ abstract class ByteBufferAllocator implements AutoCloseable {
 
     public abstract ByteBuffer current();
 
+    @SuppressWarnings("LeakingThisInConstructor")
+    ByteBufferAllocator() {
+        ALL_ALLOCATORS.add(this);
+    }
+
     public int currentBufferSize() {
-        ByteBuffer buf = current();
-        return buf == null ? 0 : buf.capacity();
+        try {
+            ByteBuffer buf = current();
+            return buf == null ? 0 : buf.capacity();
+        } catch (Exception ex) {
+            Logger.getLogger(ByteBuffer.class.getName()).log(Level.SEVERE,
+                    "Error fetching current buffer size", ex);
+            return 0;
+        }
+    }
+
+    int currentAllocation() {
+        return currentBufferSize();
     }
 
     int[] last = new int[3];
@@ -56,7 +77,7 @@ abstract class ByteBufferAllocator implements AutoCloseable {
 
     public synchronized void move(int oldStart, int length, int newStart) throws IOException {
         if (oldStart == last[0] && newStart == last[2]) {
-            IOException ex = new IOException("Duplicate move call", lastCall);
+            IOException ex = new JFSException("Duplicate move call in " + this, lastCall);
             ex.printStackTrace(System.out);
             lastCall.printStackTrace(System.out);
             System.out.flush();
@@ -87,15 +108,15 @@ abstract class ByteBufferAllocator implements AutoCloseable {
             curr = curr.duplicate();
             byte[] bytes = new byte[length];
             try {
-                curr.limit(Math.max(oldStart + length, newStart+length));
+                curr.limit(Math.max(oldStart + length, newStart + length));
                 curr.position(oldStart);
                 curr.get(bytes);
                 curr.position(newStart);
                 curr.put(bytes);
             } catch (BufferUnderflowException ex) {
-                throw new IOException("Underflow fetching " + length + " bytes "
-                    + " at " + oldStart + " to move to " + newStart + " in buffer pos "
-                    + curr.position() + " limit " + curr.limit() + " cap " + curr.capacity(), ex);
+                throw new JFSException("Underflow fetching " + length + " bytes "
+                        + " at " + oldStart + " to move to " + newStart + " in buffer pos "
+                        + curr.position() + " limit " + curr.limit() + " cap " + curr.capacity(), ex);
             }
         }
     }
@@ -171,13 +192,20 @@ abstract class ByteBufferAllocator implements AutoCloseable {
     }
 
     public <T> T withBuffer(int position, int limit, Function<ByteBuffer, T> consumer) {
+        assert limit >= position : "Contradictory request to position buffer past requested limit,"
+                + " position: " + position + " " + limit + ": " + limit;
         ByteBuffer buf = current().duplicate();
+        assert buf.capacity() >= position : "Position > capacity";
+        assert buf.capacity() >= limit : "Limit > capacity";
         int oldLimit = buf.limit();
         int oldPos = buf.position();
         IllegalArgumentException thrown = null;
         try {
-            buf.position(position);
+            if (limit < oldPos) {
+                buf.position(Math.max(0, limit - 1));
+            }
             buf.limit(limit);
+            buf.position(position);
             return consumer.apply(buf);
         } catch (IllegalArgumentException e) {
             thrown = wrapException(buf, oldLimit, oldPos, limit, position, e);
@@ -217,6 +245,39 @@ abstract class ByteBufferAllocator implements AutoCloseable {
     interface BufferIOFunction<T> {
 
         T go(ByteBuffer buf) throws IOException;
+    }
+
+    static Set<ByteBufferAllocator> ALL_ALLOCATORS = JFSUtilities.newWeakSet();
+
+    static {
+        // Allow monitoring
+        if (JFSUtilities.areMetricsSupported()) {
+            JFSUtilities.registerMetric("jfs.heap", new AllocCollector(a -> a instanceof DefaultByteBufferAllocator
+                    && !((DefaultByteBufferAllocator) a).direct), true);
+            JFSUtilities.registerMetric("jfs.direct", new AllocCollector(a -> a instanceof DefaultByteBufferAllocator
+                    && ((DefaultByteBufferAllocator) a).direct), true);
+            JFSUtilities.registerMetric("jfs.mapped", new AllocCollector(a -> a instanceof MappedBufferAllocator), true);
+        }
+    }
+
+    static final class AllocCollector implements LongSupplier {
+
+        private final Predicate<? super ByteBufferAllocator> targetType;
+
+        public AllocCollector(Predicate<? super ByteBufferAllocator> targetType) {
+            this.targetType = targetType;
+        }
+
+        @Override
+        public long getAsLong() {
+            long result = 0;
+            for (ByteBufferAllocator bb : ALL_ALLOCATORS) {
+                if (targetType.test(bb)) {
+                    result += bb.currentAllocation();
+                }
+            }
+            return result;
+        }
     }
 
     static class DefaultByteBufferAllocator extends ByteBufferAllocator {
@@ -273,7 +334,8 @@ abstract class ByteBufferAllocator implements AutoCloseable {
         public synchronized ByteBuffer grow(int newSize, int copyBytesCount) {
             ByteBuffer old = current;
             current = allocate(newSize);
-            ops.set("alloc-grow from {0} to {1} copying {2}", old.capacity(), newSize, copyBytesCount);
+            ops.set("alloc-grow from {0} to {1} copying {2}", old == null
+                    ? 0 : old.capacity(), newSize, copyBytesCount);
             if (old != null && copyBytesCount > 0) {
 //                System.out.println("GROW AND COPY 0 - " + copyBytesCount + " to size " + newSize);
 //                Thread.dumpStack();
@@ -295,10 +357,14 @@ abstract class ByteBufferAllocator implements AutoCloseable {
                 = EnumSet.of(CREATE, READ,
                         WRITE, SPARSE,
                         TRUNCATE_EXISTING);
+        private static final Set<StandardOpenOption> REOPEN_OPTIONS
+                = EnumSet.of(CREATE, READ,
+                        WRITE, SPARSE);
 
         static {
             if (Boolean.getBoolean("no.sparse.files")) {
-                OPEN_OPTIONS.remove(TRUNCATE_EXISTING);
+                OPEN_OPTIONS.remove(SPARSE);
+                REOPEN_OPTIONS.remove(SPARSE);
             }
         }
         private final Ops ops;
@@ -329,12 +395,35 @@ abstract class ByteBufferAllocator implements AutoCloseable {
             return ops;
         }
 
+        @Override
+        int currentAllocation() {
+            try {
+                FileChannel fc = null;
+                synchronized (this) {
+                    fc = fileChannel;
+                }
+                if (fc != null && fc.isOpen()) {
+                    return (int) fc.size();
+                }
+            } catch (Exception ex) {
+                Logger.getLogger(ByteBufferAllocator.class.getName())
+                        .log(Level.INFO, null, ex);
+            }
+            return currentSize;
+        }
+
+        private boolean hadChannel;
+
         private synchronized FileChannel channel() throws IOException {
             if (fileChannel != null) {
-                return fileChannel;
+                if (fileChannel.isOpen()) {
+                    return fileChannel;
+                }
             }
-
-            return fileChannel = FileChannel.open(file, OPEN_OPTIONS);
+            FileChannel result = fileChannel = FileChannel.open(file,
+                    hadChannel ? REOPEN_OPTIONS : OPEN_OPTIONS);
+            hadChannel = true;
+            return result;
         }
 
         private static ByteBuffer zero() {
@@ -351,6 +440,12 @@ abstract class ByteBufferAllocator implements AutoCloseable {
                 }
             }
             FileChannel ch = channel();
+            for (int i = 0; i < 5; i++) {
+                // closed by interrupt on another thread?
+                if (!ch.isOpen()) {
+                    ch = channel();
+                }
+            }
             if (ch.size() < currentSize) {
                 ch.write(zero(), currentSize);
             }

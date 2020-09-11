@@ -16,12 +16,17 @@
 package org.nemesis.antlr.refactoring.usages;
 
 import com.mastfrog.range.IntRange;
+import com.mastfrog.util.cache.TimedCache;
 import com.mastfrog.util.collections.CollectionUtils;
 import static com.mastfrog.util.collections.CollectionUtils.mutableSetOf;
-import java.io.IOException;
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -36,12 +41,13 @@ import org.nemesis.extraction.attribution.ImportKeySupplier;
 import org.nemesis.extraction.key.ExtractionKey;
 import org.nemesis.extraction.key.NamedRegionKey;
 import org.nemesis.source.api.GrammarSource;
+import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
-import org.netbeans.api.project.ProjectManager;
 import org.netbeans.api.project.SourceGroup;
 import org.netbeans.api.project.Sources;
 import org.netbeans.modules.refactoring.api.Problem;
 import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
 import org.openide.util.Exceptions;
 
 /**
@@ -68,6 +74,16 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
     private static final String[] DEFAULT_SOURCE_GROUPS_TO_SCAN = new String[]{
         Sources.TYPE_GENERIC, "java", "resources", "modules", "antlr"};
 
+    private final TimedCache<ProjectAndMimeType, Iterable<FileObject>, Exception> IMPORTERS_CACHE
+            = TimedCache.createThrowing(60000, key -> {
+                BooleanSupplier cancelled = currentCanceller.get();
+                Iterable<FileObject> result = possibleImportersOf(cancelled, key.originator());
+                if (cancelled.getAsBoolean()) {
+                    return null;
+                }
+                return result;
+            }, ConcurrentHashMap::new);
+
     private void recursiveScan(Set<? super FileObject> addTo, String mimeType, FileObject file, Set<FileObject> seenDirs) {
         if (file.isFolder()) {
             if (seenDirs.contains(file)) {
@@ -82,6 +98,47 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
         }
     }
 
+    static final class ProjectAndMimeType {
+
+        final Project project;
+        final String mime;
+        final Path projectPath;
+        final Path originator;
+
+        public ProjectAndMimeType(Project project, String mime, FileObject originator) {
+            this.project = project;
+            this.mime = mime;
+            File file = FileUtil.toFile(project.getProjectDirectory());
+            projectPath = file == null ? Paths.get("/") : file.toPath();
+            this.originator = FileUtil.toFile(originator).toPath();
+        }
+
+        FileObject originator() {
+            return FileUtil.toFileObject(FileUtil.normalizeFile(originator.toFile()));
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == this) {
+                return true;
+            } else if (o == null || !(o instanceof ProjectAndMimeType)) {
+                return false;
+            }
+            ProjectAndMimeType p = (ProjectAndMimeType) o;
+            return projectPath.equals(p.projectPath) && mime.equals(p.mime);
+        }
+
+        @Override
+        public int hashCode() {
+            return mime.hashCode() + (71 * projectPath.hashCode());
+        }
+
+        @Override
+        public String toString() {
+            return projectPath + ";" + mime;
+        }
+    }
+
     /**
      * Find all file objects that could conceivably contain an import of the
      * passed file. Subclasses should override this method to quickly find only
@@ -92,33 +149,62 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
      * @return An iterable of files that may or may not import the passed file
      */
     protected Iterable<FileObject> possibleImportersOf(BooleanSupplier cancelled, FileObject file) {
-        Set<FileObject> files = new HashSet<>();
         try {
-            Project prj = ProjectManager.getDefault().findProject(file);
+            Project prj = FileOwnerQuery.getOwner(file);
             if (prj != null) {
-                Sources sources = prj.getLookup().lookup(Sources.class);
-                if (sources != null) {
-                    boolean scannedAny = false;
-                    Set<FileObject> seenDirs = new HashSet<>();
-                    for (String groupName : DEFAULT_SOURCE_GROUPS_TO_SCAN) {
-                        SourceGroup[] groups = sources.getSourceGroups(groupName);
-                        if (groups != null) {
-                            for (SourceGroup grp : groups) {
-                                FileObject root = grp.getRootFolder();
-                                recursiveScan(files, file.getMIMEType(), root, seenDirs);
-                                scannedAny = true;
-                            }
-                        }
+                return scanSourcesForProject(prj, file.getMIMEType());
+            }
+        } catch (IllegalArgumentException ex) {
+            Exceptions.printStackTrace(ex);
+        }
+        return Collections.emptySet();
+    }
+
+    private static final ThreadLocal<BooleanSupplier> currentCanceller = new ThreadLocal();
+
+    private Iterable<FileObject> importersOfUsingCache(BooleanSupplier cancelled, FileObject file) {
+        BooleanSupplier old = currentCanceller.get();
+        currentCanceller.set(cancelled);
+        try {
+            Project prj = FileOwnerQuery.getOwner(file);
+            if (prj != null) {
+                try {
+                    Iterable<FileObject> result = IMPORTERS_CACHE.get(new ProjectAndMimeType(prj, file.getMIMEType(), file));
+                    if (result != null) { // cacnelled
+                        return result;
                     }
-                    if (!scannedAny) {
-                        recursiveScan(files, file.getMIMEType(), prj.getProjectDirectory(), seenDirs);
+                } catch (Exception ex) {
+                    Exceptions.printStackTrace(ex);
+                }
+            }
+            return Collections.emptySet();
+        } finally {
+            currentCanceller.set(old);
+        }
+    }
+
+    Set<FileObject> scanSourcesForProject(Project prj, String mime) {
+        Sources sources = prj.getLookup().lookup(Sources.class);
+        if (sources != null) {
+            Set<FileObject> files = new HashSet<>();
+            boolean scannedAny = false;
+            Set<FileObject> seenDirs = new HashSet<>();
+            for (String groupName : DEFAULT_SOURCE_GROUPS_TO_SCAN) {
+                SourceGroup[] groups = sources.getSourceGroups(groupName);
+                if (groups != null) {
+                    for (SourceGroup grp : groups) {
+                        FileObject root = grp.getRootFolder();
+                        recursiveScan(files, mime, root, seenDirs);
+                        scannedAny = true;
                     }
                 }
             }
-        } catch (IOException | IllegalArgumentException ex) {
-            Exceptions.printStackTrace(ex);
+            if (!scannedAny) {
+                recursiveScan(files, mime, prj.getProjectDirectory(), seenDirs);
+            }
+            return files;
         }
-        return files;
+        return Collections.emptySet();
     }
 
     @Override
@@ -136,7 +222,7 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
                 if (optionalImportKey == null) {
                     Logger.getLogger(AntlrRefactoringPluginFactory.class.getName()).log(Level.WARNING, "Import finder for {0} does not " + "implement {1}, so import names cannot be " + "tied to specific keys", new Object[]{file.getMIMEType(), ImportKeySupplier.class.getName()});
                 } else {
-                    Iterable<FileObject> all = possibleImportersOf(cancelled, file);
+                    Iterable<FileObject> all = importersOfUsingCache(cancelled, file);
                     if (cancelled.getAsBoolean()) {
                         return result;
                     }
@@ -189,7 +275,7 @@ public abstract class SimpleImportersFinder extends ImportersFinder {
                 if (optionalImportKey != null) {
                     keys.add(optionalImportKey);
                 }
-                Iterable<FileObject> all = possibleImportersOf(cancelled, file);
+                Iterable<FileObject> all = importersOfUsingCache(cancelled, file);
                 Set<FileObject> seen = new HashSet<>();
                 seen.add(file);
                 for (FileObject fo : all) {

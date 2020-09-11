@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.live.execution;
+package org.nemesis.antlr.live.execution.impl;
 
 import com.mastfrog.util.collections.MapFactory;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import org.nemesis.antlr.live.execution.TypedCache.K;
+import org.nemesis.antlr.live.execution.impl.TypedCache.K;
 
 /**
  *

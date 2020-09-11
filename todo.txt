@@ -1,9 +1,11 @@
 
-Why is this logged as a dead parser when it is obviously not one?  Clearly causing a lot of extra reparses:
-
-INFO UP TO DATE false is dead parser false: EmbeddedParsingEnvironment(-ad2mr1spidm1-j0f1ks-1kdiuk12i4, JFSFileModifications(5xc1an.kee1rs0v FilesInfo([SOURCE_PATH]: a67e73536223c2ae74e1bc03944d3fd80fc2e663: {com/mastfrog/rust/RustLanguageLexer.g4,com/mastfrog/rust/RustLanguage.g4,com/mastfrog/rust/RustLexer.g4,imports/symbols.g4,imports/xidcontinue.g4,com/mastfrog/rust/Rust.g4,imports/xidstart.g4,imports/keywords.g4,imports/types.g4,})), GrammarRunResult(usable=true, result=org.nemesis.antlr.live.parsing.impl.ProxiesInvocationRunner$PreservedInvocationEnvironment@78afb98b(EnvRef(null 0 discarded false) - com.mastfrog.rust.RustLanguageParserExtractor generationInfo: ; /*; Passed grammar name: RustLanguage; Passed lexer name: RustLanguageLexer; Looking for 'RustLanguage'; ; Passed lexer grammar name 'RustLanguageLexer'; Expected prefix for lexer: 'RustLanguage'; Found lexer by name: com/mastfrog/rust/RustLanguageLexer.g4; Found parser by name: com/mastfrog/rust/RustLanguage.g4 ; */; )
-
-
+Or formatting:
+   | ~
+        ( '('
+        | ')'
+        | '{'
+        | '}'
+needs to special case ~ before a block.
 
 
 Preview bugs:

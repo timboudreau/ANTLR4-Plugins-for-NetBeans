@@ -46,4 +46,19 @@ public class AntlrFileObjectRelativeResolver extends RelativeResolverImplementat
                     .relativeTo(relativeTo);
         }
     }
+
+    @Override
+    public boolean equals(Object o) {
+        return o != null && o.getClass() == AntlrFileObjectRelativeResolver.class;
+    }
+
+    @Override
+    public int hashCode() {
+        return 37;
+    }
+
+    @Override
+    public String toString() {
+        return AntlrFileObjectRelativeResolver.class.getSimpleName();
+    }
 }

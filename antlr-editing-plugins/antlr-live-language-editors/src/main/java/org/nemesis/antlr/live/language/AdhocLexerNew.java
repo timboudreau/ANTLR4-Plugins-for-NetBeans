@@ -32,6 +32,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.nemesis.debug.api.Debug;
+import org.nemesis.misc.utils.ActivityPriority;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.lexer.Lexer;
@@ -107,25 +108,27 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         try {
             return Debug.runObjectThrowing("Lex " + AdhocMimeTypes.loggableMimeType(mimeType) + " "
                     + currentLexedName(), "", () -> {
-                        EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
-                        EmbeddedAntlrParserResult pres = parser.parse(text);
-                        ParseTreeProxy result = pres.proxy();
-                        LOG.log(Level.FINE, "Lexer gets new mime {0} parser "
-                                + "result tokens hash {1} hier tokens hash {2}",
-                                new Object[]{result.loggingInfo(), pres.grammarTokensHash(),
-                                    AdhocLanguageHierarchy.hierarchyInfo(mimeType).grammarTokensHash()});
+                        return ActivityPriority.REALTIME.wrapThrowing(() -> {
+                            EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
+                            EmbeddedAntlrParserResult pres = parser.parse(text);
+                            ParseTreeProxy result = pres.proxy();
+                            LOG.log(Level.FINE, "Lexer gets new mime {0} parser "
+                                    + "result tokens hash {1} hier tokens hash {2}",
+                                    new Object[]{result.loggingInfo(), pres.grammarTokensHash(),
+                                        AdhocLanguageHierarchy.hierarchyInfo(mimeType).grammarTokensHash()});
 
-                        AdhocLanguageHierarchy.maybeUpdateTokenInfo(mimeType, pres);
-                        Document doc = AdhocLanguageHierarchy.document(info);
-                        if (doc != null) {
-                            Debug.message("document", doc::toString);
-                            AdhocReparseListeners.reparsed(mimeType, doc, pres);
-                        }
-                        if (result.isUnparsed()) {
-                            Debug.failure("unparsed", parser::toString);
-                            LOG.log(Level.FINE, "Unparsed result for {0}", currentLexedName());
-                        }
-                        return proxy = result;
+                            AdhocLanguageHierarchy.maybeUpdateTokenInfo(mimeType, pres);
+                            Document doc = AdhocLanguageHierarchy.document(info);
+                            if (doc != null) {
+                                Debug.message("document", doc::toString);
+                                AdhocReparseListeners.reparsed(mimeType, doc, pres);
+                            }
+                            if (result.isUnparsed()) {
+                                Debug.failure("unparsed", parser::toString);
+                                LOG.log(Level.FINE, "Unparsed result for {0}", currentLexedName());
+                            }
+                            return proxy = result;
+                        });
                     });
         } catch (Exception ex) {
             String nm = currentLexedName();

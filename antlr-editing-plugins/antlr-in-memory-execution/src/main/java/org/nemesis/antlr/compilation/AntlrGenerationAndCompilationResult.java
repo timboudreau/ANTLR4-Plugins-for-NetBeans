@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 import javax.tools.JavaFileManager;
 import org.antlr.v4.tool.Grammar;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
@@ -36,8 +37,8 @@ import org.nemesis.jfs.result.ProcessingResult;
  */
 public final class AntlrGenerationAndCompilationResult implements ProcessingResult {
 
-    private final AntlrGenerationResult grammarGenerationResult;
-    private final CompileResult compilationResult;
+    private AntlrGenerationResult grammarGenerationResult;
+    private CompileResult compilationResult;
     private final Throwable thrown;
     private final JFSFileModifications touched;
 
@@ -50,70 +51,97 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
         this.touched = touched;
     }
 
-    public AntlrGenerationResult generationResult() {
+    public synchronized CompileResult compilationResult() {
+        return compilationResult;
+    }
+
+    @Override
+    public <T> T getWrapped(Class<T> type) {
+        if (type == AntlrGenerationResult.class) {
+            AntlrGenerationResult res;
+            synchronized(this) {
+                res = grammarGenerationResult;
+            }
+            if (res != null) {
+                return type.cast(res);
+            }
+        }
+        if (type == CompileResult.class) {
+            CompileResult res;
+            synchronized(this) {
+                res = compilationResult;
+            }
+            if (res != null) {
+                return type.cast(res);
+            }
+        }
+        return ProcessingResult.super.getWrapped(type);
+    }
+
+    public synchronized AntlrGenerationResult generationResult() {
         return grammarGenerationResult;
     }
 
-    public JavaFileManager.Location javaSourceOutputLocation() {
+    public synchronized JavaFileManager.Location javaSourceOutputLocation() {
         return grammarGenerationResult.javaSourceOutputLocation();
     }
 
-    public String packageName() {
-        return grammarGenerationResult.packageName();
-    }
-
-    public List<ParsedAntlrError> grammarGenerationErrors() {
+    public synchronized List<ParsedAntlrError> grammarGenerationErrors() {
         return grammarGenerationResult.errors();
     }
 
-    public List<String> grammarGenerationInfoMessages() {
-        return grammarGenerationResult.infoMessages();
-    }
-
-    public Grammar mainGrammar() {
+    public synchronized Grammar mainGrammar() {
         return grammarGenerationResult.mainGrammar();
     }
 
-    public int grammarGenerationExitCode() {
-        return grammarGenerationResult.exitCode();
-    }
-
-    public void refreshFileStatusForReuse() {
+    public synchronized void refreshFileStatusForReuse() {
         if (grammarGenerationResult != null) {
-            grammarGenerationResult.filesStatus.refresh();
+            grammarGenerationResult = grammarGenerationResult.recycle();
         }
         if (compilationResult != null) {
-            compilationResult.refreshFilesStatus();
+            compilationResult = compilationResult.refresh();
         }
         touched.refresh();
     }
 
     @Override
     public UpToDateness currentStatus() {
-        if (grammarGenerationResult == null || compilationResult == null) {
+        AntlrGenerationResult generate;
+        CompileResult compile;
+        Supplier<JFS> jfsSupplier;
+        synchronized (this) {
+            generate = this.grammarGenerationResult;
+            compile = this.compilationResult;
+            jfsSupplier = generate.jfsSupplier;
+        }
+        if (generate == null || compile == null || !generate.isUsable() || !compile.isUsable() || jfsSupplier == null) {
             return UpToDateness.UNKNOWN;
         }
-        UpToDateness result = grammarGenerationResult.currentStatus();
-        if (result.mayRequireRebuild()) {
-            return result;
+        JFS jfs = jfsSupplier.get();
+        if (!generate.areOutputFilesUpToDate(generate.grammarFile.path(), jfs)) {
+            return UpToDateness.STALE;
         }
-        result = compilationResult.currentStatus();
-        if (result.mayRequireRebuild()) {
-            return result;
+        if (!compile.areOutputFilesPresentIn(jfs) || !compile.areClassesUpToDateWithSources(jfs)) {
+            return UpToDateness.STALE;
         }
-        result = touched.changes().status();
-        if (!result.isUpToDate()) {
+        long compileStamp = compile.timestamp();
+        long genStamp = generate.timestamp;
+        if (genStamp > compileStamp) {
+            return UpToDateness.STALE;
         }
-        return result;
+        return UpToDateness.CURRENT;
     }
 
     @Override
-    public boolean isUsable() {
+    public synchronized boolean isUsable() {
         return thrown == null
+                && grammarGenerationResult != null
+                && compilationResult != null
                 && grammarGenerationResult.isUsable()
                 && compilationResult.isUsable();
     }
 
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append('(');
         sb.append("thrown=").append(thrown)
@@ -124,11 +152,11 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
         return sb.append(')').toString();
     }
 
-    public JFS jfs() {
+    public synchronized JFS jfs() {
         return grammarGenerationResult.jfs();
     }
 
-    public Optional<Grammar> findGrammar(String name) {
+    public synchronized Optional<Grammar> findGrammar(String name) {
         return grammarGenerationResult.findGrammar(name);
     }
 
@@ -139,34 +167,31 @@ public final class AntlrGenerationAndCompilationResult implements ProcessingResu
         }
     }
 
-    public Path sourceRoot() {
-        return compilationResult == null ? null : compilationResult.sourceRoot();
-    }
-
     @Override
     public Optional<Throwable> thrown() {
         if (this.thrown != null) {
             return Optional.of(this.thrown);
         }
-        if (grammarGenerationResult != null && grammarGenerationResult.thrown().isPresent()) {
-            return grammarGenerationResult.thrown();
-        }
-        if (compilationResult != null && compilationResult.thrown().isPresent()) {
-            return compilationResult.thrown();
+        synchronized (this) {
+            if (grammarGenerationResult != null && grammarGenerationResult.thrown().isPresent()) {
+                return grammarGenerationResult.thrown();
+            }
+            if (compilationResult != null && compilationResult.thrown().isPresent()) {
+                return compilationResult.thrown();
+            }
         }
         return Optional.empty();
     }
 
-    public boolean compileFailed() {
+    public synchronized boolean compileFailed() {
         return compilationResult == null ? false : compilationResult.compileFailed();
     }
 
-    public List<Path> compiledSourceFiles() {
+    public synchronized List<Path> compiledSourceFiles() {
         return compilationResult == null ? Collections.emptyList() : compilationResult.sources();
     }
 
-    public List<JavacDiagnostic> javacDiagnostics() {
+    public synchronized List<JavacDiagnostic> javacDiagnostics() {
         return compilationResult == null ? Collections.emptyList() : compilationResult.diagnostics();
     }
-
 }

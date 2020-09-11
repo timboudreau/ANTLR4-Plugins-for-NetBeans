@@ -53,7 +53,7 @@ final class JFSUrlStreamHandler extends URLStreamHandler {
     protected URLConnection openConnection(URL u) throws IOException {
         Matcher m = URL_PATTERN.matcher(u.toString());
         if (!m.find()) {
-            throw new IOException("Invalid storage URL: " + u);
+            throw new JFSException("Invalid storage URL: " + u);
         }
         String fsid = m.group(1);
         JFS instance = null;

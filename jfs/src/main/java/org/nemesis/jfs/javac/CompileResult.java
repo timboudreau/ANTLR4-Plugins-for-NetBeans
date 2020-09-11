@@ -22,12 +22,17 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
+import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileModifications;
+import org.nemesis.jfs.JFSFileModifications.FileChanges;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.result.ProcessingResult;
 import org.nemesis.jfs.result.UpToDateness;
@@ -37,7 +42,7 @@ import org.nemesis.jfs.result.UpToDateness;
  *
  * @author Tim Boudreau
  */
-public class CompileResult implements ProcessingResult {
+public final class CompileResult implements ProcessingResult {
 
     boolean callResult;
     long elapsed;
@@ -45,18 +50,96 @@ public class CompileResult implements ProcessingResult {
     Throwable thrown;
     private final Path sourceRoot;
     private final List<Path> files = new ArrayList<>();
-    private final JFSFileModifications filesState;
+    private final JFSFileModifications inputFilesState;
+    private final JFSFileModifications outputFilesState;
+    private Set<JFSCoordinates> outputFiles;
+    private Set<JFSCoordinates> inputFiles;
+    long timestamp = System.currentTimeMillis();
 
-    CompileResult(Path sourceRoot, JFSFileModifications filesState) {
+    CompileResult(Path sourceRoot, JFSFileModifications inputFilesState, JFSFileModifications outputFilesState) {
         this.sourceRoot = sourceRoot;
-        this.filesState = filesState;
+        this.inputFilesState = inputFilesState;
+        this.outputFilesState = outputFilesState;
+    }
+
+    public CompileResult refresh() {
+        if (inputFilesState == null || outputFilesState == null) {
+            return this;
+        }
+        if (inputFilesState.isEmpty() || outputFilesState.isEmpty()) {
+            return this;
+        }
+        CompileResult result = new CompileResult(sourceRoot, inputFilesState.withUpdatedState(), outputFilesState.withUpdatedState());
+        result.files.addAll(files);
+        result.outputFiles = outputFiles;
+        result.inputFiles = inputFiles;
+        result.callResult = callResult;
+        result.elapsed = elapsed;
+        result.thrown = thrown;
+        result.diagnostics.addAll(diagnostics);
+        result.timestamp = timestamp;
+        return result;
+    }
+
+    public long timestamp() {
+        return timestamp;
+    }
+
+    public Set<JFSCoordinates> inputFiles() {
+        return inputFiles == null ? Collections.emptySet() : inputFiles;
+    }
+
+    /**
+     * Get the set of files touched.
+     *
+     * @return The set of written files
+     */
+    public Set<JFSCoordinates> outputFiles() {
+        return outputFiles == null ? Collections.emptySet() : outputFiles;
+    }
+
+    /**
+     * Determine if all of the files written during compilation exist in the
+     * passed JFS.
+     *
+     * @param jfs A JFS
+     * @return true if the set of touched files is non-empty and all of them are
+     * present
+     */
+    public boolean areOutputFilesPresentIn(JFS jfs) {
+        if (outputFiles == null || outputFiles.isEmpty()) {
+            return false;
+        }
+        for (JFSCoordinates coord : outputFiles) {
+            if (coord.resolve(jfs) == null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
      * Create a fake compilation result, for cases when compilation is not
-     * needed because sources are either broken or up-to-date.  The
-     * result will have an empty modification set and so will always
-     * be up to date.
+     * needed because sources are either broken or up-to-date. The result will
+     * have an empty modification set and so will always be up to date.
+     *
+     * @param success If true, the result will appear to be successful
+     * compilation
+     * @param sourceRoot The source root
+     * @return A compiler result
+     */
+    public static CompileResult precompiled(boolean success, Path sourceRoot, Set<JFSCoordinates> outputFiles) {
+        JFSFileModifications empty = JFSFileModifications.empty();
+        CompileResult result = new CompileResult(sourceRoot, empty, empty);
+        result.callResult = success;
+        result.outputFiles = outputFiles;
+        return result;
+    }
+
+    /**
+     * Create a fake compilation result, for cases when compilation is not
+     * needed because sources are either broken or up-to-date. The result will
+     * have an empty modification set and so will always be up to date.
      *
      * @param success If true, the result will appear to be successful
      * compilation
@@ -64,16 +147,16 @@ public class CompileResult implements ProcessingResult {
      * @return A compiler result
      */
     public static CompileResult precompiled(boolean success, Path sourceRoot) {
-        CompileResult result = new CompileResult(sourceRoot, JFSFileModifications.empty());
+        JFSFileModifications empty = JFSFileModifications.empty();
+        CompileResult result = new CompileResult(sourceRoot, empty, empty);
         result.callResult = success;
         return result;
     }
 
     /**
      * Create a fake compilation result, for cases when compilation is not
-     * needed because sources are either broken or up-to-date.  The
-     * result will have an empty modification set and so will always
-     * be up to date.
+     * needed because sources are either broken or up-to-date. The result will
+     * have an empty modification set and so will always be up to date.
      *
      * @param success If true, the result will appear to be successful
      * compilation
@@ -81,15 +164,15 @@ public class CompileResult implements ProcessingResult {
      * @return A compiler result
      */
     public static CompileResult precompiled(boolean success) {
-        CompileResult result = new CompileResult(UnixPath.empty(), JFSFileModifications.empty());
+        JFSFileModifications empty = JFSFileModifications.empty();
+        CompileResult result = new CompileResult(UnixPath.empty(), empty, empty);
         result.callResult = success;
         return result;
     }
 
-
     /**
-     * Determine if specific errors (as determined by Diagnostic.sourceCode()) exist
-     * in the set of diagnostics in this result.
+     * Determine if specific errors (as determined by Diagnostic.sourceCode())
+     * exist in the set of diagnostics in this result.
      *
      * @param errors Some error codes
      * @return True if any of them are present
@@ -110,23 +193,73 @@ public class CompileResult implements ProcessingResult {
         return false;
     }
 
-    public JFSFileModifications filesState() {
-        return filesState;
+    public boolean areClassesUpToDateWithSources(JFS in) {
+        long newestSource = Long.MIN_VALUE;
+        if (inputFiles == null || inputFiles.isEmpty()) {
+            return false;
+        }
+        for (JFSCoordinates coord : inputFiles()) {
+            JFSFileObject fo = coord.resolve(in);
+            if (fo != null) {
+                newestSource = Math.max(newestSource, fo.getLastModified());
+            }
+        }
+        long newestClass = Long.MIN_VALUE;
+        for (JFSCoordinates coord : outputFiles()) {
+            JFSFileObject fo = coord.resolve(in);
+            if (fo != null) {
+                long clazzTimestamp = fo.getLastModified();
+                newestClass = Math.max(clazzTimestamp, fo.getLastModified());
+            }
+        }
+        return newestClass > newestSource;
+    }
+
+    public FileChanges inputFileChanges() {
+        return inputFilesState.changes();
+    }
+
+    public FileChanges outputFileChanges() {
+        return outputFilesState.changes();
     }
 
     static CompileResult.Builder builder(Path sourceRoot) {
         return new Builder(sourceRoot);
     }
 
-    public void refreshFilesStatus() {
-        filesState.refresh();
+    private String outputFilePaths() {
+        StringBuilder sb = new StringBuilder(" output: [");
+        if (outputFiles != null) {
+            for (Iterator<JFSCoordinates> it = outputFiles().iterator(); it.hasNext();) {
+                sb.append(it.next().path());
+                if (it.hasNext()) {
+                    sb.append(", ");
+                }
+            }
+        }
+        return sb.append(']').toString();
     }
+
+    private String inputFilePaths() {
+        StringBuilder sb = new StringBuilder(" input: [");
+        if (outputFiles != null) {
+            for (Iterator<JFSCoordinates> it = inputFiles().iterator(); it.hasNext();) {
+                sb.append(it.next().path());
+                if (it.hasNext()) {
+                    sb.append(", ");
+                }
+            }
+        }
+        return sb.append(']').toString();
+    }
+
 
     @Override
     public String toString() {
         return "CompileResult(completed " + callResult + " thrown " + thrown
                 + " diagnostics " + diagnostics.size() + " sourceFiles "
-                + files.size() + " elapsedMs " + elapsed + ")";
+                + files.size() + " elapsedMs " + elapsed
+                + outputFilePaths() + inputFilePaths() + " diags: " + diagnostics + ')';
     }
 
     /**
@@ -144,7 +277,7 @@ public class CompileResult implements ProcessingResult {
 
     @Override
     public UpToDateness currentStatus() {
-        return filesState.changes().status();
+        return inputFilesState.changes().status();
     }
 
     static final class Builder {
@@ -155,7 +288,10 @@ public class CompileResult implements ProcessingResult {
         private Throwable thrown;
         private boolean callResult;
         long elapsed;
-        private JFSFileModifications filesState;
+        private JFSFileModifications inputFilesState;
+        private Set<JFSCoordinates> outputFiles;
+        private Set<JFSCoordinates> inputFiles;
+        private JFSFileModifications outputFilesState;
 
         Builder(Path sourceRoot) {
             assert sourceRoot != null : "Source root null";
@@ -171,13 +307,27 @@ public class CompileResult implements ProcessingResult {
         }
 
         public CompileResult build() {
-            CompileResult res = new CompileResult(sourceRoot, filesState);
+            CompileResult res = new CompileResult(sourceRoot, inputFilesState == null ? JFSFileModifications.empty() : inputFilesState,
+                    outputFilesState == null ? JFSFileModifications.empty() : outputFilesState);
             res.diagnostics.addAll(diagnostics);
             res.files.addAll(files);
             res.thrown = thrown;
             res.callResult = callResult;
+            res.inputFiles = inputFiles;
             res.elapsedMillis(elapsed);
+            res.outputFiles = outputFiles == null ? Collections.emptySet()
+                    : outputFiles;
             return res;
+        }
+
+        public Builder withOutputFiles(Set<JFSCoordinates> coords) {
+            this.outputFiles = coords;
+            return this;
+        }
+
+        public Builder withInputFiles(Set<JFSCoordinates> coords) {
+            this.inputFiles = coords;
+            return this;
         }
 
         public Builder addDiagnostic(JavacDiagnostic diag) {
@@ -227,7 +377,11 @@ public class CompileResult implements ProcessingResult {
         }
 
         public void setInitialFileStatus(JFSFileModifications status) {
-            this.filesState = status;
+            this.inputFilesState = status;
+        }
+
+        public void setOutputFileStatus(JFSFileModifications outputModifications) {
+            this.outputFilesState = outputModifications;
         }
     }
 

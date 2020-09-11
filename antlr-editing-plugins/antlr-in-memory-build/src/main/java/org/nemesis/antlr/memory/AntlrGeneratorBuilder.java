@@ -65,16 +65,8 @@ public final class AntlrGeneratorBuilder<T> {
     }
 
     public AntlrGeneratorBuilder<T> withInterceptor(RerunInterceptor icept) {
-        this.interceptor = interceptor;
+        this.interceptor = icept;
         return this;
-    }
-
-    static AntlrGeneratorBuilder<AntlrGenerationResult> fromGenerator(AntlrGenerator res) {
-        AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(res.jfs,
-                (AntlrGeneratorBuilder<AntlrGenerationResult> bldr) -> bldr.building(res.sourcePath(), res.importDir()));
-        result.interceptor = res.interceptor;
-        result.pathHints = res.hints();
-        return result;
     }
 
     static AntlrGeneratorBuilder<AntlrGenerationResult> fromResult(AntlrGenerationResult res) {

@@ -40,23 +40,20 @@ import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.swing.text.JTextComponent;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.compilation.GrammarRunResult;
-import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.SourceInvalidator;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
 import org.netbeans.lib.editor.util.swing.DocumentListenerPriority;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
-import org.netbeans.modules.parsing.api.ResultIterator;
-import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
-import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
@@ -80,7 +77,7 @@ import org.openide.util.WeakListeners;
  */
 final class AdhocHighlighterManager {
 
-    protected static final RequestProcessor THREAD_POOL = new RequestProcessor("antlr-highlighting", 5, true);
+    protected static final RequestProcessor THREAD_POOL = new RequestProcessor("antlr-highlighting", 5, false);
     private static final Logger LOG = Logger.getLogger(AdhocHighlighterManager.class.getName());
     protected final static int REPARSE_DELAY = 750;
     protected final static int REPAINT_DELAY = 75;
@@ -93,7 +90,8 @@ final class AdhocHighlighterManager {
     private final Context ctx;
     private final AdhocColorings colorings;
     private final AbstractAntlrHighlighter[] highlighters;
-    private final ComponentListener cl;
+    // Need to hold a strong reference
+    private final @SuppressWarnings("unused") ComponentListener cl;
     private volatile boolean showing;
 
     AdhocHighlighterManager(String mimeType, Context ctx) {
@@ -314,34 +312,24 @@ final class AdhocHighlighterManager {
                 if (f != null) {
                     FileObject fo = FileUtil.toFileObject(f);
                     if (fo != null) {
-                        INVALIDATOR.accept(fo);
-                        try {
-                            DataObject dob = DataObject.find(fo);
-                            EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
-                            if (ck != null) {
-                                Document doc = ck.getDocument();
-                                if (doc != null) {
-                                    Debug.message("reparse-document", doc::toString);
-                                    boolean ok = isTrue(ParsingUtils.parse(doc, this::checkParserResult));
-                                    if (ok) {
-                                        scheduleSampleTextReparse();
-                                    }
-                                    return;
-                                }
-                            }
-                            boolean ok = isTrue(ParsingUtils.parse(fo, this::checkParserResult));
-                            if (ok) {
-                                scheduleSampleTextReparse();
-                            }
-                            Debug.message("reparse-file", fo::toString);
-                        } catch (Exception ex) {
-                            Debug.thrown(ex);
-                            Exceptions.printStackTrace(ex);
+                        if (reparseOrFindExtraction(fo)) {
+                            scheduleSampleTextReparse();
                         }
                     }
                 }
             }
         });
+    }
+
+    private boolean reparseOrFindExtraction(FileObject grammar) {
+        Extraction ext = NbAntlrUtils.extractionFor(grammar);
+        if (ext == null || ext.isPlaceholder() || ext.isDisposed()) {
+            return false;
+        }
+        if (RebuildSubscriptions.throttle().isThrottled(ext)) {
+            return false;
+        }
+        return true;
     }
 
     static boolean isTrue(Boolean bool) {
@@ -460,23 +448,6 @@ final class AdhocHighlighterManager {
     void clearLastParseInfo() {
         lastParseInfo.set(null);
     }
-
-    final UserTask ut = new UserTask() {
-        @Override
-        public void run(ResultIterator resultIterator) throws Exception {
-            Debug.runObjectThrowing(this, "get-parser-result " + mimeType, () -> {
-                Parser.Result res = resultIterator.getParserResult();
-                if (res == null) {
-                    Debug.failure("null-parse-result", () -> "");
-                } else {
-                    Debug.success("parse-result", () -> {
-                        return res.toString();
-                    });
-                }
-                return res;
-            });
-        }
-    };
 
     static final class HighlightingInfo {
 

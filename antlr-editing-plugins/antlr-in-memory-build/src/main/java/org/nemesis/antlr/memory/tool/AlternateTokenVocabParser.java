@@ -30,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileObject;
 
 final class AlternateTokenVocabParser {
@@ -73,7 +74,7 @@ final class AlternateTokenVocabParser {
 
         if (fo != null) {
             JFSFileObject foFinal = fo;
-            Grammar pre = tool.withCurrentPath(fo.path(), () -> {
+            Grammar pre = tool.withCurrentPath(fo.toCoordinates(), () -> {
                 return tool.readOneGrammar(foFinal, adjacent.getFileName().toString(), ctx);
             });
             if (pre != null) {
@@ -97,11 +98,12 @@ final class AlternateTokenVocabParser {
         try {
             JFSFileObject fullFile = ctx.getImportedVocabFile(g, tool);
             JFSFileObject ff = fullFile;
-            tool.withCurrentPathThrowing(fullFile.path(), () -> {
+            JFSCoordinates coords = fullFile.toCoordinates();
+            tool.withCurrentPathThrowing(fullFile.toCoordinates(), () -> {
                 int maxTokenType = -1;
                 Pattern tokenDefPattern = Pattern.compile("([^\n]+?)[ \\t]*?=[ \\t]*?([0-9]+)");
                 try (BufferedReader b = new BufferedReader(ff.openReader(true), ff.length())) {
-                    tool.noteInputFile(g, vocabName, ff.path());
+                    tool.noteInputFile(g, vocabName, coords);
                     String tokenDef = b.readLine();
                     int lineNum = 1;
                     while (tokenDef != null) {

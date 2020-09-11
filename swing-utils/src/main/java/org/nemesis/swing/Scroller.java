@@ -102,6 +102,9 @@ public final class Scroller {
         }
         if (bounds.height <= 0) {
             bounds.height = 17;
+        } else if (bounds.height > 17) {
+            bounds.y += bounds.height / 2;
+            bounds.height = 17;
         }
         if (realTargetHeight == 0) {
             realTargetHeight = bounds.height;
@@ -222,6 +225,7 @@ public final class Scroller {
     void done() {
         realTargetHeight = 0;
         timer.stop();
+        tick = 0;
         comp.removeComponentListener(listener);
         comp.removeMouseWheelListener(listener);
         comp.removeMouseListener(listener);

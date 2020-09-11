@@ -66,6 +66,14 @@ public class ThreadLocalCache<T, R> {
         cache.remove();
     }
 
+    public R get(T key) {
+        Map<T, R> map = cache.get();
+        if (map == null) {
+            return null;
+        }
+        return map.computeIfAbsent(key, valueSupplier);
+    }
+
     public void enter(Runnable r) {
         boolean firstEntry = cache.get() == null;
         enter();
@@ -123,12 +131,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            r.accept(value);
+            r.accept(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();
@@ -140,12 +143,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            r.accept(value);
+            r.accept(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();
@@ -157,12 +155,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            return r.apply(value);
+            return r.apply(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();
@@ -174,12 +167,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            return r.apply(value);
+            return r.apply(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();
@@ -191,12 +179,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            return r.apply(value);
+            return r.apply(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();
@@ -208,12 +191,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            return r.test(value);
+            return r.test(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();
@@ -225,12 +203,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            return r.test(value);
+            return r.test(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();
@@ -242,12 +215,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            return r.test(value);
+            return r.test(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();
@@ -259,12 +227,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            return r.applyAsInt(value);
+            return r.applyAsInt(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();
@@ -276,12 +239,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            return r.applyAsInt(value);
+            return r.applyAsInt(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();
@@ -293,12 +251,7 @@ public class ThreadLocalCache<T, R> {
         boolean firstEntry = cache.get() == null;
         Map<T, R> map = enter();
         try {
-            R value = map.get(key);
-            if (value == null) {
-                value = valueSupplier.apply(key);
-                map.put(key, value);
-            }
-            return r.applyAsInt(value);
+            return r.applyAsInt(map.computeIfAbsent(key, valueSupplier));
         } finally {
             if (firstEntry) {
                 exit();

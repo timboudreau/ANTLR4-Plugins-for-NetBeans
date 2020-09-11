@@ -140,28 +140,24 @@ public abstract class DocumentAdapterRegistry {
         }
 
         @Override
+        public String toString() {
+            return "PolyResolv(" + origs + ")";
+        }
+
+        @Override
         public int hashCode() {
-            int hash = 3;
-            hash = 67 * hash + Objects.hashCode(this.origs);
-            return hash;
+            return origs.hashCode() + (71 * type.hashCode());
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) {
+            if (obj == this) {
                 return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
+            } else if (obj == null || !(obj instanceof PolyResolv<?>)) {
                 return false;
             }
             final PolyResolv<?> other = (PolyResolv<?>) obj;
-            if (!Objects.equals(this.origs, other.origs)) {
-                return false;
-            }
-            return true;
+            return origs.equals(other.origs);
         }
     }
 
@@ -181,6 +177,12 @@ public abstract class DocumentAdapterRegistry {
             this.mime = mime;
         }
 
+        @Override
+        public int hashCode() {
+            return mime.hashCode() + (71 * documentType.hashCode());
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (o == this) {
                 return true;
@@ -195,7 +197,7 @@ public abstract class DocumentAdapterRegistry {
 
         @Override
         public String toString() {
-            return documentType.getName() + "{" + mime + "}";
+            return documentType.getSimpleName() + "{" + mime + "}";
         }
     }
 
@@ -247,6 +249,12 @@ public abstract class DocumentAdapterRegistry {
         }
 
         @Override
+        public String toString() {
+            return "RRWrap3(" + orig + " -> " + type.getSimpleName() + " {"
+                    + cvt + ", " + rev + "})";
+        }
+
+        @Override
         public Optional<T> resolve(T relativeTo, String name) {
             F obj = cvt.apply(relativeTo);
             if (obj != null) {
@@ -270,23 +278,15 @@ public abstract class DocumentAdapterRegistry {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) {
+            if (obj == this) {
                 return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
+            } else if (obj == null || !(obj instanceof RRWrap3<?,?>)) {
                 return false;
             }
             final RRWrap3<?, ?> other = (RRWrap3<?, ?>) obj;
-            if (!Objects.equals(this.orig, other.orig)) {
-                return false;
-            }
-            if (!Objects.equals(this.rev, other.rev)) {
-                return false;
-            }
-            return Objects.equals(this.cvt, other.cvt);
+            return orig.equals(other.orig) &&
+                    Objects.equals(cvt, other.cvt)
+                    && Objects.equals(rev, other.rev);
         }
     }
 

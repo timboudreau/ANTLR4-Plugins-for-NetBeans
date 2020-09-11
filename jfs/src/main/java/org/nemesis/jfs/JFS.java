@@ -63,6 +63,7 @@ import static javax.tools.JavaFileObject.Kind.SOURCE;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
+import org.nemesis.jfs.Checkpoint.Checkpoints;
 import org.nemesis.jfs.nio.BlockStorageKind;
 import org.nemesis.jfs.spi.JFSUtilities;
 
@@ -116,7 +117,8 @@ import org.nemesis.jfs.spi.JFSUtilities;
  * </p>
  * If <code>JFSUrlStreamHandlerFactory</code> is registered with the system (in
  * NetBeans this will happen automatically via the service provider file), then
- * this JFS's files' URLs will be resolvable - e.g. jfs:CLASS_OUTPUT/com/foo/Bar.txt.
+ * this JFS's files' URLs will be resolvable - e.g.
+ * jfs:CLASS_OUTPUT/com/foo/Bar.txt.
  *
  * @author Tim Boudreau
  */
@@ -128,6 +130,7 @@ public final class JFS implements JavaFileManager {
     private final BiConsumer<Location, FileObject> listener;
     private final StandardJavaFileManager delegate;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    final Checkpoints checkpoints = Checkpoint.newCheckpoints();
     static final Logger LOG = Logger.getLogger(JFS.class.getName());
 
     JFS() {
@@ -153,6 +156,10 @@ public final class JFS implements JavaFileManager {
         this(JFSStorageAllocator.defaultAllocator(), listener);
     }
 
+    public Checkpoint newCheckpoint() {
+        return checkpoints.newCheckpoint();
+    }
+
     @SuppressWarnings("LeakingThisInConstructor")
     private JFS(JFSStorageAllocator<?> allocator, BiConsumer<Location, FileObject> listener) {
         this(allocator, listener, Locale.getDefault());
@@ -171,7 +178,7 @@ public final class JFS implements JavaFileManager {
      * JFS namespace.
      * <p>
      * This lock is provided for <i>convenience</i> - it is not used internally
-     * by the JFS.  It is up to the caller to use the read- and write-locks
+     * by the JFS. It is up to the caller to use the read- and write-locks
      * appropriately when performing operations that modify or read the JFS;
      * these methods simply guarantee there is one lock all consumers of this
      * JFS will have access to.
@@ -200,7 +207,7 @@ public final class JFS implements JavaFileManager {
      * JFS namespace.
      * <p>
      * This lock is provided for <i>convenience</i> - it is not used internally
-     * by the JFS.  It is up to the caller to use the read- and write-locks
+     * by the JFS. It is up to the caller to use the read- and write-locks
      * appropriately when performing operations that modify or read the JFS;
      * these methods simply guarantee there is one lock all consumers of this
      * JFS will have access to.
@@ -749,7 +756,7 @@ public final class JFS implements JavaFileManager {
         if (more.length == 0) {
             return getClassLoader(loc, parent);
         }
-        Set<Location> all = new HashSet<>();
+        Set<Location> all = new LinkedHashSet<>();
         Location[] locs = new Location[more.length + 1];
         System.arraycopy(more, 0, locs, 1, more.length);
         locs[0] = loc;
@@ -759,6 +766,7 @@ public final class JFS implements JavaFileManager {
             if (all.contains(l)) {
                 continue;
             }
+            all.add(l);
             JFSStorage storage = storageForLocation(l, includeEmptyLocations);
             if (storage == null) {
                 continue;
@@ -780,6 +788,26 @@ public final class JFS implements JavaFileManager {
         return stor.list(consumer);
     }
 
+    /**
+     * For debugging/logging purposes, create a string listing of some locations
+     * in this JFS.
+     *
+     * @param first`The first location
+     * @param more More locations
+     * @return A string listing
+     */
+    public String list(Location first, Location... more) {
+        StringBuilder sb = new StringBuilder();
+        BiConsumer<Location, JFSFileObject> writer = (loc, file) -> {
+            sb.append(" * ").append(loc).append(file.getName()).append('\n');
+        };
+        list(first, writer);
+        for (Location l : more) {
+            list(l, writer);
+        }
+        return sb.toString();
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public Iterable<JavaFileObject> list(Location location, String packageName, Set<JavaFileObject.Kind> kinds, boolean recurse) throws IOException {
@@ -788,6 +816,16 @@ public final class JFS implements JavaFileManager {
                 || StandardLocation.ANNOTATION_PROCESSOR_PATH == location) {
             Iterable<JavaFileObject> fos
                     = delegate.list(location, packageName, kinds, recurse);
+            if (StandardLocation.CLASS_PATH == location) {
+                // If we want the compiler to be able to load previously compiled classes in this JFS,
+                // then the listing for CLASS_PATH needs to include those from CLASS_OUTPUT
+                Iterable<JavaFileObject> localClasses = _list(StandardLocation.CLASS_OUTPUT, packageName, kinds, recurse);
+                if (storageForLocation.containsKey(location)) {
+                    return CollectionUtils.concatenate(localClasses, fos, _list(location, packageName, kinds, recurse));
+                } else {
+                    return CollectionUtils.concatenate(localClasses, fos);
+                }
+            }
             if (storageForLocation.containsKey(location)) {
                 return CollectionUtils.concatenate(fos, _list(location, packageName, kinds, recurse));
             }
@@ -896,7 +934,7 @@ public final class JFS implements JavaFileManager {
         Name name = Name.forClassName(className, kind);
         JFSStorage stor = storageForLocation(location, false);
         if (stor == null) {
-            throw new IOException("No files in location " + location.getName());
+            throw new FileNotFoundException("No files in location " + location.getName());
         }
         JFSJavaFileObject result = stor.findJavaFileObject(name, false);
         if (result == null) {
@@ -912,6 +950,7 @@ public final class JFS implements JavaFileManager {
         Name name = Name.forClassName(className, kind);
         JFSStorage stor = storageForLocation(location, true);
         JFSJavaFileObject result = stor.findJavaFileObject(name, true);
+        checkpoints.touch(result);
         LOG.log(Level.FINEST, "getJavaFileForOutput {0} {1} {2} gets {3}",
                 new Object[]{location, className, kind, result});
         return result;
@@ -919,10 +958,11 @@ public final class JFS implements JavaFileManager {
 
     @Override
     public JFSFileObject getFileForInput(Location location, String packageName, String relativeName) throws IOException {
+        new Exception("Get file for input " + packageName + " type " + relativeName).printStackTrace();
         Name name = Name.forFileName(packageName, relativeName);
         JFSStorage stor = storageForLocation(location, false);
         if (stor == null) {
-            throw new IOException("Nothing stored in location: " + location + " (looking up " + name + ")");
+            throw new FileNotFoundException("Nothing stored in location: " + location + " (looking up " + name + ")");
         }
         JFSFileObjectImpl obj = stor.find(name, false);
         if (obj == null) {
@@ -949,8 +989,8 @@ public final class JFS implements JavaFileManager {
     }
 
     /**
-     * For debugging purposes, copy the contents (some locations of) this JFS to
-     * disk somewhere.
+     * For debugging purposes, copy the contents of (some locations of) this JFS
+     * to disk somewhere.
      *
      * @param dir A folder The destination folder the folder structure of this
      * JFS will be recreated in.
@@ -997,7 +1037,10 @@ public final class JFS implements JavaFileManager {
         if (java) {
             result = stor.findJavaFileObject(name, true);
         } else {
-            result = stor.find(name, true);
+            result = stor.find(name, true, checkpoints);
+        }
+        if (result != null) {
+            checkpoints.touch(result);
         }
         LOG.log(Level.FINEST, "getFileForOutput {0} {1} - {2} gets {3} kind {4}",
                 new Object[]{location, packageName, name, result, name.kind()});
@@ -1136,10 +1179,24 @@ public final class JFS implements JavaFileManager {
         return -1;
     }
 
+    /**
+     * Alias a file into this filesystem without reading its bytes or testing
+     * its existence unless an attempt is made to read it, and asserting a
+     * particular file encoding for the file which may be different than that of
+     * this JFS. The resulting JFSFileObject cannot be written to.
+     *
+     * @param file The file's actual path on disk
+     * @param loc The location to include it at
+     * @param asPath The path that should be used locally
+     * @param encoding The character set the file in question uses
+     * @return A file object
+     */
     public JFSFileObject masquerade(Path file, Location loc, UnixPath asPath, Charset encoding) {
         LOG.log(Level.FINEST, "JFS.masquerade(Path): Add {0} as {1} bytes to {2} in {3} with {4}",
                 new Object[]{file, asPath, loc, fsid, encoding.name()});
-        return storageForLocation(loc, true).addRealFile(asPath, file, encoding);
+        JFSFileObject fo = storageForLocation(loc, true).addRealFile(asPath, file, encoding);
+        checkpoints.touch(fo);
+        return fo;
     }
 
     /**
@@ -1155,7 +1212,9 @@ public final class JFS implements JavaFileManager {
     public JFSFileObject masquerade(Path file, Location loc, UnixPath asPath) {
         LOG.log(Level.FINEST, "JFS.masquerade(Path): Add {0} as {1} bytes to {2} in {3}",
                 new Object[]{file, asPath, loc, fsid});
-        return storageForLocation(loc, true).addRealFile(asPath, file);
+        JFSFileObject result = storageForLocation(loc, true).addRealFile(asPath, file);
+        checkpoints.touch(result);
+        return result;
     }
 
     /**
@@ -1171,7 +1230,9 @@ public final class JFS implements JavaFileManager {
     public JFSFileObject masquerade(Document doc, Location loc, UnixPath asPath) {
         LOG.log(Level.FINEST, "JFS.masquerade(Document): Add {0} as {1} bytes to {2} in {3}",
                 new Object[]{doc, asPath, loc, fsid});
-        return storageForLocation(loc, true).addDocument(asPath, doc);
+        JFSFileObject result = storageForLocation(loc, true).addDocument(asPath, doc);
+        checkpoints.touch(result);
+        return result;
     }
 
     /**
@@ -1281,6 +1342,7 @@ public final class JFS implements JavaFileManager {
         boolean java = name.kind() == CLASS || name.kind() == SOURCE;
         JFSFileObjectImpl result = storage.allocate(name, java);
         result.setBytes(bytes, lastModified);
+        checkpoints.touch(result);
         return result;
     }
 
@@ -1338,6 +1400,7 @@ public final class JFS implements JavaFileManager {
         boolean java = name.kind() == CLASS || name.kind() == SOURCE;
         JFSFileObjectImpl result = storage.allocate(name, java);
         result.setBytes(bytes, lastModified);
+        checkpoints.touch(result);
         return result;
     }
 

@@ -42,6 +42,21 @@ public final class AntlrSnapshotRelativeResolver extends RelativeResolverImpleme
     }
 
     @Override
+    public boolean equals(Object o) {
+        return o != null && o.getClass() == AntlrSnapshotRelativeResolver.class;
+    }
+
+    @Override
+    public int hashCode() {
+        return 1031;
+    }
+
+    @Override
+    public String toString() {
+        return AntlrSnapshotRelativeResolver.class.getSimpleName();
+    }
+
+    @Override
     public Optional<Snapshot> resolve(Snapshot relativeTo, String name) {
         ReentryItem item = new ReentryItem(relativeTo, name);
         Set<ReentryItem> alreadyResolvingOnCurrentThread = REENTRIES.get();

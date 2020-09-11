@@ -15,13 +15,11 @@
  */
 package org.nemesis.jfs;
 
-import java.io.IOException;
-
 /**
  *
  * @author Tim Boudreau
  */
-final class MappedObjectDeletedException extends IOException {
+final class MappedObjectDeletedException extends JFSException {
 
     public MappedObjectDeletedException() {
     }
@@ -36,5 +34,17 @@ final class MappedObjectDeletedException extends IOException {
 
     public MappedObjectDeletedException(Throwable cause) {
         super(cause);
+    }
+
+    public MappedObjectDeletedException(JFS jfs, String message) {
+        super(jfs, message);
+    }
+
+    public MappedObjectDeletedException(JFS jfs, String message, Throwable cause) {
+        super(jfs, message, cause);
+    }
+
+    public MappedObjectDeletedException(JFS jfs, Throwable cause) {
+        super(jfs, cause);
     }
 }

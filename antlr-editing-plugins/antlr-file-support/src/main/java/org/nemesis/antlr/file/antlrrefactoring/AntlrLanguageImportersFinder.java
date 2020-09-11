@@ -34,6 +34,13 @@ import org.openide.filesystems.FileObject;
 @MimeRegistration(mimeType = ANTLR_MIME_TYPE, position = 100, service = ImportersFinder.class)
 public class AntlrLanguageImportersFinder extends SimpleImportersFinder {
 
+    static AntlrLanguageImportersFinder FINDER;
+
+    public AntlrLanguageImportersFinder() {
+        // ensure the cache is held
+        FINDER = this;
+    }
+
     @Override
     protected Iterable<FileObject> possibleImportersOf(BooleanSupplier cancelled, FileObject file) {
         if (cancelled.getAsBoolean()) {

@@ -82,7 +82,8 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
      */
     @Override
     public byte[] asBytes() throws IOException {
-        boolean nukeBytes = lastModifiedAtLoad != lastModified();
+        long currLastModified = lastModified();
+        boolean nukeBytes = lastModifiedAtLoad != currLastModified;
         synchronized (this) {
             if (nukeBytes) {
                 bytes = null;
@@ -91,6 +92,7 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
             }
             try {
                 bytes = Files.readAllBytes(path);
+                lastModifiedAtLoad = currLastModified;
             } catch (ClosedByInterruptException ex) {
                 // Clear the flag
                 Thread.interrupted();
@@ -98,7 +100,9 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
                 LOG.log(Level.FINE, "Read of FileBytesStorageWrapper for " + path
                         + "closed by interrupt. Rereading and then setting "
                         + "interrupted flag.", ex);
+                currLastModified = lastModified();
                 bytes = Files.readAllBytes(path);
+                lastModifiedAtLoad = currLastModified;
 //                Thread.currentThread().interrupt();
             } catch (NoSuchFileException ex) {
                 throw new MappedObjectDeletedException(ex);
@@ -109,7 +113,7 @@ final class FileBytesStorageWrapper implements JFSBytesStorage {
 
     @Override
     public OutputStream openOutputStream() throws IOException {
-        throw new IOException("Will not overwrite files on disk");
+        throw new JFSException(this.storage.jfs(), "Will not overwrite files on disk");
     }
 
     @Override

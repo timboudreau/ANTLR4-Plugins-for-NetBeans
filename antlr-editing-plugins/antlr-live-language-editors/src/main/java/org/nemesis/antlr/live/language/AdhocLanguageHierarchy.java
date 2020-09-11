@@ -278,7 +278,7 @@ public final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId
         return result;
     }
 
-    private static final Map<String, HierarchyInfo> H_INFOS = new HashMap<>();
+    static final Map<String, HierarchyInfo> H_INFOS = new HashMap<>();
 
     static synchronized HierarchyInfo hierarchyInfo(String mime) {
         HierarchyInfo info = H_INFOS.get(mime);

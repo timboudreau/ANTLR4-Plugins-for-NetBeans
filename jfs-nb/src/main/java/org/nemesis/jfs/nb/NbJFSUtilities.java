@@ -20,9 +20,13 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.Document;
 import javax.swing.text.StyledDocument;
+import org.nemesis.debug.api.Metrics;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.spi.JFSUtilities;
 import org.netbeans.api.queries.FileEncodingQuery;
@@ -116,5 +120,30 @@ public class NbJFSUtilities extends JFSUtilities {
             }
         }
         return null;
+    }
+
+    @Override
+    protected boolean doDocumentListenersHavePriority() {
+        return true;
+    }
+
+    @Override
+    protected boolean _areMetricsSupported() {
+        return true;
+    }
+
+    @Override
+    protected void _registerMetric(String name, BooleanSupplier supp, boolean keepStats) {
+        Metrics.register(name, supp, keepStats);
+    }
+
+    @Override
+    protected void _registerMetric(String name, LongSupplier supp, boolean keepStats) {
+        Metrics.register(name, supp, keepStats);
+    }
+
+    @Override
+    protected void _registerMetric(String name, IntSupplier supp, boolean keepStats) {
+        Metrics.register(name, supp, keepStats);
     }
 }

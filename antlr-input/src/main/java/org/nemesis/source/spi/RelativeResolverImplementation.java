@@ -78,5 +78,13 @@ public abstract class RelativeResolverImplementation<T> implements Serializable 
         public Optional<T> resolve(T relativeTo, String name) {
             return Optional.empty();
         }
+
+        public boolean equals(Object o) {
+            return o != null && o instanceof Noop;
+        }
+
+        public int hashCode() {
+            return 0;
+        }
     }
 }

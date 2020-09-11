@@ -283,10 +283,6 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                             genErrorsShown = true;
                             ioPrintErrors(gen.errors(), io);
                         }
-                        List<String> msgs = gen.infoMessages();
-                        for (String msg : msgs) {
-                            ioPrint(io, msg, OutputType.OUTPUT);
-                        }
                     }
                 }
                 if (g.thrown().isPresent()) {

@@ -23,6 +23,8 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.EventQueue;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Insets;
 import java.awt.Point;
@@ -67,6 +69,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import static javax.swing.JSplitPane.DIVIDER_LOCATION_PROPERTY;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
 import static javax.swing.SwingUtilities.getAncestorOfClass;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
@@ -78,6 +81,7 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Caret;
+import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Document;
 import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.swing.text.EditorKit;
@@ -112,6 +116,7 @@ import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
+import org.nemesis.misc.utils.ActivityPriority;
 import org.nemesis.source.api.GrammarSource;
 import org.nemesis.swing.Scroller;
 import org.nemesis.swing.cell.TextCellLabel;
@@ -130,7 +135,6 @@ import org.netbeans.modules.parsing.api.ParserManager;
 import org.netbeans.modules.parsing.api.ResultIterator;
 import org.netbeans.modules.parsing.api.Source;
 import org.netbeans.modules.parsing.api.UserTask;
-import org.netbeans.modules.parsing.spi.ParseException;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.awt.Mnemonics;
 import org.openide.awt.UndoRedo;
@@ -306,7 +310,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
         // Add the rules pane
         add(listsSplit, BorderLayout.EAST);
-        editorPane = new JEditorPane();
+        editorPane = new ErrorDetectingEditorPane(this::editorPaneIsMisbehaving);
         // We need to make sure we are the VERY FIRST focus listener
         // on the editor pane, so we have swapped the DataObject in the
         // lookup before actions evaluate their enablement state
@@ -584,6 +588,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         while (curr != null && curr.element() != null && !curr.element().isRoot() && menu.getComponentCount() < 7) {
             String name = curr.element().name();
             if (!seen.contains(name) && !curr.isError()) {
+                seen.add(name);
                 JMenuItem item = new JMenuItem(Bundle.goTo(name));
                 ModelEntry en = curr;
                 item.addActionListener(ae -> {
@@ -716,8 +721,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                     SemanticRegions<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> att
                             = resolved.attributed();
 
-                    SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>>
-                            found = att.find(key -> rule.equals(key.name()));
+                    SemanticRegion<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> found
+                            = att.find(key -> rule.equals(key.name()));
 
                     if (found != null) {
                         GrammarSource<?> src = found.key().attributedTo().source();
@@ -1005,6 +1010,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 sb.append("Text: ").append(newProxy.text()).append('\n');
                 return "";
             }, () -> {
+                maybeUpdateErrors(res);
                 EmbeddedAntlrParserResult old = internalLookup.lookup(EmbeddedAntlrParserResult.class);
                 if (old != null) {
                     if (res.isEquivalent(old)) {
@@ -1080,9 +1086,11 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             lastFuture = null;
         }
         try {
-            lastFuture = ParserManager.parseWhenScanFinished(
-                    Collections.singleton(Source.create(editorPane.getDocument())), ut);
-        } catch (ParseException ex) {
+            ActivityPriority.DEFERRABLE.wrapThrowing(() -> {
+                lastFuture = ParserManager.parseWhenScanFinished(
+                        Collections.singleton(Source.create(editorPane.getDocument())), ut);
+            });
+        } catch (Exception ex) {
             Exceptions.printStackTrace(ex);
         }
     }
@@ -1771,5 +1779,67 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 return com.mastfrog.util.preconditions.Exceptions.chuck(ex);
             }
         }
+    }
+
+    private void editorPaneIsMisbehaving(Throwable thrown, ErrorDetectingEditorPane pane) {
+        // XXX recreate it?  Recreate its view?
+        LOG.log(Level.SEVERE, "Misbehaving editor pane", thrown);
+        Rectangle r = pane.getVisibleRect();
+        Document old = pane.getDocument();
+        DefaultStyledDocument doc = new DefaultStyledDocument();
+        pane.setDocument(doc);
+        EventQueue.invokeLater(() -> {
+            pane.setDocument(old);
+            pane.scrollRectToVisible(r);
+        });
+    }
+
+    static class ErrorDetectingEditorPane extends JEditorPane {
+
+        private final BiConsumer<Throwable, ErrorDetectingEditorPane> killMeNow;
+        private int fontHeight;
+        private int charWidth;
+
+        public ErrorDetectingEditorPane(BiConsumer<Throwable, ErrorDetectingEditorPane> killMeNow) {
+            this.killMeNow = killMeNow;
+            setFontHeightWidth(getFont());
+        }
+
+        public void paint(Graphics g) {
+            try {
+                super.paint(g);
+            } catch (Exception | Error err) {
+                killMeNow.accept(err, this);
+            }
+        }
+
+        @Override
+        public void setFont(Font font) {
+            super.setFont(font);
+            setFontHeightWidth(getFont());
+        }
+
+        private void setFontHeightWidth(Font font) {
+            FontMetrics metrics = getFontMetrics(font);
+            fontHeight = metrics.getHeight();
+            charWidth = metrics.charWidth('m');
+        }
+
+        /**
+         * fix for #38139. returns height of a line for vertical scroll unit or
+         * width of a widest char for a horizontal scroll unit
+         */
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+            switch (orientation) {
+                case SwingConstants.VERTICAL:
+                    return fontHeight;
+                case SwingConstants.HORIZONTAL:
+                    return charWidth;
+                default:
+                    throw new IllegalArgumentException("Invalid orientation: " + orientation);
+            }
+        }
+
     }
 }

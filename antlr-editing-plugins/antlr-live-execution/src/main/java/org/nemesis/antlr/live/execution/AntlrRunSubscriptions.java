@@ -51,6 +51,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.StandardLocation;
 import org.nemesis.antlr.ANTLRv4Parser;
+import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
 import org.nemesis.antlr.compilation.AntlrGeneratorAndCompiler;
 import org.nemesis.antlr.compilation.AntlrRunBuilder;
 import org.nemesis.antlr.compilation.GrammarProcessingOptions;
@@ -338,7 +339,7 @@ public class AntlrRunSubscriptions {
                     files.add(fo);
                 });
                 Collections.sort(files, (a, b) -> {
-                    return a.getName().compareTo(b.getName());
+                    return a.path().compareTo(b.path());
                 });
                 for (JFSFileObject fo : files) {
                     fo.hash(dig);
@@ -376,18 +377,40 @@ public class AntlrRunSubscriptions {
                 this.grammarTokensHash = grammarTokensHash;
             }
 
-            private synchronized WithGrammarRunner maybeReuse(Extraction ext, byte[] hash) throws IOException {
+            private synchronized WithGrammarRunner maybeReuse(InvocationRunner<?, A> run, JFS jfs, Extraction ext, byte[] hash) throws IOException {
+                if (lastRunner == null) {
+                    return null;
+                }
+                if (lastArg != null) {
+                    if (!run.isStillValid(lastArg)) {
+                        return null;
+                    }
+                }
+                if (lastCompileResult != null && !lastCompileResult.areOutputFilesPresentIn(jfs)) {
+                    return null;
+                }
+                if (lastCompileResult != null) {
+                    AntlrGenerationAndCompilationResult genR = lastRunner.lastGenerationResult();
+                    if (genR != null) {
+                        if (genR.isUsable()) {
+                            if (genR.generationResult().timestamp < lastCompileResult.timestamp()) {
+                                return lastRunner;
+                            }
+                        }
+                    }
+                }
                 return lastCompileResult != null && lastStatus != null && lastHash != null
-                        && lastLastModified == ext.source().lastModified()
+                        //                        && lastLastModified == ext.source().lastModified()
                         && lastCompileResult.isUsable()
-                        && lastCompileResult.currentStatus().isUpToDate()
+                        && lastCompileResult.areClassesUpToDateWithSources(jfs)
+                        //                        && lastCompileResult.currentStatus().isUpToDate()
                         && grammarTokensHash.equals(ext.tokensHash())
                         && lastStatus.changes().isUpToDate()
                         && Arrays.equals(lastHash, hash)
                         ? lastRunner : null;
             }
 
-            synchronized void update(CompileResult res, WithGrammarRunner runner, A arg, JFSFileModifications mods,
+            synchronized void update(CompileResult res, WithGrammarRunner runner, A arg,
                     long lastModified, byte[] hash, String grammarTokensHash) {
                 this.lastCompileResult = res;
                 this.lastRunner = runner;
@@ -431,6 +454,11 @@ public class AntlrRunSubscriptions {
                 }
                 return;
             }
+            FileObject file = extraction.source().lookupOrDefault(FileObject.class, null);
+            if (file != null && !file.equals(fo)) {
+                LOG.log(Level.WARNING, "Passed gen result for wrong file: " + file + " vs " + fo, new Exception());
+                return;
+            }
             JFS jfs = res.jfsSupplier.get();
             try {
                 Debug.runThrowing(this,
@@ -449,7 +477,7 @@ public class AntlrRunSubscriptions {
                             Bool regenerated = Bool.create();
                             CachedResults<A> cache = cachedResults(extraction);
                             boolean tokensHashChanged = !Objects.equals(cache.grammarTokensHash, extraction.tokensHash());
-                            rb = cache.maybeReuse(extraction, newHash);
+                            rb = cache.maybeReuse(runner, jfs, extraction, newHash);
                             LOG.log(Level.FINER, "Reuse cached run result? {0}", rb != null);
                             if (rb == null) {
                                 Debug.message("New compileBuilder for " + extraction.tokensHash());
@@ -462,7 +490,9 @@ public class AntlrRunSubscriptions {
                                                 .withDebugInfo(JavacOptions.DebugInfo.LINES)
                                                 .runAnnotationProcessors(false)
                                                 .withCharset(jfs.encoding())
-                                ).runAnnotationProcessors(false);
+                                ).runAnnotationProcessors(false)
+                                        .addSourceLocation(StandardLocation.SOURCE_PATH)
+                                        .addSourceLocation(StandardLocation.SOURCE_OUTPUT);
 
 //                                bldr.verbose().nonIdeMode().withMaxErrors(10)
 //                                        .withMaxWarnings(10); // XXX for debugging, will wreak havoc
@@ -474,14 +504,20 @@ public class AntlrRunSubscriptions {
                                     Obj<UnixPath> singleSource = Obj.create();
                                     arg = runner.configureCompilation(tree, res, extraction, jfs, bldr, res.packageName(), csc, singleSource);
 
+                                    bldr.addSourceLocation(StandardLocation.SOURCE_PATH);
                                     bldr.addSourceLocation(StandardLocation.SOURCE_OUTPUT);
+
+                                    // XXX compile-single now works and is more efficient,
+                                    // but our tests for up-to-dateness don't differentiate
+                                    // between the compilation result for the extractor and
+                                    // that of the grammar
+
 //                                    if (!singleSource.isSet()) {
-                                    cr = jfs.whileWriteLocked(bldr::compile);
+                                        cr = jfs.whileWriteLocked(bldr::compile);
 //                                    } else {
 //                                        cr = jfs.whileWriteLocked(() -> bldr.compileSingle(singleSource.get()));
 //                                    }
-
-                                    writer.write("Compile took " + cr.elapsedMillis() + "ms");
+//                                    writer.write("Compile took " + cr.elapsedMillis() + "ms");
 
                                     if (!cr.isUsable()) {
                                         writer.write(cr.compileFailed() ? "Compile failed.\n"
@@ -508,8 +544,14 @@ public class AntlrRunSubscriptions {
                                     AntlrGeneratorAndCompiler compiler = AntlrGeneratorAndCompiler.fromResult(
                                             res, bldr, cr);
 
+                                    AntlrGenerationAndCompilationResult agcr = null;
+                                    if (cache.lastRunner != null) {
+                                        agcr = cache.lastRunner.lastGenerationResult();
+                                    }
                                     AntlrRunBuilder runBuilder = AntlrRunBuilder
-                                            .fromGenerationPhase(compiler).isolated();
+                                            .fromGenerationPhase(compiler)
+                                            .withLastGenerationResult(agcr)
+                                            .isolated();
 
                                     if (csc.classloaderSupplier != null) {
                                         runBuilder.withParentClassLoader(csc.classloaderSupplier);
@@ -544,24 +586,32 @@ public class AntlrRunSubscriptions {
 
                             // XXX this is a pretty draconian set of options
                             Set<GrammarProcessingOptions> opts = EnumSet.noneOf(GrammarProcessingOptions.class);
-                            if (tokensHashChanged) {
-                                opts.add(GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES);
+                            if (tokensHashChanged && !regenerated.getAsBoolean()) {
+                                boolean utd = false;
+                                if (cache.lastRunner != null && cache.lastRunner.lastGenerationResult() != null) {
+                                    if (cache.lastRunner.lastGenerationResult().generationResult() != null) {
+                                        utd = cache.lastRunner.lastGenerationResult().generationResult().areOutputFilesUpToDate();
+                                    }
+                                }
+                                if (!utd) {
+                                    opts.add(GrammarProcessingOptions.REGENERATE_GRAMMAR_SOURCES);
+                                    opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
+                                }
                             }
 //                            if (!regenerated.getAsBoolean()) {
 //                                opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
 //                            }
+
                             if (regenerated.getAsBoolean() || tokensHashChanged) {
                                 opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
                             }
-
                             LOG.log(Level.FINE, "Run in classloader with {0}", opts);
                             GrammarRunResult<T> rr = rb.run(arg, runner,
                                     opts);
 
                             if (rr.isUsable()) {
                                 if (created) {
-                                    grammarStatus = res.filesStatus;
-                                    cache.update(cr, rb, arg, grammarStatus, lastModified, newHash,
+                                    cache.update(cr, rb, arg, lastModified, newHash,
                                             extraction.tokensHash());
                                 }
                                 run(extraction, rr);
@@ -649,9 +699,11 @@ public class AntlrRunSubscriptions {
             });
         }
 
-        CompileResult analyzeAndLogCompileFailureAndMaybeRetry(final Writer writer, CompileResult cr, AntlrGenerationResult res, JFSCompileBuilder bldr, boolean rebuild, Bool regenerated) throws IOException {
-            Consumer<String> pw = AntlrLoggers.isActive(writer) ? new PrintWriter(writer)::println
-                    : System.out::println;
+        CompileResult analyzeAndLogCompileFailureAndMaybeRetry(final Writer writer, CompileResult cr,
+                AntlrGenerationResult res, JFSCompileBuilder bldr, boolean rebuild, Bool regenerated) throws IOException {
+            Consumer<String> pw = new PrintWriter(writer)::println;
+//                    AntlrLoggers.isActive(writer) ? new PrintWriter(writer)::println
+//                    : System.out::println;
             if (AntlrLoggers.isActive(writer)) {
                 pw.accept("COMPILE RESULT: " + cr);
                 pw.accept("GEN PACKAGE: " + res.packageName);
@@ -684,10 +736,6 @@ public class AntlrRunSubscriptions {
                 bldr.setOptions(bldr.options().rebuildAllSources());
 
                 cr = jfs.whileWriteLocked(() -> {
-//                    jfs.list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
-//                        pw.println("Delete " + fo.getName());
-//                        fo.delete();
-//                    });
                     res.rebuild();
                     regenerated.set(true);
                     return bldr.compile();

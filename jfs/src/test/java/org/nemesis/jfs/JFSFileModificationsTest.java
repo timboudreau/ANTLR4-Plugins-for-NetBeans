@@ -23,6 +23,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Document;
@@ -54,6 +56,7 @@ public class JFSFileModificationsTest {
     private static final UnixPath DOC_PATH = UnixPath.get("foo/bar/Whee.txt");
     private static final String FILE_TEXT = "This is a bunch of text here.";
     private static final String DOC_TEXT = "DocText goes here.\n  How about that?\n";
+    private long startTs;
 
     private static final UnixPath[] VIRTUAL_PATHS = new UnixPath[]{PATH_1, PATH_2, PATH_3, PATH_4};
     private static final String[] VIRTUAL_INITIAL_TEXT = new String[]{
@@ -75,11 +78,12 @@ public class JFSFileModificationsTest {
     private JFS jfs;
     private Path tempFile;
     private Document doc;
+    private Set<JFSCoordinates> checkpointFiles;
 
     @Test
     public void testRewritesThatDoNotChangeContentResultInUnmodifiedStatus() throws IOException, BadLocationException {
         JFSFileModifications mods = jfs.status(StandardLocation.SOURCE_PATH, StandardLocation.SOURCE_OUTPUT);
-        for (int i=0; i < VIRTUAL_PATHS.length; i++) {
+        for (int i = 0; i < VIRTUAL_PATHS.length; i++) {
             JFSFileObject fo = jfs.get(StandardLocation.SOURCE_PATH, VIRTUAL_PATHS[i]);
             assertNotNull(fo);
             CharSequence seq = fo.getCharContent(true);
@@ -109,14 +113,14 @@ public class JFSFileModificationsTest {
         JFSFileModifications state = jfs.status(StandardLocation.SOURCE_PATH);
         JFSFileObject fo = jfs.create(UnixPath.get("foo/bar/goo/baz.txt"), StandardLocation.SOURCE_PATH, "Hello world");
         FileChanges changes = state.changes();
-        assertFalse(changes.added().isEmpty());
+        assertFalse(changes.toString(), changes.added().isEmpty());
         assertEquals(UnixPath.get("foo/bar/goo/baz.txt"), changes.added().iterator().next());
         state.refresh();
         fo.delete();
         changes = state.changes();
-        assertFalse(changes.deleted().isEmpty());
-        assertTrue(changes.modified().isEmpty());
-        assertTrue(changes.added().isEmpty());
+        assertFalse(changes.toString(), changes.deleted().isEmpty());
+        assertTrue(changes.toString(), changes.modified().isEmpty());
+        assertTrue(changes.toString(), changes.added().isEmpty());
         assertEquals(UnixPath.get("foo/bar/goo/baz.txt"), changes.deleted().iterator().next());
     }
 
@@ -164,7 +168,7 @@ public class JFSFileModificationsTest {
 
         FileChanges changes = allState.changes();
         assertNotNull(changes);
-        assertFalse(changes.isUpToDate());
+        assertFalse("Changes think they are up to date after update " + changes, changes.isUpToDate());
         assertTrue(changes.modified().contains(toChange));
         assertEquals(1, changes.modified().size());
         assertTrue(changes.added().isEmpty());
@@ -240,8 +244,109 @@ public class JFSFileModificationsTest {
         assertTrue(srcCh.isUpToDate());
     }
 
+    @Test
+    public void ensureCheckpointFilesAreCorrect() throws Exception {
+        for (int i = 0; i < VIRTUAL_PATHS.length; i++) {
+            JFSCoordinates exp = JFSCoordinates.create(StandardLocation.SOURCE_PATH, VIRTUAL_PATHS[i]);
+            assertTrue("Not present: " + exp + " in " + checkpointFiles,
+                    checkpointFiles.contains(exp));
+        }
+        JFSCoordinates fileFileCoords = JFSCoordinates.create(StandardLocation.SOURCE_OUTPUT, MAPPED_PATH);
+        assertTrue("Masqueraded file " + fileFileCoords + " not present in "
+                + checkpointFiles, checkpointFiles.contains(fileFileCoords));
+        JFSCoordinates docFileCoords = JFSCoordinates.create(StandardLocation.SOURCE_OUTPUT, DOC_PATH);
+        assertTrue("Masquraded doc " + docFileCoords + " not present in "
+                + checkpointFiles, checkpointFiles.contains(docFileCoords));
+    }
+
+    @Test
+    public void testAddedFilesAreNoticed() throws Exception {
+        JFSFileModifications unrestricted = jfs.status(StandardLocation.SOURCE_OUTPUT, StandardLocation.SOURCE_PATH);
+        assertNotNull(unrestricted);
+        JFSFileModifications.FilesInfo ufo = unrestricted.initialState();
+
+        UnixPath randomName = UnixPath.get("floob", "wookie", "fnord.txt");
+        JFSFileObject unexpectedFo = jfs.create(randomName,
+                StandardLocation.SOURCE_PATH, "You can't see the fnords\n");
+        assertNotNull(unexpectedFo);
+        assertEquals(randomName, unexpectedFo.path());
+        assertTrue("Package floob.wookie should match " + randomName,
+                unexpectedFo.packageMatches("floob.wookie"));
+
+        FileChanges changes = unrestricted.changes();
+
+        assertFalse("Adding a new file to the JFS should affect modification set status for an unrestricted "
+                + "modification set " + changes + " for " + unrestricted, changes.isUpToDate());
+        assertFalse(changes.added().isEmpty());
+        assertTrue(changes.added().contains(randomName));
+
+        unrestricted.refresh();
+        assertTrue(unrestricted.changes().added().isEmpty());
+        assertFalse(unrestricted.changes().added().contains(randomName));
+    }
+
+    @Test
+    public void testModificationsFromCoordinateSet() throws IOException, BadLocationException {
+        JFSFileModifications mods = JFSFileModifications.of(jfs, checkpointFiles);
+        assertNotNull(mods);
+        assertTrue(mods.changes().isUpToDate());
+        UnixPath randomName = UnixPath.get("floob", "wookie", "fnord.txt");
+        JFSFileObject unexpectedFo = jfs.create(randomName,
+                StandardLocation.SOURCE_PATH, "You can't see the fnords\n");
+        assertNotNull(unexpectedFo);
+        assertEquals(randomName, unexpectedFo.path());
+        assertTrue("Package floob.wookie should match " + randomName,
+                unexpectedFo.packageMatches("floob.wookie"));
+
+        assertTrue("Adding an unrelated file should not affect restricted modification set status", mods.changes().isUpToDate());
+
+        JFSFileObject docFo = jfs.get(StandardLocation.SOURCE_OUTPUT, DOC_PATH);
+        long len = docFo.length();
+        long lm = docFo.getLastModified();
+
+        doc.insertString(0, "Whatevs", null);
+        assertNotEquals("Doc mapped last modified did not change", lm, docFo.getLastModified());
+//        assertEquals("Length did not change appropriately ", len + "Whatevs".length(), docFo.length());
+        FileChanges ch1 = mods.changes();
+        assertFalse(ch1.toString(), ch1.isUpToDate());
+        assertTrue(ch1.toString(), ch1.isCreatedOrModified(DOC_PATH));
+        assertTrue(ch1.toString(), ch1.modified().contains(DOC_PATH));
+        assertFalse(ch1.toString(), ch1.status().isUpToDate());
+
+        JFSFileModifications snap = mods.snapshot();
+
+        mods.refresh();
+        assertFalse("Refresh did not clear masqueraded modifications", mods.changes().isCreatedOrModified(DOC_PATH));
+        assertFalse("Refresh did not clear masqueraded modifications", mods.changes().modified().contains(DOC_PATH));
+        assertTrue("Refresh did not clear masqueraded modifications", mods.changes().status().isUpToDate());
+
+        assertFalse("Snapshot state should not be tied to origin", snap.changes().isUpToDate());
+        assertTrue("Snapshot state should not be tied to origin", snap.changes().isCreatedOrModified(DOC_PATH));
+        assertTrue("Snapshot state should not be tied to origin", snap.changes().modified().contains(DOC_PATH));
+        assertFalse("Snapshot state should not be tied to origin", snap.changes().status().isUpToDate());
+
+        JFSFileObject fo = jfs.get(StandardLocation.SOURCE_PATH, PATH_3);
+        assertNotNull("File absent: " + PATH_3, fo);
+        long oldLm = fo.getLastModified();
+        long then = System.currentTimeMillis();
+        assertTrue("Virtual file assigned a strange last modified time - " + oldLm
+                + " < test start time " + startTs, oldLm >= startTs);
+        fo.setTextContent("Hoog pwee snurble 23 skiddoo");
+
+        long newLm = fo.getLastModified();
+        assertNotEquals("Writing text did not alter last modified time for virtual file " + fo, oldLm, newLm);
+        assertTrue("New timestamp should be >= the time of update " + then + " but is " + newLm, newLm >= then);
+
+        assertFalse("Modifying a file did not change up to date status", mods.changes().isUpToDate());
+        FileChanges ch = mods.changes();
+        assertTrue("", ch.isCreatedOrModified(PATH_3));
+        assertTrue("Modified set does not contain modified path " + PATH_3 + " in " + ch, ch.modified().contains(PATH_3));
+        assertFalse(ch.isUpToDate());
+    }
+
     @Before
     public void before() throws IOException, BadLocationException {
+        startTs = System.currentTimeMillis();
         doc = new DefaultStyledDocument();
         doc.insertString(0, DOC_TEXT, null);
         tempFile = FileUtils.newTempFile();
@@ -250,18 +355,38 @@ public class JFSFileModificationsTest {
                 StandardOpenOption.CREATE);
 
         jfs = JFS.builder().withCharset(UTF_8).build();
+        Checkpoint checkpoint = jfs.newCheckpoint();
+        assertFalse("New JFS thinks it has been closed", jfs.isReallyClosed());
+        assertTrue("New JFS says it is not empty", jfs.isEmpty());
         for (int i = 0; i < VIRTUAL_PATHS.length; i++) {
             String txt = VIRTUAL_INITIAL_TEXT[i];
             jfs.create(VIRTUAL_PATHS[i], StandardLocation.SOURCE_PATH, txt);
         }
-        jfs.masquerade(tempFile, StandardLocation.SOURCE_OUTPUT, MAPPED_PATH);
-        jfs.masquerade(doc, StandardLocation.SOURCE_OUTPUT, DOC_PATH);
+        JFSFileObject fileFile = jfs.masquerade(tempFile, StandardLocation.SOURCE_OUTPUT, MAPPED_PATH);
+        assertEquals("Last modified wrong for masqueraded file",
+                Files.getLastModifiedTime(tempFile).to(TimeUnit.MILLISECONDS), fileFile.getLastModified());
+
+        JFSFileObject docFile = jfs.masquerade(doc, StandardLocation.SOURCE_OUTPUT, DOC_PATH);
+        long docLm = docFile.getLastModified();
+        assertTrue("Unlikely last modified " + docLm + " should be >= test start " + startTs,
+                docLm >= startTs);
+        checkpointFiles = checkpoint.updatedFiles();
+        assertFalse("Empty checkpoint set", checkpointFiles.isEmpty());
+
+        assertFalse("Unclosed JFS thinks it has been closed", jfs.isReallyClosed());
+        assertFalse("JFS with masqueraded docs thinks it is empty", jfs.isEmpty());
     }
 
     @After
     public void after() throws IOException {
         if (jfs != null) {
-            jfs.close();
+            try {
+                jfs.close();
+                assertTrue("Closed jfs with no open classloaders thinks it is not closed",
+                        jfs.isReallyClosed());
+            } finally {
+                Files.deleteIfExists(tempFile);
+            }
         }
     }
 }

@@ -61,6 +61,9 @@ class ByteBufferMapper {
 
     ByteBuffer slice(Blocks blocks) {
         IntRange<?> phys = blocks.toPhysicalRange(bytesMapper).snapshot();
+        if (phys.isEmpty()) {
+            return ByteBuffer.allocate(0);
+        }
         return getSlice(phys.start(), phys.end());
     }
 

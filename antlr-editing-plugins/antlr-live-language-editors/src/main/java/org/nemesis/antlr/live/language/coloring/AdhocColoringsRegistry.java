@@ -47,14 +47,11 @@ import com.mastfrog.util.collections.CollectionUtils;
 import java.io.File;
 import java.io.InputStream;
 import java.util.Collections;
-import java.util.Optional;
 import javax.swing.UIManager;
-import javax.swing.text.Document;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.file.AntlrKeys;
-import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.language.ColorUtils;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
@@ -94,9 +91,12 @@ public final class AdhocColoringsRegistry {
     private final Lis saver = new Lis();
     static final Logger LOG = Logger.getLogger(AdhocColoringsRegistry.class.getName());
     private final Hook hook = new Hook();
+    static AdhocColoringsRegistry INSTANCE;
 
     public static AdhocColoringsRegistry getDefault() {
-        return Lookup.getDefault().lookup(AdhocColoringsRegistry.class);
+        return INSTANCE != null
+                ? INSTANCE
+                : (INSTANCE = Lookup.getDefault().lookup(AdhocColoringsRegistry.class));
     }
 
     public Set<String> mimeTypes() {
@@ -165,42 +165,17 @@ public final class AdhocColoringsRegistry {
         if (colorings != null) {
             Path path = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
             if (path != null) {
-                GrammarSource<?> src = GrammarSource.find(path, ANTLR_MIME_TYPE);
-                Optional<Document> doc = src.lookup(Document.class);
-                if (doc.isPresent()) {
-                    Extraction ext = NbAntlrUtils.extractionFor(doc.get());
-                    if (ext != null) {
-                        colorings.clear();
+                FileObject file = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
+                if (file != null) {
+                    Extraction ext = NbAntlrUtils.extractionFor(file);
+                    if (ext != null && !ext.isDisposed() && !ext.isPlaceholder()) {
                         try {
                             doUpdate(mimeType, ext);
-                            return colorings;
                         } catch (IOException ex) {
-                            LOG.log(Level.SEVERE, src + "", ex);
+                            Exceptions.printStackTrace(ex);
                         }
-                    }
-                }
-                if (src != null) {
-                    Optional<Source> source = src.lookup(Source.class);
-                    if (source.isPresent()) {
-                        Extraction[] ext = new Extraction[1];
-                        try {
-                            ParserManager.parse(Collections.singleton(source.get()), new UserTask() {
-                                @Override
-                                public void run(ResultIterator resultIterator) throws Exception {
-                                    Parser.Result res = resultIterator.getParserResult();
-                                    if (res instanceof ExtractionParserResult) {
-                                        ext[0] = ((ExtractionParserResult) res).extraction();
-                                    }
-                                }
-                            });
-                            // do this outside the parser manager's lock
-                            if (ext[0] != null) {
-                                colorings.clear();
-                                doUpdate(mimeType, ext[0]);
-                            }
-                        } catch (ParseException | IOException ex) {
-                            LOG.log(Level.SEVERE, src + "", ex);
-                        }
+                    } else {
+                        pendingUpdateMimeTypes.add(mimeType);
                     }
                 }
             }
@@ -346,7 +321,8 @@ public final class AdhocColoringsRegistry {
         });
     }
 
-    private void generatedHighlightings(AdhocColorings colorings, String mimeType, Extraction ext, Set<GrammarSource<?>> seen) throws IOException {
+    private void generatedHighlightings(AdhocColorings colorings, String mimeType,
+            Extraction ext, Set<GrammarSource<?>> seen) throws IOException {
         NamedSemanticRegions<RuleTypes> nameds = ext.namedRegions(AntlrKeys.RULE_NAMES);
         boolean anyAbsent = false;
         for (NamedSemanticRegion<RuleTypes> item : nameds.ofKind(RuleTypes.LEXER)) {
@@ -458,7 +434,7 @@ public final class AdhocColoringsRegistry {
                 }
                 AdhocColoring added = colorings.addIfAbsent(ruleId, color, attrs);
                 if (added != null) {
-                    LOG.log(Level.FINEST, "Added for {0} key {1}: {2}", new Object[] {ext.source(), ruleId, added});
+                    LOG.log(Level.FINEST, "Added for {0} key {1}: {2}", new Object[]{ext.source(), ruleId, added});
                 }
             }
             importImportedTokensAndRules(ANTLR_MIME_TYPE, ext, seen, colorings);
@@ -507,19 +483,23 @@ public final class AdhocColoringsRegistry {
         }
     }
 
+    private final Set<String> pendingUpdateMimeTypes
+            = ConcurrentHashMap.newKeySet();
+
     public AdhocColorings get(String mimeType) {
         try {
             AdhocColorings colorings = loadOrCreate(mimeType);
-            if (colorings.isEmpty()) {
+            if (colorings.isEmpty() || pendingUpdateMimeTypes.contains(mimeType)) {
                 Path path = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
                 File f = path.toFile();
                 FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(f));
-                Extraction extraction = ParsingUtils.parse(fo, res -> {
-                    return res instanceof ExtractionParserResult
-                            ? ((ExtractionParserResult) res).extraction() : null;
-                });
-                if (extraction != null) {
+                Extraction extraction = NbAntlrUtils.extractionFor(fo);
+                if (extraction != null && !extraction.isPlaceholder()
+                        && !extraction.isDisposed()) {
                     update(mimeType, extraction);
+                    pendingUpdateMimeTypes.remove(mimeType);
+                } else {
+                    pendingUpdateMimeTypes.add(mimeType);
                 }
             }
             return colorings;
@@ -530,9 +510,18 @@ public final class AdhocColoringsRegistry {
     }
 
     private AdhocColorings loadOrCreate(String mimeType) throws FileNotFoundException, IOException {
-        if (coloringsForMimeType.containsKey(mimeType)) {
-            return coloringsForMimeType.get(mimeType);
-        }
+        return coloringsForMimeType.computeIfAbsent(mimeType, (mt) -> {
+            try {
+                return doLoadOrCreate(mt);
+            } catch (IOException ioe) {
+                LOG.log(Level.WARNING, "Loaded {0} colorings for {1",
+                        new Object[]{loggableMimeType(mt)});
+                return new AdhocColorings();
+            }
+        });
+    }
+
+    private AdhocColorings doLoadOrCreate(String mimeType) throws FileNotFoundException, IOException {
         FileObject fo = FileUtil.getConfigFile(sfsPathFor(mimeType));
         AdhocColorings result;
         if (fo != null) {
@@ -547,7 +536,6 @@ public final class AdhocColoringsRegistry {
         ParseResultHook.register(mimeType, hook);
         result.addChangeListener(WeakListeners.change(saver, result));
         result.addPropertyChangeListener(WeakListeners.propertyChange(saver, result));
-        coloringsForMimeType.put(mimeType, result);
         return result;
     }
 

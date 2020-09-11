@@ -15,12 +15,12 @@
  */
 package org.nemesis.debug.api;
 
+import com.mastfrog.util.strings.Escaper;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -31,10 +31,10 @@ import org.openide.util.Exceptions;
 import org.openide.util.Utilities;
 
 /**
- * An API for tracking objects which ought to be disposed at some point,
- * to ensure they aren't proliferating.  Near-zero overhead when nothing
- * is listening, and when something is, can notify listeners about new and
- * cleared items.
+ * An API for tracking objects which ought to be disposed at some point, to
+ * ensure they aren't proliferating. Near-zero overhead when nothing is
+ * listening, and when something is, can notify listeners about new and cleared
+ * items.
  *
  * @author Tim Boudreau
  */
@@ -50,6 +50,9 @@ public class Trackables {
 
     private static void startPollThread() {
         synchronized (Trackables.class) {
+            if (pollThread != null) {
+                pollThread.interrupt();
+            }
             Thread poll = pollThread = new Thread(Trackables::poll, "trackables-poll");
             poll.setPriority(Thread.MAX_PRIORITY - 2);
             poll.setDaemon(true);
@@ -77,6 +80,8 @@ public class Trackables {
             for (;;) {
                 try {
                     if (!isActive()) {
+                        refs.clear();
+                        Q.clear();
                         break;
                     }
                     TrackingReferenceImpl<?> first = Q.take();
@@ -90,6 +95,8 @@ public class Trackables {
                     }
                 } catch (InterruptedException ex) {
                     if (!isActive()) {
+                        refs.clear();
+                        Q.clear();
                         break;
                     }
                     Exceptions.printStackTrace(ex);
@@ -124,10 +131,7 @@ public class Trackables {
     }
 
     public static <T> void track(Class<T> type, T obj) {
-        track(type, obj, () -> {
-            return type.getSimpleName() + "@" + Integer.toString(System.identityHashCode(obj))
-                    + " - " + obj.toString();
-        });
+        track(type, obj, () -> obj.toString());
     }
 
     public static <T> void track(Class<T> type, T obj, Supplier<String> stringVal) {
@@ -194,6 +198,14 @@ public class Trackables {
         int identityHashCode();
 
         boolean isAlive();
+
+        String htmlStringValue();
+
+        String htmlValue();
+
+        default int compareTo(TrackingReference<?> o) {
+            return Long.compare(seqNumber(), o.seqNumber());
+        }
     }
 
     static final class TrackingReferenceImpl<T> extends WeakReference<T> implements TrackingReference<T>, Runnable {
@@ -202,8 +214,9 @@ public class Trackables {
         private final Class<T> type;
         private final int idHash;
         private final String stringValue;
-        private long seqNumber = seq.getAndIncrement();
+        private final long seqNumber = seq.getAndIncrement();
         private volatile boolean disposed;
+        private final long created = System.currentTimeMillis();
 
         public TrackingReferenceImpl(T obj, Class<T> type, String stringValue) {
             super(obj, Utilities.activeReferenceQueue());
@@ -212,16 +225,115 @@ public class Trackables {
             this.stringValue = stringValue;
         }
 
+        public long age() {
+            return System.currentTimeMillis() - created;
+        }
+
+        @Override
         public int identityHashCode() {
             return idHash;
         }
 
+        @Override
         public long seqNumber() {
             return seqNumber;
         }
 
+        @Override
         public Class<T> type() {
             return type;
+        }
+
+        static int TRUNCATE_LENGTH = 80;
+        static int DANGEROUSLY_OLD = 90000;
+
+        private static String truncate(String s) {
+            s = Escaper.BASIC_HTML.escape(s);
+            if (s.length() > TRUNCATE_LENGTH) {
+                s = s.substring(0, TRUNCATE_LENGTH) + "\u2026";
+            }
+            return s;
+        }
+
+        @Override
+        public String htmlValue() {
+            StringBuilder sb = new StringBuilder();
+            long age = age();
+            boolean alive = isAlive();
+            if (alive && age > DANGEROUSLY_OLD) {
+                sb.append("<font color='#ED0000'>");
+            }
+            sb.append(formattedAge(age)).append(' ');
+            if (alive) {
+                sb.append("<b>");
+            } else {
+                sb.append("<s>");
+            }
+            sb.append(type.getSimpleName());
+            if (alive) {
+                sb.append("</b>");
+            } else {
+                sb.append("</s>");
+            }
+            sb.append(" <i>").append(idHash).append("</i>: ");
+            sb.append(truncate(stringValue));
+            if (alive && age > DANGEROUSLY_OLD) {
+                sb.append("</font>");
+            }
+            return sb.toString();
+        }
+
+        String formattedAge(long age) {
+            if (age < 1000) {
+                return Long.toString(age) + "ms ";
+            }
+            StringBuilder sb = new StringBuilder();
+            long seconds = (age / 1000) % 60;
+            long minutes = ((age / 1000) / 60) % 60;
+            long hours = ((age / 1000) / 60) / 60;
+            prependLong(sb, seconds);
+            prependLong(sb, minutes);
+            prependLong(sb, hours);
+            return sb.toString();
+        }
+
+        private void prependLong(StringBuilder to, long val) {
+            if (to.length() > 0) {
+                to.insert(0, ':');
+            }
+            to.insert(0, Long.toString(val));
+            if (val < 10) {
+                to.insert(0, '0');
+            }
+        }
+
+        @Override
+        public String htmlStringValue() {
+            StringBuilder sb = new StringBuilder("<html>");
+            sb.append("Age: ").append("<b>").append(formattedAge(age()))
+                    .append("</b><br>");
+            boolean alive = isAlive();
+            if (alive) {
+                sb.append("<b>");
+            }
+            sb.append(type.getSimpleName());
+            if (alive) {
+                sb.append("</b>");
+            }
+            sb.append("<i>").append(idHash).append("</i>:<p>\n");
+            String body = Escaper.BASIC_HTML.escape(stringValue);
+            String[] parts = body.split("\\s+");
+            int lineLength = 80;
+            int currLineLength = 0;
+            for (String part : parts) {
+                if (currLineLength + part.length() > lineLength) {
+                    sb.append("\n<br>");
+                    currLineLength = 0;
+                }
+                sb.append(part).append(' ');
+                currLineLength += part.length() + 1;
+            }
+            return sb.toString();
         }
 
         @Override
@@ -235,6 +347,7 @@ public class Trackables {
                     && obj == get();
         }
 
+        @Override
         public boolean isAlive() {
             return !disposed && get() != null;
         }
@@ -256,26 +369,11 @@ public class Trackables {
         public boolean equals(Object obj) {
             if (this == obj) {
                 return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
+            } else if (obj == null || obj.getClass() != TrackingReferenceImpl.class) {
                 return false;
             }
             final TrackingReferenceImpl<?> other = (TrackingReferenceImpl<?>) obj;
-            if (this.idHash != other.idHash) {
-                return false;
-            }
-            if (!Objects.equals(this.type, other.type)) {
-                return false;
-            }
-            return true;
-        }
-
-        @Override
-        public int compareTo(TrackingReference<?> o) {
-            return Long.compare(seqNumber, o.seqNumber());
+            return idHash == other.idHash && type == other.type;
         }
 
         @Override

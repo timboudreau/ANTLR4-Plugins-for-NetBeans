@@ -26,6 +26,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -34,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -43,18 +45,19 @@ import org.nemesis.jfs.result.UpToDateness;
 
 /**
  * Allows for tracking changes to files inside a JFS, including mapped files and
- * documents, using SHA-1 hashes for matching.
+ * documents, using both timestamps and SHA-1 hashes for matching; a file is
+ * only considered modified if its actual content has changed.
  *
  * @author Tim Boudreau
  */
 public class JFSFileModifications {
 
-    private final JFS jfs;
-    private Predicate<UnixPath> filter;
-    private final Set<? extends Location> locations;
     private static final Logger LOG = Logger.getLogger(JFSFileModifications.class.getName());
-    private FilesInfo info;
     private static final Predicate<UnixPath> ALL = Predicates.alwaysTrue();
+    private final JFS jfs;
+    private final Set<? extends Location> locations;
+    private Predicate<UnixPath> filter;
+    private FilesInfo info;
 
     JFSFileModifications() {
         // Empty instance, for use when an error was thrown and there
@@ -87,6 +90,60 @@ public class JFSFileModifications {
         info = currentInfo();
     }
 
+    JFSFileModifications(JFS jfs, JFSFileModifications old) {
+        this.jfs = jfs;
+        this.filter = old.filter;
+        this.locations = old.locations;
+        this.info = old.info;
+    }
+
+    @SuppressWarnings("unchecked")
+    JFSFileModifications(Collection<? extends JFSCoordinates> coords, JFS jfs) {
+        this.jfs = notNull("jfs", jfs);
+        Set<Location> locs = new HashSet<>();
+        Set<UnixPath> paths = new HashSet<>();
+        Map<? extends Location, Map<UnixPath, Long>> stamps = new EnumMap<>(StandardLocation.class);
+        try {
+            MessageDigest dig = MessageDigest.getInstance("SHA-1");
+            Set<JFSFileObject> sorted = new TreeSet<>();
+            for (JFSCoordinates coord : coords) {
+                Location loc = coord.location();
+                locs.add(loc);
+                if (!(loc instanceof StandardLocation) && stamps instanceof EnumMap<?, ?>) {
+                    stamps = new HashMap<>(stamps);
+                }
+                UnixPath path = coord.path();
+                paths.add(path);
+                Map<Location, Map<UnixPath, Long>> data = (Map<Location, Map<UnixPath, Long>>) stamps;
+                Map<UnixPath, Long> curr = data.get(loc);
+                if (curr == null) {
+                    curr = new HashMap<>();
+                    data.put(loc, curr);
+                }
+                JFSFileObject jfsFo = coord.resolve(jfs);
+                if (jfsFo != null) {
+                    sorted.add(jfsFo);
+                    curr.put(path, jfsFo.getLastModified());
+                } else {
+                    curr.put(path, 0L);
+                }
+            }
+            this.filter = paths::contains;
+            this.locations = locationSet(locs);
+            for (JFSFileObject fo : sorted) {
+                try {
+                    fo.hash(dig);
+                } catch (IOException ioe) {
+                    LOG.log(Level.INFO, fo.getName(), ioe);
+                    dig.update((byte) -1);
+                }
+            }
+            info = new FilesInfo(stamps, dig.digest());
+        } catch (NoSuchAlgorithmException err) {
+            throw new AssertionError("SHA-1 not supported in this JVM", err);
+        }
+    }
+
     JFSFileModifications(JFSFileModifications old, boolean copy) {
         notNull("old", old);
         this.jfs = old.jfs;
@@ -98,14 +155,72 @@ public class JFSFileModifications {
         this(old, false);
     }
 
+    /**
+     * Make a copy of this JFSFileModifications (if necessary) over another
+     * JFS instance - useful if unused JFS's are closed and collected but
+     * a file modifications instance may persist.
+     *
+     * @param jfs A JFS
+     * @return this if the passed JFS is the same one initially provided,
+     * otherwise a new modification set
+     */
+    public JFSFileModifications overJFS(JFS jfs) {
+        if (jfs == this.jfs) {
+            return this;
+        }
+        return new JFSFileModifications(jfs, this);
+    }
+
+    /**
+     * Create a modification set over a particular JFS, tracking only those
+     * coordinates in the passed set.
+     *
+     * @param jfs A JFS
+     * @param coords A set of coordinates
+     * @return An empty modifications if the passed set is empty, otherwise
+     * one which filters based on membership in the passed set
+     */
+    public static JFSFileModifications of(JFS jfs, Collection<? extends JFSCoordinates> coords) {
+        if (coords.isEmpty() || jfs.isReallyClosed()) {
+            return empty();
+        }
+        return new JFSFileModifications(coords, jfs);
+    }
+
+    /**
+     * Get the set of JFS coordinates this modification set is tracking (that
+     * matched its filter the last time it was updated).
+     *
+     * @return A collection of coordinates
+     */
+    public Iterable<? extends JFSCoordinates> allCoordinates() {
+        FilesInfo info;
+        synchronized (this) {
+            info = this.info;
+        }
+        if (info == null) {
+            return Collections.emptySet();
+        }
+        List<JFSCoordinates> result = new ArrayList<>();
+        for (Map.Entry<? extends Location, Map<UnixPath, Long>> e : info.timestamps.entrySet()) {
+            for (Map.Entry<UnixPath, Long> e1 : e.getValue().entrySet()) {
+                UnixPath path = e1.getKey();
+                if (filter == null || filter.test(path)) {
+                    JFSCoordinates nue = new JFSFileCoordinates(path, e.getKey());
+                    result.add(nue);
+                }
+            }
+        }
+        return result;
+    }
+
     @Override
     public String toString() {
         return "JFSFileModifications(" + (jfs == null ? "-none-" : jfs.id()) + " " + info + ")";
     }
 
     /**
-     * Create a copy of this modifications which ignores a particular
-     * file.
+     * Create a copy of this modifications which ignores a particular file.
      *
      * @param path A path
      * @return A new JFSFileModifications
@@ -115,8 +230,7 @@ public class JFSFileModifications {
     }
 
     /**
-     * Create a copy of this modifications which ignores a particular
-     * file.
+     * Create a copy of this modifications which ignores a particular file.
      *
      * @param path A path
      * @return A new JFSFileModifications
@@ -127,13 +241,24 @@ public class JFSFileModifications {
     }
 
     /**
-     * Create a copy of this JFSFileModifications whose reset status
-     * is independent of the original.
+     * Create a copy of this JFSFileModifications whose reset status is
+     * independent of the original.
      *
      * @return A set of modifications
      */
     public JFSFileModifications snapshot() {
         return new JFSFileModifications(this, true);
+    }
+
+    /**
+     * Create a new JFSFileModifications which uses the same filter as
+     * this one, which will only show modifications if the filesystem
+     * is modified subsequent to this call.
+     *
+     * @return A JFSFileModifications
+     */
+    public JFSFileModifications withUpdatedState() {
+        return new JFSFileModifications(this, false);
     }
 
     /**
@@ -184,8 +309,26 @@ public class JFSFileModifications {
     }
 
     /**
-     * Reset the state of changed-ness of the files, such that subsequent calls to
-     * get the status will show no changes.
+     * Get the set of file changes based on what this JFSFileModifications is
+     * tracking, potentially querying a different JFS than the one this instance
+     * was created against.
+     *
+     * @param over Another (or the same) JFS
+     * @return A set of changes
+     */
+    public FileChanges changes(JFS over) {
+        if (jfs == null && over == null) {
+            return FileChanges.UNKNOWN;
+        }
+        if (over == this.jfs) {
+            return changes();
+        }
+        return overJFS(over).changes();
+    }
+
+    /**
+     * Reset the state of changed-ness of the files, such that subsequent calls
+     * to get the status will show no changes.
      *
      * @return this
      */
@@ -202,7 +345,8 @@ public class JFSFileModifications {
     }
 
     /**
-     * Get the current set of file changes, and reset the state to be unmodified.
+     * Get the current set of file changes, and reset the state to be
+     * unmodified.
      *
      * @return A set of file changes
      */
@@ -316,8 +460,12 @@ public class JFSFileModifications {
 
         public abstract Set<? extends UnixPath> added();
 
-        public boolean isUpToDate() {
+        public boolean existingFilesChanged() {
             return modified().isEmpty() && deleted().isEmpty();
+        }
+
+        public boolean isUpToDate() {
+            return modified().isEmpty() && deleted().isEmpty() && added().isEmpty();
         }
 
         static final class Modifications extends FileChanges {
@@ -429,24 +577,32 @@ public class JFSFileModifications {
     }
 
     private FilesInfo currentInfo() {
+        boolean closed = jfs.isReallyClosed();
+        boolean empty = jfs.isEmpty();
+        boolean jfsDead = closed || empty;
+
         Map<? extends Location, Map<UnixPath, Long>> timestamps = locationMap();
         List<JFSFileObject> files = new ArrayList<>();
         for (Location loc : locations) {
             Map<UnixPath, Long> itemsForLocation = timestamps.get(loc);
-            jfs.list(loc, (location, fo) -> {
-                try {
-                    UnixPath path = UnixPath.get(fo.getName());
-                    if (filter == null || filter.test(path)) {
-                        itemsForLocation.put(path, fo.getLastModified());
-                        files.add(fo);
+            if (!jfsDead) {
+                jfs.list(loc, (location, fo) -> {
+                    try {
+                        UnixPath path = UnixPath.get(fo.getName());
+                        if (filter == null || filter.test(path)) {
+                            itemsForLocation.put(path, fo.getLastModified());
+                            files.add(fo);
+                        }
+                    } catch (Exception ex) {
+                        LOG.log(Level.SEVERE, "Exception indexing " + jfs + " on " + fo, ex);
                     }
-                } catch (Exception ex) {
-                    LOG.log(Level.SEVERE, "Exception indexing " + jfs + " on " + fo, ex);
-                }
-            });
+                });
+            }
         }
         files.sort((a, b) -> {
-            return a.getName().compareTo(b.getName());
+            // XXX if the same file path exists in more than one location,
+            // this will have non-deterministic results
+            return a.path().compareTo(b.path());
         });
         byte[] hash;
         try {
@@ -464,6 +620,22 @@ public class JFSFileModifications {
             return Exceptions.chuck(ex);
         }
         return new FilesInfo(timestamps, hash);
+    }
+
+    /**
+     * Get the last-modified date of a file at the time this modification set
+     * was created or last-updated.
+     *
+     * @param coords A set of coordinates
+     * @return a Long or null if unrecorded
+     */
+    public Long lastModifiedOf(JFSCoordinates coords) {
+        FilesInfo info;
+        synchronized(this) {
+            info = this.info;
+        }
+        return info == null ? null : info.lastModifiedOf(
+                notNull("coords", coords));
     }
 
     private <R> Map<? extends Location, Map<UnixPath, R>> locationMap() {
@@ -514,6 +686,14 @@ public class JFSFileModifications {
         public FilesInfo(Map<? extends Location, Map<UnixPath, Long>> timestamps, byte[] hash) {
             this.timestamps = timestamps;
             this.hash = hash;
+        }
+
+        Long lastModifiedOf(JFSCoordinates coords) {
+            Map<UnixPath, Long> stamps = timestamps.get(coords.location());
+            if (stamps != null) {
+                return stamps.get(coords.path());
+            }
+            return null;
         }
 
         public String toString() {

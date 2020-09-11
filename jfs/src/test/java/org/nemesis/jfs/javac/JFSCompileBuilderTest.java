@@ -155,7 +155,7 @@ public class JFSCompileBuilderTest {
         assertNotSame(baseMsg, status, newStatus);
         assertFalse(baseMsg, newStatus.isUpToDate());
         assertFalse(baseMsg, newStatus.isUnknownStatus());
-        assertTrue(firstCompileResult.filesState().changes().modified().contains(SOURCE_FILE_PATH));
+        assertTrue(firstCompileResult.inputFileChanges().modified().contains(SOURCE_FILE_PATH));
 
         CompileResult compileResult2 = new JFSCompileBuilder(jfs)
                 .addSourceLocation(StandardLocation.SOURCE_PATH)
@@ -176,7 +176,7 @@ public class JFSCompileBuilderTest {
         assertFalse(origStatusRevised.isUpToDate());
         assertTrue(compileResult2.currentStatus().isUpToDate());
 
-        JFSFileModifications.FileChanges ch = firstCompileResult.filesState().changesAndReset();
+        JFSFileModifications.FileChanges ch = firstCompileResult.inputFileChanges();
         assertTrue(ch.modified().contains(SOURCE_FILE_PATH));
     }
 

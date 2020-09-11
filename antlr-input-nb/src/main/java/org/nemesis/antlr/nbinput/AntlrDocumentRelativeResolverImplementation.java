@@ -32,8 +32,8 @@ import org.openide.util.Pair;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
- * Document relative resolver which simply delegates to a
- * FileObject relative resolver.
+ * Document relative resolver which simply delegates to a FileObject relative
+ * resolver.
  *
  * @author Tim Boudreau
  */
@@ -45,6 +45,21 @@ public class AntlrDocumentRelativeResolverImplementation extends RelativeResolve
 
     public AntlrDocumentRelativeResolverImplementation() {
         super(Document.class);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o != null && o.getClass() == AntlrDocumentRelativeResolverImplementation.class;
+    }
+
+    @Override
+    public int hashCode() {
+        return 1029903207;
+    }
+
+    @Override
+    public String toString() {
+        return AntlrDocumentRelativeResolverImplementation.class.getSimpleName();
     }
 
     @Override

@@ -46,7 +46,7 @@ public final class AdhocLanguageFactory extends LanguageProvider {
     static final Logger LOG = Logger.getLogger(AdhocLanguageFactory.class.getName());
     private AtomicInteger count = new AtomicInteger();
     private static final RequestProcessor LANGUAGE_UPDATES
-            = new RequestProcessor("AdhocLanguageFactory-force-regenerate", 1);
+            = new RequestProcessor("AdhocLanguageFactory-force-regenerate", 1, false);
     private final RequestProcessor.Task refresh = LANGUAGE_UPDATES.create(this::reallyFire);
     private final Map<String, AdhocLanguageHierarchy> cache
             = Collections.synchronizedMap(new WeakHashMap<>());

@@ -61,7 +61,7 @@ public class TestReadsAreConsistent {
         String txt = text(30);
         String txt2 = text(120);
         JFSFileObject fo = jfs.create(a, StandardLocation.SOURCE_OUTPUT, txt);
-        JFSFileObject fob = jfs.create(a, StandardLocation.SOURCE_OUTPUT, txt2);
+        JFSFileObject fob = jfs.create(b, StandardLocation.SOURCE_OUTPUT, txt2);
         txt = testReadWriteText(fo, txt, a);
         txt2 = testReadWriteText(fob, txt2, b);
         testParallelReadWriteText(fo, txt, a);

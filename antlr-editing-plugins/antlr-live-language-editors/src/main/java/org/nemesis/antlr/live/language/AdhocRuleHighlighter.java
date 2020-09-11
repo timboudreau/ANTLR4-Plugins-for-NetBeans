@@ -56,7 +56,8 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter {
             }
             return;
         }
-        bag.update(mgr.colorings(), info.semantics, info.semantics.text().length());
+        // Document may have had content deleted
+        bag.update(mgr.colorings(), info.semantics, Math.min(info.doc.getLength(), info.semantics.text().length()));
     }
 
     @Override

@@ -922,7 +922,7 @@ public final class AdhocMimeTypes {
         final Map<String, String> mimeTypeForExtension = new ConcurrentHashMap<>();
         private final List<Reference<BiConsumer<String, String>>> listeners
                 = new LinkedList<>();
-        private static RequestProcessor THREAD_POOL = new RequestProcessor("GrammarFileExtensionRegistry", 1);
+        private static RequestProcessor THREAD_POOL = new RequestProcessor("GrammarFileExtensionRegistry", 1, false);
 
         private boolean loading;
         private boolean loaded;

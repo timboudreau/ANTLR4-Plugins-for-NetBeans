@@ -20,6 +20,7 @@ import com.mastfrog.function.TriConsumer;
 import java.io.File;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.nio.charset.Charset;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -30,6 +31,7 @@ import org.nemesis.antlr.project.Folders;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileObject;
+import org.netbeans.api.queries.FileEncodingQuery;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
@@ -198,7 +200,8 @@ final class OneFileMapping {
                     if (f == null) {
                         throw new IllegalStateException("Not a disk file: " + file);
                     }
-                    jfs.masquerade(f.toPath(), path.location(), path.path());
+                    Charset charset = FileEncodingQuery.getEncoding(file);
+                    jfs.masquerade(f.toPath(), path.location(), path.path(), charset);
                     mappedDocument = null;
                     break;
                 case DOCUMENT:

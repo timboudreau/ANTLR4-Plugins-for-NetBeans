@@ -67,10 +67,12 @@ import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.ParseResultHook;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.debug.api.Trackables;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileModifications;
+import org.nemesis.misc.utils.ActivityPriority;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.openide.filesystems.FileObject;
@@ -131,30 +133,30 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
 
     static final long INITIAL_LOAD;
     static final long STARTUP_DELAY = 10000;
+    static final boolean IS_TEST;
 
     static {
         long start = System.currentTimeMillis();
         // In JDK 14, RuntimeMXBean always returns 0 for uptime and start time,
         // so the best we can do is first load of this class, but we can try
         // elsewhere to ensure it is loaded early
-        if (Boolean.getBoolean("unit.test")) {
+        if (IS_TEST = Boolean.getBoolean("unit.test")) {
             start = 0;
         }
         INITIAL_LOAD = start;
     }
     static final long READY_TIME = INITIAL_LOAD + STARTUP_DELAY;
 
-
     static boolean inStartupDelay() {
         return System.currentTimeMillis() < READY_TIME;
     }
 
     static EventApplier<FileObject, AntlrRegenerationEvent, Subscriber> applier() {
-        if (inStartupDelay()) {
-            return new Applier();
-        } else {
+//        if (inStartupDelay()) {
+//            return new Applier();
+//        } else {
             return new UndelayedApplier();
-        }
+//        }
     }
 
     static class Applier implements EventApplier<FileObject, AntlrRegenerationEvent, Subscriber> {
@@ -327,14 +329,17 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     public void subscribe(FileObject key, Subscriber consumer) {
         boolean isNew = !subscribersStore.subscribedKeys().contains(key);
         subscribableDelegate.subscribe(key, consumer);
+
         if (isNew) {
             ParseResultHook.register(key, this);
         }
 //        if (isNew) {
 //            ParseResultHook.register(key, this);
 //            svc.submit(() -> {
-        NbAntlrUtils.invalidateSource(key);
-        forceParse(key, "Subscribe " + consumer);
+        if (ActivityPriority.get().isRealtime() || IS_TEST) {
+            NbAntlrUtils.invalidateSource(key);
+            forceParse(key, "Subscribe " + consumer);
+        }
 //            });
 //        } else {
 //            svc.submit(() -> {
@@ -420,7 +425,10 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     @Override
     protected void onReparse(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
         BrokenSourceThrottle throttle = AntlrGenerationSubscriptionsImpl.throttle();
-        if (extraction == null) {
+        if (extraction != null && !extraction.isPlaceholder()) {
+            String hs = extraction.tokensHash();
+            Trackables.track(Extraction.class, extraction, () -> hs);
+        } else {
             return;
         }
         if (throttle.isThrottled(extraction)) {
@@ -494,6 +502,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                             .grammarSourceInputLocation(jfsMappedGrammarFilePath.location())
                             .withPathHints(mappingManager.mappings)
                             .generateAllGrammars(true)
+                            .withInterceptor(this)
                             .generateDependencies(true);
                     if (!parentPath.isEmpty()) {
                         bldr.generateIntoJavaPackage(parentPath.toString('.'));
@@ -571,7 +580,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                                     JFSCoordinates sibMapping = mappingManager.mappings.forFileObject(sib);
                                     if (sibMapping != null) {
                                         UnixPath javaFile = jfsJavaSourcePathForGrammarFile(sib);
-                                        //                                            boolean mod = result.outputFiles.get(grammarPath).contains(javaFile);
+                                        //                                            boolean mod = result.outputDependencies.get(grammarPath).contains(javaFile);
                                         Optional<ObjectGraph<UnixPath>> siblingDependencyGraph = dependencyGraphCache.getOptional(sib);
                                         if ( /* mod || */changes.isCreatedOrModified(javaFile)) {
                                             alreadyRegenerated.add(sib);
@@ -640,11 +649,13 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(originator.originalFile().toFile()));
         if (fo != null) {
             AntlrGenerationResult oldRes = resultCache.get(fo);
-            if (oldRes != null && oldRes.isReusable()) {
+            if (oldRes != null && oldRes.isReusable() && oldRes.isUpToDate()) {
                 return oldRes;
             }
         }
         AntlrGenerationResult res = localRerunner.run(grammarFileName, logStream, generate);
+//        AntlrParseResult.simulateReparse(null, NbAntlrUtils.extractionFor(fo));
+//        AntlrRegenerationEvent evt = new AntlrRegenerationEvent(res.)
         if (fo != null && res.isUsable()) {
             resultCache.put(fo, res);
         }

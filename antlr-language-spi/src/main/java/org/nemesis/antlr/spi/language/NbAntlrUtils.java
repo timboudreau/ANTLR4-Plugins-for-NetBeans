@@ -331,23 +331,27 @@ public final class NbAntlrUtils {
     static void storeExtraction( Document doc, Extraction ext ) {
         if ( doc != null && ext != null && !ext.isPlaceholder() ) {
 
-            AtomicReference<WeakReference<Extraction>> ref = extractionReference( doc );
+            AtomicReference<TimedWeakReference<Extraction>> ref = extractionReference( doc );
+            TimedWeakReference<Extraction> old = ref.get();
 //            WeakReference<Extraction> old = ref.get();
-            WeakReference<Extraction> nue = new TimedWeakReference<>( ext );
+            TimedWeakReference<Extraction> nue = new TimedWeakReference<>( ext );
             ref.set( nue );
+            if (old != null) {
+                old.discard();
+            }
         }
     }
 
     @SuppressWarnings( "DoubleCheckedLocking" )
-    private static AtomicReference<WeakReference<Extraction>> extractionReference( Document doc ) {
+    private static AtomicReference<TimedWeakReference<Extraction>> extractionReference( Document doc ) {
         // Unless something weird is happening, the generated editor
         // kit will prepopulate this - may not be there if the developer
         // created their own kit
-        AtomicReference<WeakReference<Extraction>> ref = ( AtomicReference<WeakReference<Extraction>> ) doc
+        AtomicReference<TimedWeakReference<Extraction>> ref = ( AtomicReference<TimedWeakReference<Extraction>> ) doc
                 .getProperty( EXTRACTION_DOCUMENT_PROPERTY );
         if ( ref == null ) {
             synchronized ( NbAntlrUtils.class ) {
-                ref = ( AtomicReference<WeakReference<Extraction>> ) doc.getProperty( EXTRACTION_DOCUMENT_PROPERTY );
+                ref = ( AtomicReference<TimedWeakReference<Extraction>> ) doc.getProperty( EXTRACTION_DOCUMENT_PROPERTY );
                 if ( ref == null ) {
                     ref = new AtomicReference<>();
                     doc.putProperty( EXTRACTION_DOCUMENT_PROPERTY, ref );
@@ -397,10 +401,11 @@ public final class NbAntlrUtils {
      */
     @SuppressWarnings( "unchecked" )
     public static Extraction extractionFor( Document document ) {
-        AtomicReference<WeakReference<Extraction>> ref = null;
+        AtomicReference<TimedWeakReference<Extraction>> ref = null;
+        TimedWeakReference<Extraction> weak = null;
         if ( extractionCachingEnabled() ) {
             ref = extractionReference( document );
-            WeakReference<Extraction> weak = ref.get();
+            weak = ref.get();
             if ( weak != null ) {
                 Extraction result = weak.get();
                 if ( result != null && !result.isSourceProbablyModifiedSinceCreation() ) {
@@ -413,6 +418,9 @@ public final class NbAntlrUtils {
             result = parseImmediately( document );
             if ( ref != null && result != null && !result.isPlaceholder() ) {
                 ref.set( new TimedWeakReference<>( result ) );
+                if (weak != null) {
+                    weak.discard();
+                }
             }
         } catch ( Exception ex ) {
             Exceptions.printStackTrace( ex );

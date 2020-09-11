@@ -65,6 +65,11 @@ public final class JFSUrlStreamHandlerFactory implements URLStreamHandlerFactory
         INSTANCE = this;
         backtrace = allocationBacktrace();
         hook = lookupSomehow(JFSLifecycleHook.class, () -> null);
+        JFSUtilities.registerMetric("jfses", this::liveJFSes, false);
+    }
+
+    int liveJFSes() {
+        return filesystems.size();
     }
 
     @SuppressWarnings("AssertWithSideEffects")

@@ -25,6 +25,7 @@ public class AntlrRunBuilder {
 
     private final AntlrGeneratorAndCompiler compiler;
     private Supplier<ClassLoader> classloaderSupplier = DefaultClassLoaderSupplier.INSTANCE;
+    private AntlrGenerationAndCompilationResult agcr;
 
     AntlrRunBuilder(AntlrGeneratorAndCompiler compiler) {
         this.compiler = compiler;
@@ -44,7 +45,14 @@ public class AntlrRunBuilder {
     }
 
     public WithGrammarRunner build(String grammarFileName) {
-        return new WithGrammarRunner(grammarFileName, compiler, classloaderSupplier);
+        WithGrammarRunner r = new WithGrammarRunner(grammarFileName, compiler, classloaderSupplier);
+        r.lastGenerationResult = agcr;
+        return r;
+    }
+
+    public AntlrRunBuilder withLastGenerationResult(AntlrGenerationAndCompilationResult agcr) {
+        this.agcr = agcr;
+        return this;
     }
 
     static final class DefaultClassLoaderSupplier implements Supplier<ClassLoader> {

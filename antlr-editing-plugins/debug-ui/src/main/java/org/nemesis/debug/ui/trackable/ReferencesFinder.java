@@ -16,22 +16,37 @@
 package org.nemesis.debug.ui.trackable;
 
 import java.awt.Color;
+import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.invoke.MethodHandle;
 import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channel;
+import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.ResourceBundle;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -39,6 +54,7 @@ import java.util.function.Predicate;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 import org.openide.util.Lookup;
+import org.openide.util.WeakSet;
 
 /**
  * Insane / assertGc seems to be broken on newer JDKs, so something simpler if
@@ -62,12 +78,12 @@ public class ReferencesFinder {
      * @return A list of string paths that describe what is holding references
      * to the passed object
      */
-    public static List<String> detect(Object obj, Map<String, Object> roots, Set<Object> omit) {
+    public static List<String> detect(Object obj, Map<String, Object> roots, Set<Object> omit, Predicate<? super Object> ignore) {
         if (omit.contains(obj)) {
             throw new IllegalArgumentException();
         }
         List<String> result = new LinkedList<>();
-        detect(new EqPredicate(obj), roots, omit, result::add);
+        detect(new EqPredicate(obj), roots, omit, result::add, ignore);
         return result;
     }
 
@@ -80,9 +96,9 @@ public class ReferencesFinder {
      * @return A list of string paths that describe what is holding references
      * to objects which match the predicate
      */
-    public static List<String> detect(Predicate<Object> pred, Map<String, Object> roots, Set<Object> omit) {
+    public static List<String> detect(Predicate<Object> pred, Map<String, Object> roots, Set<Object> omit, Predicate<? super Object> ignore) {
         List<String> result = new LinkedList<>();
-        detect(pred, roots, omit, result::add);
+        detect(pred, roots, omit, result::add, ignore);
         return result;
     }
 
@@ -95,13 +111,31 @@ public class ReferencesFinder {
      * to the consumer
      * @param roots A map of names to root objects to traverse fields from
      * @param c A consumer for paths, e.g. <code>root -&gt; someObject -&gt;
-     * someOtherObject -&gt; theThingSearchedFor</code>
+     * someOtherObject -&gt; theThingSearchedFor and other output</code>
      */
-    public static void detect(Predicate<Object> pred, Map<String, Object> roots, Set<Object> omit, Consumer<String> c) {
-        Detector det = new Detector(pred, c, omit);
-        for (Map.Entry<String, Object> e : roots.entrySet()) {
+    public static int detect(Predicate<Object> pred, Map<String, Object> roots, Set<Object> omit, Consumer<String> c, Predicate<? super Object> ignore) {
+        List<Map.Entry<String, Object>> l = new ArrayList<>(roots.entrySet());
+        int detections = 0;
+        Detector det = new Detector(true, pred, c, omit, roots, ignore);
+        for (Map.Entry<String, Object> e : l) {
+            c.accept("Scanning " + e.getKey());
+            Thread.yield();
             det.accept(e.getKey(), e.getValue());
         }
+        detections = det.detections;
+        if (detections == 0) {
+            c.accept("\nNo detections with weak references unsearched, try with them on. The result may not be a strong reference.\n");
+            det = new Detector(false, pred, c, omit, roots, ignore);
+            for (Map.Entry<String, Object> e : l) {
+                c.accept("Scanning " + e.getKey() + " including weak sets, maps and references.");
+                det.accept(e.getKey(), e.getValue());
+            }
+            detections = det.detections;
+        }
+        if (detections == 0) {
+            c.accept("\nFailed.  No references found.\n");
+        }
+        return detections;
     }
 
     private static final class EqPredicate implements Predicate<Object> {
@@ -121,22 +155,30 @@ public class ReferencesFinder {
     private static final class Detector implements BiConsumer<String, Object> {
 
         private final Consumer<String> c;
-        private List<DissectionStrategy> strategies = new ArrayList<>();
-        private final VisitTracker vt = new VisitTracker();
+        private final List<DissectionStrategy> strategies = new ArrayList<>();
+        private final VisitTracker vt;
         private final Predicate<Object> test;
-        private final Set<Object> omit;
+        private final Map<Object, String> rootsBidi = new IdentityHashMap<>();
+        // There are some objects in the window system which will throw
+        // an exception if hashCode() is called when not on the event thread,
+        // so make sure membership tests do not do that
+        private final IdentityHashMap<Object, Boolean> omitMap = new IdentityHashMap<>();
+        private volatile int detections;
+        private final Predicate<? super Object> tester;
 
         @SuppressWarnings("LeakingThisInConstructor")
-        Detector(Predicate<Object> test, Consumer<String> c, Set<Object> omit) {
-            // There are some objects in the window system which will throw
-            // an exception if hashCode() is called when not on the event thread,
-            // so make sure membership tests do not do that
-            Map<Object, Boolean> omitMap = new IdentityHashMap<>();
+        Detector(boolean ignoreWeak, Predicate<Object> test, Consumer<String> c, Set<Object> omit, Map<String, Object> roots, Predicate<? super Object> tester) {
+            vt = new VisitTracker(ignoreWeak, tester);
+            for (Map.Entry<String, Object> e : roots.entrySet()) {
+                rootsBidi.put(e.getValue(), e.getKey());
+            }
             omitMap.put(this, true);
+            omitMap.put(test, true);
+            omitMap.put(c, true);
+            omitMap.put(omit, true);
             for (Object o : omit) {
                 omitMap.put(o, Boolean.TRUE);
             }
-            this.omit = omitMap.keySet();
             this.c = c;
             this.test = test;
             strategies.add(new CollectionDissectionStrategy());
@@ -144,26 +186,59 @@ public class ReferencesFinder {
             strategies.add(new ReferenceDissectionStrategy());
             strategies.add(new AtomicReferenceDissectionStrategy());
             strategies.add(new ThreadLocalDissectionStrategy());
-//            strategies.add(new VarHandleDissectionStrategy()); // JDK 10
+            strategies.add(new OptionalDissectionStrategy());
+            maybeAddVarHandleStrategy(strategies);
             strategies.add(new MapDissectionStrategy());
             strategies.add(new LookupDissectionStrategy());
             strategies.add(new FieldDissectionStrategy());
+            strategies.add(new StaticFieldsDissectionStrategy());
+            this.tester = tester;
         }
 
         @Override
         public void accept(String path, Object obj) {
-            if (omit.contains(obj)) {
-                return;
-            }
             if (obj != null && test.test(obj)) {
-                c.accept(path + " -> " + obj);
-            } else {
+                detections++;
+                c.accept(path + " ==> \n" + obj + "\n\n");
+            } else if (obj != null) {
+                if (omitMap.containsKey(obj)) {
+                    return;
+                }
+                boolean addToOmit = false;
+                try {
+                    String name = rootsBidi.get(obj);
+                    if (name != null) {
+                        path = name + " -> ";
+                        addToOmit = true;
+                    }
+                } catch (IllegalStateException | NullPointerException ex) {
+                    ex.printStackTrace();
+                    // will be this, called via hashCode() on something else
+                    /*
+java.lang.IllegalStateException: Problem in some module which uses Window System: Window System API is required to be called from AWT thread only, see http://core.netbeans.org/proposals/threading/
+	at org.netbeans.core.windows.WindowManagerImpl.warnIfNotInEDT(WindowManagerImpl.java:1816)
+	at org.netbeans.core.windows.WindowManagerImpl.topComponentID(WindowManagerImpl.java:1458)
+	at org.openide.windows.WindowManager.findTopComponentID(WindowManager.java:526)
+
+                    or it will be
+
+java.lang.NullPointerException
+	at java.xml/com.sun.org.apache.xerces.internal.impl.dtd.XMLContentSpec.hashCode(XMLContentSpec.java:245)
+	at java.base/java.util.HashMap.hash(HashMap.java:340)
+	at java.base/java.util.HashMap.get(HashMap.java:558)
+	at org.nemesis.debug.ui.trackable.ReferencesFinder$Detector.accept(ReferencesFinder.java:187)
+
+                     */
+                }
                 for (DissectionStrategy d : strategies) {
                     if (d.matches(obj)) {
                         if (d.apply(path, obj, this, vt)) {
                             break;
                         }
                     }
+                }
+                if (addToOmit) {
+                    omitMap.put(obj, Boolean.TRUE);
                 }
             }
         }
@@ -180,7 +255,7 @@ public class ReferencesFinder {
 
         private final Class<? super T> type;
 
-        public AbstractDissectionStrategy(Class<? super T> type) {
+        protected AbstractDissectionStrategy(Class<? super T> type) {
             this.type = type;
         }
 
@@ -208,18 +283,28 @@ public class ReferencesFinder {
         @Override
         protected void doApply(Collection<?> o, String path, BiConsumer<String, Object> bi, VisitTracker visits) {
             int ix = 0;
-            List<Object> l;
-            for (;;) {
+            List<Object> l = null;
+            for (int i = 0; i < 20; i++) {
                 try {
                     l = new ArrayList<>(o);
                     break;
                 } catch (ConcurrentModificationException ex) {
-
+                    if (i < 19) {
+                        Thread.yield();
+                    } else {
+                        ex.printStackTrace();
+                        bi.accept(path + "<unreadable>", "Could not iterate collection w/o CME");
+                        return;
+                    }
                 }
             }
+            if (l == null) {
+                return;
+            }
+            String commonType = "<" + leastCommonTypeName(o) + ">";
             for (Object item : l) {
                 if (item != o && visits.shouldVisit(item)) {
-                    bi.accept(path + " -> [c-" + ix + "]", item);
+                    bi.accept(path + commonType + "[" + ix + "] -> ", item);
                 }
                 ix++;
             }
@@ -252,13 +337,92 @@ public class ReferencesFinder {
                 for (int i = 0; i < max; i++) {
                     Object item = Array.get(o, i);
                     if (visits.shouldVisit(item)) {
-                        bi.accept(path + "[" + i + "]", item);
+                        String typeName = typeName(item);
+                        bi.accept(path + "[" + i + "](" + typeName + ")", item);
                     }
                 }
                 return true;
             }
             return false;
         }
+    }
+
+    private static String leastCommonTypeName(Collection<?> c) {
+        if (c.isEmpty()) {
+            return "?";
+        }
+        List<Set<Class<?>>> all = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            try {
+                for (Object o : c) {
+                    all.add(typeNames(o));
+                }
+                break;
+            } catch (ConcurrentModificationException cme) {
+                all.clear();
+            }
+        }
+        return commonDenominatorTypeName(all);
+    }
+
+    private static String commonDenominatorTypeName(Collection<? extends Set<Class<?>>> types) {
+        if (types.isEmpty()) {
+            return "?";
+        }
+        Set<Class<?>> curr = null;
+        for (Set<Class<?>> oneSet : types) {
+            if (curr == null) {
+                curr = oneSet;
+            } else {
+                curr.retainAll(oneSet);
+            }
+        }
+        if (curr == null || curr.isEmpty()) {
+            return "?";
+        }
+        List<Class<?>> l = new ArrayList<>(curr);
+        Collections.sort(l, (a, b) -> {
+            return -Integer.compare(depth(a), depth(b));
+        });
+        return l.get(0).getSimpleName();
+    }
+
+    private static int depth(Class<?> type) {
+        int result = 0;
+        while (type != null) {
+            result++;
+            type = type.getSuperclass();
+        }
+        return result;
+    }
+
+    private static Set<Class<?>> typeNames(Object o) {
+        if (o == null) {
+            return new HashSet<>(1);
+        }
+        Set<Class<?>> types = new HashSet<>();
+        Class<?> curr = o.getClass();
+        while (curr != null) {
+            types.add(curr);
+            for (Class<?> iface : curr.getInterfaces()) {
+                types.add(iface);
+            }
+            curr = curr.getSuperclass();
+        }
+        return types;
+    }
+
+    private static String typeName(Object o) {
+        if (o == null) {
+            return "null";
+        }
+        if (o.getClass().isArray()) {
+            return o.getClass().getComponentType().getSimpleName() + "[]";
+        }
+        if (o.getClass().getName().contains("$$Lambda")) {
+            return o.getClass().getName();
+        }
+        return o.getClass().getSimpleName();
     }
 
     private static final class MapDissectionStrategy extends AbstractDissectionStrategy<Map<?, ?>> {
@@ -268,18 +432,23 @@ public class ReferencesFinder {
         }
 
         @Override
+        @SuppressWarnings("CallToThreadYield")
         protected void doApply(Map<?, ?> o, String path, BiConsumer<String, Object> bi, VisitTracker visits) {
             if (!visits.shouldVisit(o)) {
                 return;
             }
-            Map<Object, Object> m;
-            for (;;) {
+            Map<Object, Object> m = null;
+            for (int i = 0; i < 12; i++) {
                 try {
                     m = new HashMap<>(o);
                     break;
                 } catch (ConcurrentModificationException cme) {
-
+                    Thread.yield();
                 }
+            }
+            if (m == null) {
+                System.out.println("failed to get contents of " + path);
+                return;
             }
             for (Map.Entry<?, ?> e : m.entrySet()) {
                 Object k = e.getKey();
@@ -332,6 +501,7 @@ public class ReferencesFinder {
     }
 
     /*
+    // XXX JDK9
     private static final class VarHandleDissectionStrategy extends AbstractDissectionStrategy<VarHandle> {
 
         VarHandleDissectionStrategy() {
@@ -352,7 +522,40 @@ public class ReferencesFinder {
             }
         }
     }
-    */
+     */
+    static void maybeAddVarHandleStrategy(Collection<? super AbstractDissectionStrategy<?>> addTo) {
+        try {
+            Class<?> type = Class.forName("java.lang.invoke.VarHandle");
+            Method getMethod = type.getMethod("get");
+            addTo.add(new ReflectiveVarHandleDissectionStrategy<>(type, getMethod));
+        } catch (ClassNotFoundException | NoSuchMethodException | SecurityException | UnsupportedOperationException ex) {
+            // do nothing
+        }
+    }
+
+    // On JDK 8, actually referening VarHandle will break badly, so as long as we
+    // compile on that, we cannot use the explicit version of it
+    private static final class ReflectiveVarHandleDissectionStrategy<T> extends AbstractDissectionStrategy<T> {
+
+        private final Method getMethod;
+
+        ReflectiveVarHandleDissectionStrategy(Class<T> varHandleType, Method getMethod) {
+            super(varHandleType);
+            this.getMethod = getMethod;
+        }
+
+        @Override
+        protected void doApply(T o, String path, BiConsumer<String, Object> bi, VisitTracker visits) {
+            try {
+                Object refd = getMethod.invoke(o);
+                if (refd != null && visits.shouldVisit(refd)) {
+                    bi.accept(path, refd);
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
 
     private static final class ThreadLocalDissectionStrategy extends AbstractDissectionStrategy<ThreadLocal<?>> {
 
@@ -369,16 +572,36 @@ public class ReferencesFinder {
         }
     }
 
+    private static final class OptionalDissectionStrategy extends AbstractDissectionStrategy<Optional<?>> {
+
+        OptionalDissectionStrategy() {
+            super(Optional.class);
+        }
+
+        @Override
+        protected void doApply(Optional<?> o, String path, BiConsumer<String, Object> bi, VisitTracker visits) {
+            if (o.isPresent()) {
+                Object refd = o.get();
+                if (refd != null && visits.shouldVisit(refd)) {
+                    bi.accept(path + " -> Optional<" + typeName(refd) + ">", refd);
+                }
+            }
+        }
+    }
+
     private static final class FieldDissectionStrategy extends AbstractDissectionStrategy<Object> {
 
         static Set<String> IGNORE = new HashSet<>(Arrays.asList("jdk.internal.misc.Unsafe",
                 "java.lang.module.ModuleDescriptor", "sun.misc.Unsafe"));
+        static int counter = 0;
+        StaticFieldsDissectionStrategy strat = new StaticFieldsDissectionStrategy();
 
         FieldDissectionStrategy() {
             super(Object.class);
         }
 
         @Override
+        @SuppressWarnings("CallToThreadYield")
         protected void doApply(Object o, String path, BiConsumer<String, Object> bi, VisitTracker visits) {
 //            System.out.println(path);
             Class<?> c = o.getClass();
@@ -386,6 +609,10 @@ public class ReferencesFinder {
                 return;
             }
             while (c != Object.class) {
+                strat.apply(path + ".class", c, bi, visits);
+//                if (visits.shouldVisit(c)) {
+//                    bi.accept(path + ".class -> ", c);
+//                }
                 if ("java.lang.module.ModuleDescriptor".equals(c.getName())) {
                     return;
                 }
@@ -405,16 +632,79 @@ public class ReferencesFinder {
                             value = f.get(o);
                         }
                     } catch (Exception ex) {
-                        if (!ex.getClass().getName().equals("InaccessibleObjectException")) {
-//                            ex.printStackTrace();
+                        if (!ex.getClass().getName().equals("java.lang.reflect.InaccessibleObjectException")) {
+                            ex.printStackTrace();
                         }
                     }
                     if (visits.shouldVisit(value)) {
                         String nm = path + " -> " + f.getName() + "{" + f.getType().getSimpleName() + "}";
                         bi.accept(nm, value);
                     }
+                    if (value instanceof Thread) {
+                        Thread t = (Thread) value;
+                        ClassLoader ldr = t.getContextClassLoader();
+                        if (visits.shouldVisit(ldr)) {
+                            String nm = path + " -> " + "Thread-" + t.getName() + "context-classloader -> ";
+                            bi.accept(nm, ldr);
+                        }
+                    }
                 }
                 c = c.getSuperclass();
+            }
+            // periodically give the UI a chance to paint
+            if (++counter % 100 == 0) {
+                Thread.yield();
+            }
+        }
+    }
+
+    static final class StaticFieldsDissectionStrategy extends AbstractDissectionStrategy<Class<?>> {
+
+        private static final Set<Integer> seen = new HashSet<>();
+
+        StaticFieldsDissectionStrategy() {
+            super(Class.class);
+        }
+
+        @Override
+        public boolean matches(Object o) {
+            return o instanceof Class<?> && !seen.contains(System.identityHashCode(o));
+        }
+
+        @Override
+        protected void doApply(Class<?> o, String path, BiConsumer<String, Object> bi, VisitTracker visits) {
+            if (seen.contains(System.identityHashCode(o))) {
+                return;
+            }
+            Class<?> type = o;
+            while (type != null && type != Object.class) {
+                Field[] fields = o.getDeclaredFields();
+                for (Field f : fields) {
+                    if ((f.getModifiers() & Modifier.STATIC) != 0 && !f.getType().isPrimitive()) {
+                        try {
+                            f.setAccessible(true);
+                            Object val = f.get(null);
+                            if (val != null) {
+//                                System.out.println("Visit static " + type.getSimpleName() + "." + f.getName()
+//                                        + " of " + f.getType().getSimpleName());
+                                if (visits.shouldVisit(val)) {
+                                    bi.accept(path + "->" + type.getSimpleName() + "." + f.getName(), val);
+                                }
+                            }
+                        } catch (Exception ex) {
+                            if (!ex.getClass().getSimpleName().equals("InaccessibleObjectException")) {
+                                ex.printStackTrace();
+                            }
+                        }
+                    }
+                }
+                if (visits.shouldVisit(type.getClassLoader())) {
+                    bi.accept(path + "->" + type.getSimpleName() + ".classloader", type.getClassLoader());
+                }
+                type = type.getSuperclass();
+                if (seen.contains(System.identityHashCode(type))) {
+                    return;
+                }
             }
         }
     }
@@ -446,13 +736,16 @@ public class ReferencesFinder {
                 }
                 if (item != o && visits.shouldVisit(item)) {
                     bi.accept(path + "[" + className(item) + "]", item);
+                    if (visits.shouldVisit(item.getClass())) {
+                        bi.accept(path + ".class", item.getClass());
+                    }
                 }
             }
         }
     }
 
     static boolean isIgnored(Object o) {
-        return o == null || o instanceof String || o instanceof CharSequence
+        boolean result = o == null || o instanceof String || o instanceof CharSequence
                 || o.getClass() == Object.class
                 || o instanceof Logger || o instanceof LogManager
                 || o instanceof String
@@ -460,6 +753,10 @@ public class ReferencesFinder {
                 || o instanceof Throwable
                 || o instanceof StackTraceElement
                 || o instanceof Color
+                || o instanceof File
+                || o instanceof Path
+                || o instanceof Method
+                || o instanceof Field
                 //                || o instanceof VarHandle
                 || o instanceof Long || o instanceof Integer || o instanceof Boolean
                 || o instanceof Float || o instanceof Double || o instanceof Short
@@ -467,16 +764,39 @@ public class ReferencesFinder {
                 || o instanceof char[] || o instanceof Character
                 || o instanceof byte[] || o instanceof short[] || o instanceof double[]
                 || o instanceof boolean[] || o.getClass().getSimpleName().equals("ModuleDescriptor")
-                || o instanceof ClassLoader;
+                || o instanceof Locale || o instanceof Charset || o instanceof InputStream
+                || o instanceof OutputStream || o instanceof ByteBuffer || o instanceof Channel
+                || o instanceof Random || o instanceof ResourceBundle;
+        if (!result) {
+            String nm = o.getClass().getName();
+            result = nm.startsWith("sun.util") || nm.startsWith("sun.reflect");
+        }
+        return result;
     }
 
     private static final class VisitTracker {
 
         private final Set<Integer> idHashes = new HashSet<>();
+        private final boolean ignoreWeakReferences;
+        private final Predicate<? super Object> tester;
+
+        public VisitTracker(boolean ignoreWeakReferences, Predicate<? super Object> tester) {
+            this.ignoreWeakReferences = ignoreWeakReferences;
+            this.tester = tester;
+        }
 
         boolean shouldVisit(Object o) {
             if (isIgnored(o)) {
                 return false;
+            }
+            if (o != null && tester.test(o)) {
+                idHashes.add(System.identityHashCode(o));
+                return false;
+            }
+            if (ignoreWeakReferences) {
+                if (o instanceof WeakReference<?> || o instanceof WeakSet<?> || o instanceof WeakHashMap<?, ?>) {
+                    return false;
+                }
             }
             int ic = System.identityHashCode(o);
             if (!idHashes.contains(ic)) {

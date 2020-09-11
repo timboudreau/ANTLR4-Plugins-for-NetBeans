@@ -58,7 +58,7 @@ limitations under the License.
         <enforcer.skip>true</enforcer.skip>
     </properties>
     <dependencies>
-        <!--
+<!--
                         <dependency>
                             <groupId>${project.groupId}</groupId>
                             <artifactId>debug-ui</artifactId>
@@ -259,12 +259,6 @@ limitations under the License.
             <groupId>${project.groupId}</groupId>
             <artifactId>antlr-code-folding</artifactId>
         </dependency>
-        <!--
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>protoc-antlr</artifactId>
-        </dependency>
--->
         <dependency>
             <groupId>org.netbeans.cluster</groupId>
             <artifactId>platform</artifactId>

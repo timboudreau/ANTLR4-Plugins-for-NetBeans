@@ -38,6 +38,7 @@ public class IsolationClassLoaderTest {
         testOne(b, Pk1.class.getName(), true);
     }
 
+    @SuppressWarnings({"unchecked", "deprecation"})
     private void testOne(IsolationClassLoaderBuilder ldr, String instantiate, boolean shouldFail) throws Throwable {
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         try {

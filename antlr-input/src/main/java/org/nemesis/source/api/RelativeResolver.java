@@ -42,23 +42,11 @@ public final class RelativeResolver<T> implements Serializable {
     }
 
     public static <T> RelativeResolver<T> noop(Class<T> type) {
-        return new RelativeResolver<>(new Noop<>(type));
+        return new RelativeResolver<>(RelativeResolverImplementation.noop(type));
     }
 
     RelativeResolverImplementation<T> implementation() {
         return spi;
-    }
-
-    private static final class Noop<T> extends RelativeResolverImplementation<T> {
-
-        Noop(Class<T> type) {
-            super(type);
-        }
-
-        @Override
-        public Optional<T> resolve(T relativeTo, String name) {
-            return Optional.empty();
-        }
     }
 
     @Override

@@ -16,10 +16,13 @@
 package org.nemesis.antlr.compilation;
 
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import org.antlr.v4.tool.Grammar;
+import org.nemesis.debug.api.Trackables;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.javac.JavacDiagnostic;
 import org.nemesis.jfs.result.ProcessingResult;
@@ -34,8 +37,10 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
     private T result;
     private final Throwable thrown;
     private final AntlrGenerationAndCompilationResult generationAndCompilationResult;
-    private final GrammarRunResult<T> lastGood;
+    private GrammarRunResult<T> lastGood;
     private final long timestamp = System.currentTimeMillis();
+    private static final AtomicLong ids = new AtomicLong();
+    public final long id = ids.getAndIncrement();
 
     GrammarRunResult(T result, Throwable thrown, AntlrGenerationAndCompilationResult buildResult, GrammarRunResult<T> lastGood) {
         this.result = result;
@@ -44,6 +49,36 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
         // Only need a last-good result if we are not; otherwise we
         // will leak a chain of GrammarRunResults back to the dawn of time.
         this.lastGood = buildResult.isUsable() ? null : lastGood;
+        if (lastGood != null) {
+            lastGood.clearLastGood();
+        }
+        Trackables.track(GrammarRunResult.class, this);
+    }
+
+    @Override
+    public <T> T getWrapped(Class<T> type) {
+        if (AntlrGenerationAndCompilationResult.class == type) {
+            if (generationAndCompilationResult != null) {
+                return type.cast(generationAndCompilationResult);
+            }
+        }
+        if (generationAndCompilationResult != null) {
+            T res = generationAndCompilationResult.getWrapped(type);
+            if (res != null) {
+                return res;
+            }
+        }
+        if (result != null && type.isInstance(result)) {
+            return type.cast(result);
+        }
+        if (GrammarRunResult.class == type && lastGood != null) {
+            return type.cast(lastGood);
+        }
+        return ProcessingResult.super.getWrapped(type);
+    }
+
+    void clearLastGood() {
+        lastGood = null;
     }
 
     public String grammarName() {
@@ -61,12 +96,16 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder("GrammarRunResult(");
-        sb.append("usable=").append(isUsable())
-                .append(", result=").append(result).append("\n\n");
-        sb.append("buildResult.usable=").append(generationAndCompilationResult.isUsable());
+        StringBuilder sb = new StringBuilder("GRR(");
+        sb.append(id).append(" usable=").append(isUsable())
+                .append(", result=").append(result).append(" ");
+        sb.append("buildResult.usable=").append(generationAndCompilationResult == null
+                ? "no-result-present" : generationAndCompilationResult.isUsable());
         sb.append(" buildResult.grammarGenerationResult.usable=");
-        sb.append(generationAndCompilationResult.generationResult().isUsable());
+        sb.append(generationAndCompilationResult == null
+                || generationAndCompilationResult.generationResult() == null
+                ? "no-result"
+                : generationAndCompilationResult.generationResult().isUsable());
         return sb.toString();
     }
 
@@ -79,27 +118,25 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
     }
 
     public JFS jfs() {
-        return generationAndCompilationResult.jfs();
+        return generationAndCompilationResult == null
+                ? null : generationAndCompilationResult.jfs();
     }
 
     public Optional<Grammar> findGrammar(String name) {
-        return generationAndCompilationResult.findGrammar(name);
-    }
-
-    public Path sourceRoot() {
-        return generationAndCompilationResult.sourceRoot();
+        return generationAndCompilationResult == null ? Optional.empty()
+                : generationAndCompilationResult.findGrammar(name);
     }
 
     public boolean compileFailed() {
-        return generationAndCompilationResult.compileFailed();
+        return generationAndCompilationResult == null ? true : generationAndCompilationResult.compileFailed();
     }
 
     public List<Path> sources() {
-        return generationAndCompilationResult.compiledSourceFiles();
+        return generationAndCompilationResult == null ? Collections.emptyList() : generationAndCompilationResult.compiledSourceFiles();
     }
 
     public List<JavacDiagnostic> diagnostics() {
-        return generationAndCompilationResult.javacDiagnostics();
+        return generationAndCompilationResult == null ? Collections.emptyList() : generationAndCompilationResult.javacDiagnostics();
     }
 
     public GrammarRunResult<T> lastGood() {
@@ -112,7 +149,7 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
 
     @Override
     public boolean isUsable() {
-        return generationAndCompilationResult.isUsable() && thrown == null;
+        return generationAndCompilationResult != null && generationAndCompilationResult.isUsable() && thrown == null;
     }
 
     @Override
@@ -120,12 +157,14 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
         if (thrown != null) {
             return Optional.of(thrown);
         }
-        return generationAndCompilationResult.thrown();
+        return generationAndCompilationResult == null ? Optional.empty()
+                : generationAndCompilationResult.thrown();
     }
 
     @Override
     public UpToDateness currentStatus() {
-        return generationAndCompilationResult.currentStatus();
+        return generationAndCompilationResult == null ? UpToDateness.UNKNOWN
+                : generationAndCompilationResult.currentStatus();
     }
 
     @Override

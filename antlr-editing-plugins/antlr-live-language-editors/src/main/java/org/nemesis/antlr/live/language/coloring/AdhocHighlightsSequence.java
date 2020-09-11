@@ -26,6 +26,7 @@ import java.util.NoSuchElementException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.AttributeSet;
+import org.antlr.v4.runtime.Lexer;
 import org.nemesis.antlr.live.language.AdhocTokenId;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
@@ -98,6 +99,9 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
         // attribute sets.
         //
         // The editor wants the output to be a set of entirely non-overlapping regions.
+        if (semantics.isUnparsed()) {
+            return Collections.emptyList();
+        }
         List<ProxyToken> tokens = semantics.tokens();
         if (tokens.isEmpty()) {
             return Collections.emptyList();
@@ -190,7 +194,7 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
         // for lexer-only grammars.  And coalescing will take care of the sorting.
         for (AntlrProxies.ProxyToken tok : tokens) {
             int tp = tok.getType();
-            if (tp == -1) { // EOF
+            if (tp == Lexer.EOF) { // EOF
                 break;
             }
             AntlrProxies.ProxyTokenType type = semantics.tokenTypeForInt(tp);
@@ -228,7 +232,7 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
                 // so that we don't highlight all the way up to the next token
 //                int len = tok.trimmedLength();
 //                if (len == 0 && tok.length() > 0) {
-//                    // The token simply is whitespace, so we must actually need
+//                    // The token simply is whitespace, so we actually need
 //                    // to highlight it
 //                    len = tok.length();
 //                }

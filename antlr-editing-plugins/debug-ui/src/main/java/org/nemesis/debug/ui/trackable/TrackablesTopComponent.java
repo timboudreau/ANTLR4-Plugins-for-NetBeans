@@ -15,30 +15,40 @@
  */
 package org.nemesis.debug.ui.trackable;
 
+import com.mastfrog.util.collections.AtomicLinkedQueue;
 import com.mastfrog.util.strings.Strings;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.EventQueue;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JFrame;
 import javax.swing.JList;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.ListCellRenderer;
 import javax.swing.Timer;
 import javax.swing.UIManager;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultStyledDocument;
 import org.nemesis.debug.api.Trackables;
+import org.nemesis.debug.api.TrackingRoots;
 import org.nemesis.debug.ui.AntlrPluginDebugTopComponent;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.settings.ConvertAsProperties;
@@ -48,6 +58,7 @@ import org.openide.awt.HtmlRenderer;
 import org.openide.awt.StatusDisplayer;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.windows.TopComponent;
 import org.openide.util.NbBundle.Messages;
@@ -87,6 +98,7 @@ public final class TrackablesTopComponent extends TopComponent implements Consum
     private final Timer timer = new Timer(3000, this);
     private final RequestProcessor p = new RequestProcessor("refs");
     private final Set<String> knownMimeTypes = ConcurrentHashMap.newKeySet();
+    private int ticks;
 
     public TrackablesTopComponent() {
         initComponents();
@@ -104,6 +116,9 @@ public final class TrackablesTopComponent extends TopComponent implements Consum
      */
     @Override
     public void actionPerformed(ActionEvent e) {
+        if (ticks++ % 5 == 0) {
+            refresh();
+        }
         repaint();
     }
 
@@ -133,6 +148,7 @@ public final class TrackablesTopComponent extends TopComponent implements Consum
         );
     }// </editor-fold>//GEN-END:initComponents
 
+    @SuppressWarnings("CallToThreadYield")
     private void lisrClick(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_lisrClick
         Set<Object> omit = new HashSet<>();
         omit.add(this);
@@ -146,37 +162,85 @@ public final class TrackablesTopComponent extends TopComponent implements Consum
             if (ix >= 0 && ix < mdl.size()) {
                 Trackables.TrackingReference<?> item = mdl.elementAt(ix);
                 if (item != null) {
+                    Doc doc = new Doc();
+                    RefsTopComponent tc = new RefsTopComponent(item, doc);
+                    tc.open();
+                    tc.requestActive();
                     Object o = item.get();
+                    doc.append("Searching for references to " + item.stringValue());
                     if (o != null) {
                         StatusDisplayer.getDefault().setStatusText(
                                 "Scanning for references: " + item);
+                        Thread thread = Thread.currentThread();
                         p.post(() -> {
+                            Predicate<? super Object> tester = TrackingRoots.ignoreTester();
+                            // The current thread will have a reference to the item via
+                            // RequestProcessor.Processor.todo
+                            omit.add(Thread.currentThread());
                             try {
-                                Map<String, Object> roots = new HashMap<>();
+                                Map<String, Object> roots = new LinkedHashMap<>();
+                                ClassLoader ldr = Lookup.getDefault().lookup(ClassLoader.class);
+                                if (ldr != null) {
+                                    roots.put("Module system classloader (" + ldr.getClass().getSimpleName() + ")", ldr);
+                                }
                                 roots.put("Default Lookup", Lookup.getDefault());
+                                roots.put("Current Thread (" + thread.getName() + " " + thread.getClass().getSimpleName() + ")",
+                                        thread);
+                                roots.put("Current context classloader", Thread.currentThread().getContextClassLoader());
+                                Set<Object> rootObjs = new HashSet<>(roots.values());
+                                TrackingRoots.collectAll((name, obj) -> {
+                                    if (!rootObjs.contains(obj)) {
+                                        roots.put(name, obj);
+                                    }
+                                });
+                                rootObjs.clear();
+
                                 FileObject editors = FileUtil.getConfigFile("Editors/text");
                                 if (editors != null) {
                                     for (FileObject fo : editors.getChildren()) {
                                         if (fo.isFolder()) {
                                             String mime = "text/" + fo.getName();
                                             try {
-                                                roots.put(mime, MimeLookup.getLookup(mime));
+                                                roots.put("MimeLookup for " + mime, MimeLookup.getLookup(mime));
                                             } catch (Exception e) {
                                                 // ignore
                                             }
                                         }
                                     }
                                 }
-                                List<String> refs
-                                        = ReferencesFinder.detect(o, roots, omit);
-                                if (!refs.isEmpty()) {
-                                    EventQueue.invokeLater(() -> {
-                                        RefsTopComponent tc = new RefsTopComponent(item, refs);
-                                        tc.open();
-                                        tc.requestActive();
-                                    });
-                                } else {
-                                    StatusDisplayer.getDefault().setStatusText("No references found");
+                                Window[] ww = Window.getWindows();
+                                for (int i = 0; i < ww.length; i++) {
+                                    Window w = ww[i];
+                                    if (w == null) {
+                                        continue;
+                                    }
+                                    String name;
+                                    if (w instanceof JDialog) {
+                                        name = "Window-" + i + ": " + ((JDialog) w).getTitle();
+                                    } else if (w instanceof JFrame) {
+                                        name = "Window-" + i + ": " + ((JFrame) w).getTitle();
+                                    } else {
+                                        name = "Window-" + i + " (" + w.getClass().getSimpleName() + ")";
+                                    }
+                                    roots.put(name, w);
+                                }
+                                doc.append("Will search " + roots.size() + " roots.  Running a preemptive GC.");
+                                for (int i = 0; i < 50; i++) {
+                                    System.gc();
+                                    System.runFinalization();
+                                    Thread.yield();
+                                }
+                                repaint();
+                                try {
+                                    int count = ReferencesFinder.detect(obj -> obj == o, roots, omit, doc, tester);
+                                    if (count > 0) {
+                                        doc.append("Done.");
+                                    } else {
+                                        doc.append("No references found in any of " + Strings.join(", ", roots.keySet()));
+                                    }
+                                } catch (Exception | Error ex) {
+                                    doc.append("Failed.");
+                                    doc.append(Strings.toString(ex));
                                 }
                             } catch (Exception | Error e) {
                                 e.printStackTrace();
@@ -192,10 +256,10 @@ public final class TrackablesTopComponent extends TopComponent implements Consum
 
         private final String shortName;
 
-        RefsTopComponent(Trackables.TrackingReference<?> t, List<String> refs) {
+        RefsTopComponent(Trackables.TrackingReference<?> t, Doc doc) {
             shortName = t.toString();
             setDisplayName("Refs-" + shortName);
-            JTextArea area = new JTextArea(Strings.join('\n', refs));
+            JTextArea area = new JTextArea(doc);
             area.setLineWrap(true);
             area.setWrapStyleWord(true);
             area.setEditable(false);
@@ -265,6 +329,33 @@ public final class TrackablesTopComponent extends TopComponent implements Consum
         });
     }
 
+    private void refresh() {
+        int count = mdl.size();
+        int selIx = jList1.getSelectedIndex();
+        boolean selectionDeleted = false;
+        for (int i = count - 1; i >= 0; i--) {
+            Trackables.TrackingReference<?> item = mdl.elementAt(i);
+            if (item.get() == null) {
+                mdl.remove(i);
+                if (selIx > 0 && i < selIx) {
+                    selIx--;
+                }
+                if (i == selIx) {
+                    selectionDeleted = true;
+                }
+            }
+        }
+        if (selectionDeleted) {
+            if (mdl.size() > 0) {
+                jList1.setSelectedIndex(0);
+            } else {
+                jList1.clearSelection();
+            }
+        } else if (selIx >= 0) {
+            jList1.setSelectedIndex(selIx);
+        }
+    }
+
     private void updateModel(Set<? extends Trackables.TrackingReference<?>> t) {
         Trackables.TrackingReference<?> oldSel = jList1.getSelectedValue();
         List<Trackables.TrackingReference<?>> l = new ArrayList<>(t);
@@ -306,15 +397,54 @@ public final class TrackablesTopComponent extends TopComponent implements Consum
 
         @Override
         public Component getListCellRendererComponent(JList<? extends Trackables.TrackingReference<?>> list, Trackables.TrackingReference<?> value, int index, boolean isSelected, boolean cellHasFocus) {
-            String valueText = value.toString();
-            if (value.isAlive()) {
-                valueText = "<b>" + valueText;
-            }
+            String valueText = value.htmlValue();
             ren.setHtml(true);
             Component result = ren.getListCellRendererComponent(list, valueText, index, isSelected, cellHasFocus);
             ren.setHtml(true);
             ren.setText(valueText);
+            ((JComponent) result).setToolTipText(value.htmlStringValue());
             return result;
+        }
+    }
+
+    static class Doc extends DefaultStyledDocument implements Runnable, Consumer<String> {
+
+        private final AtomicLinkedQueue<String> pending = new AtomicLinkedQueue<>();
+        private final AtomicBoolean enqueued = new AtomicBoolean();
+
+        public void append(String txt) {
+            pending.add(txt);
+            if (enqueued.compareAndSet(false, true)) {
+                EventQueue.invokeLater(this);
+            }
+        }
+
+        @Override
+        public void accept(String t) {
+            append(t);
+        }
+
+        @Override
+        public void run() {
+            try {
+                while (!pending.isEmpty()) {
+                    StringBuilder sb = new StringBuilder();
+                    pending.drain(line -> {
+                        sb.insert(0, line + "\n");
+                    });
+                    writeLock();
+                    try {
+                        int len = getLength();
+                        insertString(len, sb.toString(), null);
+                    } catch (BadLocationException ex) {
+                        Exceptions.printStackTrace(ex);
+                    } finally {
+                        writeUnlock();
+                    }
+                }
+            } finally {
+                enqueued.set(false);
+            }
         }
     }
 }
