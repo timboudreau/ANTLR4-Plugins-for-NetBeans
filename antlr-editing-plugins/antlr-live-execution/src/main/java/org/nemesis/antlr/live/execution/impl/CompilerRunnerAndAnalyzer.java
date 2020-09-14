@@ -30,7 +30,9 @@ import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.StandardLocation;
-import org.nemesis.antlr.memory.AntlrGenerationResult;
+import static javax.tools.StandardLocation.CLASS_OUTPUT;
+import static javax.tools.StandardLocation.SOURCE_OUTPUT;
+import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.jfs.JFS;
@@ -47,71 +49,90 @@ import org.openide.util.Exceptions;
  *
  * @author Tim Boudreau
  */
-final class CompilerRunnerAndAnalyzer {
+public abstract class CompilerRunnerAndAnalyzer<G> {
 
     private static final String JAVAC_ERROR_SOURCE_ABSENT = "compiler.err.cant.resolve.location";
     private static final Logger LOG = Logger.getLogger(
             InvocationEnvironment.class.getName());
 
     private final Supplier<JFS> jfsSupplier;
+    private final String task;
+    private final Path originalFilePath;
+    private JFS lastJFS;
+    private int attempts;
 
-    public CompilerRunnerAndAnalyzer(Supplier<JFS> jfses) {
+    public CompilerRunnerAndAnalyzer(Supplier<JFS> jfses, String task, Path originalFilePath) {
         this.jfsSupplier = jfses;
+        this.task = task;
+        this.originalFilePath = originalFilePath;
     }
 
-    CompileResult performCompilation(Obj<UnixPath> singleSource, JFSCompileBuilder bldr, Writer writer, AntlrGenerationResult genResult, Bool regenerated) throws IOException {
+    protected void logInfo(G g, Consumer<String> println) {
+    }
+
+    public final CompileResult performCompilation(JFS initialJFS, Obj<UnixPath> singleSource, JFSCompileBuilder bldr, Writer writer, G genResult, Bool regenerated) throws IOException {
+        lastJFS = initialJFS;
+        bldr = configure(bldr, lastJFS);
         CompileResult cr;
         if (!singleSource.isSet()) {
             cr = bldr.compile();
         } else {
             bldr.addSourceLocation(StandardLocation.CLASS_OUTPUT);
-            cr = bldr.compile();
+            cr = bldr.compileSingle(singleSource.get());
         }
         writer.write("Compile took " + cr.elapsedMillis() + "ms");
 
-        if (!cr.isUsable()) {
+        if (!cr.isUsable() && onFailure(genResult, cr, attempts++, regenerated.getAsBoolean())) {
             writer.write("Compile result not usable. If the error "
                     + "looks like it could be stale sources, will retry.\n");
             // Detect if we had a cannot find symbol or
             // cannot find location, and if present, wipe and
             // rebuild again
-            cr = analyzeAndLogCompileFailureAndMaybeRetry(writer, cr, genResult, bldr, true, regenerated);
+            cr = analyzeAndLogCompileFailureAndMaybeRetry(lastJFS, writer, cr, genResult, bldr, true, regenerated);
 
-            if (!cr.isUsable()) {
+            if (!cr.isUsable() && onFailure(genResult, cr, attempts++, regenerated.getAsBoolean())) {
 
                 writer.write("Compile failed on clean retry.\n");
-                analyzeAndLogCompileFailureAndMaybeRetry(writer, cr, genResult, bldr, false, regenerated);
-                onCompileFailure(cr, genResult);
+                analyzeAndLogCompileFailureAndMaybeRetry(lastJFS, writer, cr, genResult, bldr, false, regenerated);
+                onCompileFailure(cr, initialJFS);
                 LOG.log(Level.FINE, "Unusable second compile result {0}", cr);
             }
         }
         return cr;
     }
 
-    CompileResult withCompilerOutputWriter(JFS jfs, AntlrGenerationResult res, IOBiFunction<Writer, JFSCompileBuilder, CompileResult> compilerRunner) throws IOException {
-        JFSCompileBuilder bldr = configureCompileBuilder(jfs);
-        try (Writer writer = AntlrLoggers.getDefault().writer(res.originalFilePath, AntlrLoggers.STD_TASK_COMPILE_GRAMMAR)) {
+    public CompileResult withCompilerOutputWriter(JFS jfs, G res, JFSCompileBuilder bldr,
+            IOBiFunction<Writer, JFSCompileBuilder, CompileResult> compilerRunner) throws IOException {
+        bldr = configure(bldr, jfs);
+        try (Writer writer = AntlrLoggers.getDefault().writer(this.originalFilePath, task)) {
             bldr.compilerOutput(writer);
             return compilerRunner.apply(writer, bldr);
         }
     }
 
-    private CompileResult analyzeAndLogCompileFailureAndMaybeRetry(final Writer writer, CompileResult cr, AntlrGenerationResult res, JFSCompileBuilder bldr, boolean rebuild, Bool regenerated) throws IOException {
+    protected abstract boolean onFailure(G res, CompileResult compileResult, int attempt, boolean regenerated);
+//        res.rebuild();
+
+    public JFS lastJFS() {
+        return lastJFS;
+    }
+
+    private CompileResult analyzeAndLogCompileFailureAndMaybeRetry(JFS jfs, Writer writer, CompileResult cr, G res, JFSCompileBuilder bldr, boolean rebuild, Bool regenerated) throws IOException {
+        lastJFS = jfs;
         Consumer<String> pw = new PrintWriter(writer)::println;
         if (AntlrLoggers.isActive(writer)) {
+            pw.accept("TASK: " + task);
             pw.accept("COMPILE RESULT: " + cr);
-            pw.accept("GEN PACKAGE: " + res.packageName);
-            pw.accept("GRAMMAR SRC LOC: " + res.grammarSourceLocation);
-            pw.accept("SOURCE OUT LOC: " + res.javaSourceOutputLocation);
-            pw.accept("ORIG FILE: " + res.originalFilePath);
-            pw.accept("FULL JFS LISTING:");
-            res.jfs.listAll((loc, fo) -> {
+            logInfo(res, pw);
+            jfs.listAll((loc, fo) -> {
                 pw.accept(" * " + loc + "\t" + fo);
             });
         }
         boolean foundCantResolveLocation = cr.hasErrors(JAVAC_ERROR_SOURCE_ABSENT);
-        for (JavacDiagnostic diag : cr.diagnostics()) {
-            printOneDiagnostic(pw, diag, res);
+        if (AntlrLoggers.isActive(writer)) {
+            for (JavacDiagnostic diag : cr.diagnostics()) {
+                printOneDiagnostic(pw, diag, jfs);
+            }
         }
         if (rebuild && foundCantResolveLocation) {
             if (AntlrLoggers.isActive(writer)) {
@@ -120,35 +141,36 @@ final class CompilerRunnerAndAnalyzer {
                 LOG.log(Level.FINE, "Compiler could not resolve files.  Deleting "
                         + "generated code, regenerating and recompiling: {0}", cr.diagnostics());
             }
-            JFS jfs = res.jfsSupplier.get();
-            if (!jfs.id().equals(res.jfs.id())) {
-                LOG.log(Level.FINE, "JFS {0} has been replaced with new JFS {1}", new Object[]{res.jfs.id(), jfs.id()});
+            JFS newJFS = lastJFS = jfsSupplier.get();
+            if (!newJFS.id().equals(jfs.id())) {
+                bldr = configure(bldr.withJFS(newJFS), newJFS);
+                LOG.log(Level.FINE, "JFS {0} has been replaced with new JFS {1}", new Object[]{jfs.id(), newJFS.id()});
             }
             bldr.setOptions(bldr.options().rebuildAllSources());
-
-            cr = jfs.whileWriteLocked(() -> {
-                res.rebuild();
+            CompileResult lastResult = cr;
+//                res.rebuild();
+            if (this.onFailure(res, lastResult, attempts++, regenerated.getAsBoolean())) {
                 regenerated.set(true);
-                return bldr.compile();
-            });
-            writer.write("Compile took " + cr.elapsedMillis() + "ms");
+                cr = bldr.compile();
+                writer.write("Compile " + attempts + " took " + cr.elapsedMillis() + "ms");
+            }
         }
         return cr;
     }
 
-    private void printOneDiagnostic(Consumer<String> pw, JavacDiagnostic diag, AntlrGenerationResult res) {
+    private void printOneDiagnostic(Consumer<String> pw, JavacDiagnostic diag, JFS jfs) {
         pw.accept(diag.message() + " at " + diag.lineNumber() + ":" + diag.columnNumber() + " in " + diag.fileName());
-        JFSFileObject fo = res.jfs().get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(diag.sourceRootRelativePath()));
+        JFSFileObject fo = jfs.get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(diag.sourceRootRelativePath()));
         if (fo == null) {
-            fo = res.jfs().get(StandardLocation.SOURCE_PATH, UnixPath.get(diag.sourceRootRelativePath()));
+            fo = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get(diag.sourceRootRelativePath()));
         }
         if (fo != null) {
             pw.accept(diag.context(fo));
         }
     }
 
-    private void onCompileFailure(CompileResult crFinal, AntlrGenerationResult res) {
-        Debug.failure("Unusable compilation result", () -> {
+    private void onCompileFailure(CompileResult crFinal, JFS jfs) {
+        Debug.failure("Unusable compilation result " + task + " " + originalFilePath, () -> {
             StringBuilder sb = new StringBuilder();
             sb.append(crFinal).append('\n');
             sb.append("failed ").append(crFinal.compileFailed());
@@ -170,12 +192,12 @@ final class CompilerRunnerAndAnalyzer {
             }
             if (hasFatal) {
                 for (Path pth : crFinal.sources()) {
-                    JFSFileObject jfo = res.jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get(pth));
+                    JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get(pth));
                     if (jfo == null) {
-                        jfo = res.jfs.get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(pth));
+                        jfo = jfs.get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(pth));
                     }
                     if (jfo == null) {
-                        jfo = res.jfs.get(StandardLocation.CLASS_OUTPUT, UnixPath.get(pth));
+                        jfo = jfs.get(StandardLocation.CLASS_OUTPUT, UnixPath.get(pth));
                     }
                     if (jfo != null && jfo.getName().endsWith("Extractor.java")) {
                         try {
@@ -190,16 +212,15 @@ final class CompilerRunnerAndAnalyzer {
         });
     }
 
-    private JFSCompileBuilder configureCompileBuilder(JFS jfs) {
-        return new JFSCompileBuilder(jfsSupplier)
-                .withMaxErrors(1).setOptions(
+    protected JFSCompileBuilder configure(JFSCompileBuilder bldr, JFS over) {
+        return bldr.withMaxErrors(1).setOptions(
                 JavacOptions.fastDefaults()
                         .withDebugInfo(JavacOptions.DebugInfo.LINES)
                         .runAnnotationProcessors(false)
-                        .withCharset(jfs.encoding())
+                        .withCharset(over.encoding())
         ).runAnnotationProcessors(false)
-                .addSourceLocation(StandardLocation.SOURCE_PATH)
-                .addSourceLocation(StandardLocation.SOURCE_OUTPUT);
+                .addSourceLocation(SOURCE_PATH)
+                .addSourceLocation(SOURCE_OUTPUT)
+                .addSourceLocation(CLASS_OUTPUT);
     }
-
 }

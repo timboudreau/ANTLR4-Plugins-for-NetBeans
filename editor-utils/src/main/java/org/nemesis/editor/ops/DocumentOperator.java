@@ -991,6 +991,7 @@ public final class DocumentOperator {
         }
 
         @Override
+        @SuppressWarnings("deprecation") // JDK 9 modelToView2d
         public void run() {
             try {
                 JScrollPane pane = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, comp);

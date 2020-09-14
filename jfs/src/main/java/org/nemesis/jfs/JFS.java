@@ -48,6 +48,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -610,7 +611,12 @@ public final class JFS implements JavaFileManager {
     public void setClasspathTo(Collection<File> files) throws IOException {
         LOG.log(Level.FINEST, "Set classpath to {0}", files);
         currentClasspath = files;
-        delegate.setLocation(StandardLocation.CLASS_PATH, new ArrayList<>(files));
+        Iterable<? extends File> old = delegate.getLocation(StandardLocation.CLASS_PATH);
+        // JavaFileManager caches a bunch of metadata about this,
+        // and recomputing it shows up as a hot spot
+        if (!Objects.equals(old, files)) {
+            delegate.setLocation(StandardLocation.CLASS_PATH, new ArrayList<>(files));
+        }
     }
 
     public void clear(Location loc) throws IOException {

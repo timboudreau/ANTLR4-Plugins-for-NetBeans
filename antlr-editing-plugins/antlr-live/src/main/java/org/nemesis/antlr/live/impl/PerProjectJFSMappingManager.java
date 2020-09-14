@@ -295,6 +295,18 @@ final class PerProjectJFSMappingManager {
         return file != null ? file.toPath() : null;
     }
 
+    boolean touch() {
+        String oldId;
+        synchronized(this) {
+            oldId = lastJFS;
+        }
+        if (dead) {
+            return false;
+        }
+        JFS jfs = jfs();
+        return !Objects.equals(jfs.id(), oldId);
+    }
+
     JFS jfs() {
         if (dead) {
             try {

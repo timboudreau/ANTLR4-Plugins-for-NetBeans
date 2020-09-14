@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -15,11 +15,16 @@
  */
 package org.nemesis.antlr.live.language;
 
+import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.preconditions.Exceptions;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -85,23 +90,63 @@ final class DocumentDeadlockBreaker {
         boolean kill() {
             if (setDone()) {
                 try {
+                    StringBuilder stacks = null;
+                    try {
+                        stacks = collectStackTraces();
+                    } catch (Exception ex) {
+                        LOG.log(Level.INFO, null, ex);
+                    }
                     thread.interrupt();
                     Thread.yield();
+                    if (stacks != null) {
+                        LOG.log(Level.INFO, "Attempted to break deadlock on {0}. Contention info: {1}", stacks);
+                    }
                     if (thread.getState() == Thread.State.BLOCKED) {
-                        Logger.getLogger(Entry.class.getName())
-                                .log(Level.WARNING, "Attempted "
+                        LOG.log(Level.WARNING, "Attempted "
                                         + "to break deadlock in {0} "
-                                        + "but it still appears to be blocked",
-                                        thread);
+                                        + "but it still appears to be blocked.\n{1}",
+                                        new Object[]{thread, collectStackTraces()});
                         thread.interrupt();
                     }
                     return true;
                 } catch (Exception ex) {
-                    Logger.getLogger(Entry.class.getName()).log(Level.INFO,
+                    LOG.log(Level.INFO,
                             "Exception killing late render task on " + thread, ex);
                 }
             }
             return false;
+        }
+
+        private StringBuilder collectStackTraces() {
+            StringBuilder sb = new StringBuilder();
+            Map<Object, Set<Thread>> sharedLocks = CollectionUtils.supplierMap(HashSet::new);
+            Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
+            for (Map.Entry<Thread, StackTraceElement[]> e : allStackTraces.entrySet()) {
+                Thread t = e.getKey();
+                if (t == Thread.currentThread()) {
+                    continue;
+                }
+                Thread.State state = t.getState();
+                switch (state) {
+                    case BLOCKED:
+                    case TIMED_WAITING:
+                    case WAITING:
+                        Object blocker = LockSupport.getBlocker(t);
+                        StackTraceElement[] els = e.getValue();
+                        if (blocker != null) {
+                            sharedLocks.get(blocker).add(t);
+                        }
+                        sb.append('\n').append(t.getName()).append(' ').append(state);
+                        if (blocker != null) {
+                            sb.append(" blocked on ").append(blocker)
+                                    .append(" (").append(blocker.getClass().getSimpleName()).append(")\n");
+                        }
+                        for (int i = 0; i < els.length; i++) {
+                            sb.append('\t').append(els[i]).append('\n');
+                        }
+                }
+            }
+            return sb;
         }
 
         boolean isDone() {

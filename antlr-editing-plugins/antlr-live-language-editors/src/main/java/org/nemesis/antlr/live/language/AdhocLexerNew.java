@@ -223,7 +223,11 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         boolean broken = false;
         try {
             if (targetId.canBeFlyweight()) {
-                return info.tokenFactory().getFlyweightToken(targetId, targetId.literalName());
+                try {
+                    return info.tokenFactory().getFlyweightToken(targetId, targetId.literalName());
+                } catch (IllegalArgumentException ex) {
+                    LOG.log(Level.INFO, "id " + targetId + " len " + length, ex);
+                }
             }
             return info.tokenFactory().createToken(targetId, length);
         } catch (IndexOutOfBoundsException ex) {

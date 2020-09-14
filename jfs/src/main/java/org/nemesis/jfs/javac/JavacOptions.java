@@ -25,6 +25,7 @@ import java.util.logging.Logger;
 import javax.tools.JavaCompiler;
 
 /**
+ * Mutable configuration object for JFS compilation.
  *
  * @author Tim Boudreau
  */
@@ -44,6 +45,21 @@ public class JavacOptions {
     private boolean ideMode = true;
     private boolean suppressAbortOnBadClassFile = true;
     private boolean onlyRebuildNewerSources = false;
+
+    public void copyFrom(JavacOptions options) {
+        warn = options.warn;
+        maxWarnings = options.maxWarnings;
+        maxErrors = options.maxErrors;
+        runAnnotationProcessors = options.runAnnotationProcessors;
+        this.debug = options.debug;
+        this.encoding = options.encoding;
+        this.sourceLevel = options.sourceLevel;
+        this.targetLevel = options.targetLevel;
+        this.verbose = options.verbose;
+        this.ideMode = options.ideMode;
+        this.suppressAbortOnBadClassFile = options.suppressAbortOnBadClassFile;
+        this.onlyRebuildNewerSources = options.onlyRebuildNewerSources;
+    }
 
     public JavacOptions() {
 

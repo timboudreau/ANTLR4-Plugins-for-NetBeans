@@ -1,4 +1,12 @@
 
+Need a test if a grammar generation result is up to date with respect to a compilation result.
+
+Compile single works now. If using compile single, we need to differentiate the grammar compilation result and the extractor compilation result.  They currently clobber each other.
+
+Some of the lexer exceptions are because we are sometimes parsing with a Swing Document trailing newline, sometimes not, but returning the same ParseTreeProxy either way.  Need a "sansTrailingNewline()" / "withTrailingNewline()" copy constructor for a ParseTreeProxy.
+
+Shouldn't JFSFileModifications be storing individual file hashes, not just a global one?
+
 Or formatting:
    | ~
         ( '('

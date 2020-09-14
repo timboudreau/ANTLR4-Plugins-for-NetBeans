@@ -32,11 +32,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
-import javax.swing.JEditorPane;
-import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
@@ -64,6 +61,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
+import org.nemesis.editor.doc.EnhEditorDocument;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.localizers.api.Localizers;
@@ -72,7 +70,6 @@ import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.editor.BaseDocument;
 import org.netbeans.editor.MultiKeymap;
 import org.netbeans.editor.ext.ExtKit;
-import org.netbeans.modules.editor.NbEditorDocument;
 import org.openide.util.NbBundle.Messages;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
@@ -82,7 +79,6 @@ import org.netbeans.api.lexer.TokenSequence;
 import org.netbeans.editor.BaseTextUI;
 import org.netbeans.editor.EditorUI;
 import org.netbeans.editor.Utilities;
-import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorKit;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.awt.Mnemonics;
@@ -649,7 +645,7 @@ public class AdhocEditorKit extends ExtKit {
 
     // We have to subclass this in order to supply a toolbar, or the infrastructure
     // throws an exception, since there is no toolbar provider registered
-    static final class Doc extends NbEditorDocument {
+    static final class Doc extends EnhEditorDocument {
 
         private JToolBar bar;
         private final String mimeType;
@@ -729,65 +725,11 @@ public class AdhocEditorKit extends ExtKit {
         }
 
         @Override
-        public JToolBar createToolbar(JEditorPane j) {
-            if (bar == null) {
-                bar = createBar();
-            }
-            return bar;
-        }
-
-        @Override
-        public void runAtomicAsUser(Runnable r) {
-            super.runAtomicAsUser(wrap(r));
-        }
-
-        @Override
-        public void runAtomic(Runnable r) {
-            super.runAtomic(wrap(r));
-            if (!pendingRenders.isEmpty() && !locked && !DocumentUtilities.isReadLocked(this)) {
-                render(() -> {
-                    // triggering the drain logic
-                });
-            }
-        }
-
-        private final AtomicLinkedQueue<Runnable> pendingRenders = new AtomicLinkedQueue<>();
-        private volatile boolean locked;
-
-        void renderWhenPossible(Runnable r) {
-            if (locked || DocumentUtilities.isReadLocked(this)) {
-                AtomicBoolean ab = new AtomicBoolean();
-                pendingRenders.add(() -> {
-                    try {
-                        r.run();
-                    } finally {
-                        ab.set(true);
-                    }
-                });
-            } else {
-                render(r);
-            }
-        }
-
-        @Override
         public void render(Runnable r) {
             // This is just evil, but may help diagnose things
             Runnable removeThisThreadFromDeadlockBreaker = DocumentDeadlockBreaker.enqueue();
             try {
-                super.render(wrap(() -> {
-                    boolean old = locked;
-                    try {
-                        r.run();
-                    } finally {
-                        try {
-                            pendingRenders.drain(run -> {
-                                super.render(r);
-                            });
-                        } finally {
-                            locked = false;
-                        }
-                    }
-                }));
+                super.render(wrap(r));
             } finally {
                 removeThisThreadFromDeadlockBreaker.run();
             }
@@ -818,15 +760,6 @@ public class AdhocEditorKit extends ExtKit {
                 }
             }
 
-        }
-
-        @Messages("STARTING_RULE=Parse Text &Using")
-        private JToolBar createBar() {
-            JToolBar result = new JToolBar();
-            JLabel lbl = new JLabel();
-            Mnemonics.setLocalizedText(lbl, Bundle.STARTING_RULE());
-            result.add(lbl);
-            return result;
         }
     }
 

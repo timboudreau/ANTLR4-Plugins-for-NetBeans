@@ -20,7 +20,7 @@ limitations under the License.
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>antlr-netbeans-parent</artifactId>
-        <version>2.0.76</version>
+        <version>2.0.77</version>
     </parent>
     <artifactId>antlr-language-spi</artifactId>
     <scm>
@@ -84,6 +84,10 @@ limitations under the License.
         <dependency>
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-modules-parsing-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-openide-awt</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>

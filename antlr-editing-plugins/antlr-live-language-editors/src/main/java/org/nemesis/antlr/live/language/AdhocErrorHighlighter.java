@@ -66,6 +66,7 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ErrorNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElementKind;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyDetailedSyntaxError;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
@@ -205,6 +206,16 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
             return;
         }
         Document doc = info.doc;
+        // Ensure offsets within the document don't change out from under us:
+        AdhocEditorKit.renderWhenPossible(doc, () -> {
+            if (doc.getLength() == 0) {
+                return;
+            }
+            renderRefresh(info, doc, semantics);
+        });
+    }
+
+    private void renderRefresh(HighlightingInfo info, Document doc, ParseTreeProxy semantics) {
         OffsetsBag bag = new OffsetsBag(doc, true);
         List<ErrorDescription> set = new ArrayList<>();
         AttributeSet attrs = errors();
@@ -264,10 +275,13 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                         AttributeSet finalAttrs = AttributesUtilities.createComposite(attrs, ttip);
                         try {
                             IntRange<? extends IntRange<?>> range;
-                            if (e instanceof AntlrProxies.ProxyDetailedSyntaxError) {
-                                AntlrProxies.ProxyDetailedSyntaxError d = (AntlrProxies.ProxyDetailedSyntaxError) e;
+                            if (e instanceof ProxyDetailedSyntaxError && isSane((ProxyDetailedSyntaxError) e)) {
+                                ProxyDetailedSyntaxError d = (ProxyDetailedSyntaxError) e;
                                 int start = Math.max(0, d.startIndex());
                                 int end = Math.min(doc.getLength() - 1, d.endIndex());
+                                if (start < 0 || end < 0 || end < start) {
+                                    continue;
+                                }
                                 range = Range.ofCoordinates(Math.min(start, end), Math.max(start, end));
                                 bag.addHighlight(range.start(), range.end(),
                                         finalAttrs);
@@ -364,6 +378,10 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                 bag.discard();
             }
         });
+    }
+
+    private boolean isSane(ProxyDetailedSyntaxError err) {
+        return true;
     }
 
     static List<ErrorNodeTreeElement> coalescedErrorElements(ParseTreeProxy proxy) {

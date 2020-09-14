@@ -40,7 +40,7 @@ public final class WithGrammarRunner {
             WithGrammarRunner.class.getName());
     private final String grammarFileName;
     private final AntlrGeneratorAndCompiler compiler;
-    private final Map<Object, GrammarRunResult<?>> lastGoodResults
+    private static final Map<Object, GrammarRunResult<?>> lastGoodResults
             = new WeakHashMap<>();
     private final Supplier<ClassLoader> classLoaderSupplier;
 
@@ -48,6 +48,10 @@ public final class WithGrammarRunner {
         this.grammarFileName = grammarFileName;
         this.compiler = compiler;
         this.classLoaderSupplier = classLoaderSupplier;
+    }
+
+    public AntlrGeneratorAndCompiler generatorCompiler() {
+        return compiler;
     }
 
     public String grammarTokensHash() {
@@ -120,6 +124,7 @@ public final class WithGrammarRunner {
         }
     }
 
+    @SuppressWarnings("FinallyDiscardsException")
     public <T> GrammarRunResult<T> run(Object key, ThrowingSupplier<T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
         // - results checks if stale or not
         // - force re-run or not
@@ -179,7 +184,6 @@ public final class WithGrammarRunner {
                     lastGoodResults.put(key, grr);
                 }
                 return grr;
-//                }
             } catch (ClassNotFoundException ex) {
                 StringBuilder sb = new StringBuilder();
                 compiler.jfs().list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {

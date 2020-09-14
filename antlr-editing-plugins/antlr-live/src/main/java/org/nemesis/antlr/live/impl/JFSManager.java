@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.Delayed;
@@ -30,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.nemesis.antlr.live.RebuildSubscriptions;
+import static org.nemesis.antlr.live.RebuildSubscriptions.JFS_EXPIRATION;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.debug.api.Trackables;
 import org.nemesis.jfs.JFS;
@@ -53,48 +56,75 @@ final class JFSManager {
     private final RequestProcessor.Task killer = RequestProcessor.getDefault().create(() -> {
         Map<Project, ProjectReference> map = new HashMap<>(refs);
         try {
+            LinkedList<Map.Entry<Project, ProjectReference>> toKill = new LinkedList<>();
             synchronized (this) {
                 for (Map.Entry<Project, ProjectReference> e : map.entrySet()) {
                     if (e.getValue().isExpired()) {
-                        boolean killed = kill(e.getKey());
-                        if (killed) {
-                            LOG.log(Level.INFO, "Killed abandoned JFS {0} for {1}", new Object[]{e.getValue().jfs.id(), e.getKey()});
-                        }
+                        toKill.add(e);
                     }
                 }
             }
+            while (!toKill.isEmpty()) {
+                Map.Entry<Project, ProjectReference> e = toKill.pop();
+                boolean killed = kill(e.getKey(), e.getValue());
+                if (killed) {
+                    LOG.log(Level.INFO, "Killed abandoned JFS {0} for {1}", new Object[]{e.getValue().jfs.id(), e.getKey()});
+                }
+            }
+
         } finally {
-            this.killer.schedule((int) (ProjectReference.EXPIRATION / 2));
+            this.killer.schedule((int) (RebuildSubscriptions.JFS_EXPIRATION / 2));
         }
     });
 
     JFSManager() {
-        killer.schedule((int) (ProjectReference.EXPIRATION / 2));
+        killer.schedule((int) (RebuildSubscriptions.JFS_EXPIRATION / 2));
     }
 
-    synchronized boolean kill(Project p) {
-        ProjectReference ref = refs.get(p);
-        if (ref == null) {
-            return false;
+    boolean kill(Project p) {
+        ProjectReference ref;
+        // Make sure we do not hold a lock on this when we acquire the
+        // JFS's write lock, or we can deadlock with the PerProjectJFSMappingManager
+        // fetching the JFS
+        synchronized (this) {
+            ref = refs.remove(p);
+            if (ref == null) {
+                return false;
+            }
         }
-        refs.remove(p);
+        kill(p, ref);
+        return ref != null;
+    }
+
+    boolean kill(Project p, ProjectReference ref) {
+        boolean wasDisposed = ref.disposed;
         ref.run();
-        return true;
+        return !wasDisposed;
     }
 
-    synchronized JFS forProject(Project project) {
-        ProjectReference ref = refs.get(project);
-        if (ref == null) {
-            JFS jfs = createJFS();
-            ref = new ProjectReference(jfs, project);
-            String id = jfs.id();
-            LOG.log(Level.FINE, "Created JFS {0} for {1}", new Object[] {id, project});
-            Trackables.track(JFS.class, jfs, () -> {
-                return "JFS-" + id + project.getProjectDirectory().getName();
-            });
-            refs.put(project, ref);
+    JFS forProject(Project project) {
+        JFS result;
+        boolean created = false;
+        synchronized (this) {
+            ProjectReference ref = refs.get(project);
+            if (ref == null) {
+                created = true;
+                JFS jfs = createJFS();
+                ref = new ProjectReference(jfs, project);
+                refs.put(project, ref);
+                result = jfs;
+            } else {
+                result = ref.jfs;
+            }
         }
-        return ref.jfs;
+        if (created) {
+            String id = result.id();
+            LOG.log(Level.FINE, "Created JFS {0} for {1}", new Object[]{id, project});
+            Trackables.track(JFS.class, result, () -> {
+                return "JFS-" + id + "-" + project.getProjectDirectory().getName();
+            });
+        }
+        return result;
     }
 
     synchronized JFS getIfPresent(Project project) {
@@ -150,7 +180,6 @@ final class JFSManager {
         volatile boolean disposed;
         private final ReentrantLock lock = new ReentrantLock(true);
         volatile long lastTouch = System.currentTimeMillis();
-        private static final long EXPIRATION = 1_000 * 60 * 10; // 10 min
 
         ProjectReference(JFS jfs, Project project) {
             super(project, Utilities.activeReferenceQueue());
@@ -167,7 +196,7 @@ final class JFSManager {
 
         @Override
         public long getDelay(TimeUnit unit) {
-            long target = lastTouch + EXPIRATION;
+            long target = lastTouch + JFS_EXPIRATION;
             return unit.convert(target - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
         }
 
@@ -275,11 +304,21 @@ final class JFSManager {
             }
             disposed = true;
             try {
-                LOG.log(Level.FINER, "Project disappeared - close {0}", jfs);
-                jfs.close();
+                LOG.log(Level.FINER, "Closing JFS {0}", jfs);
+                jfs.whileWriteLocked(() -> {
+                    jfs.close();
+                    return null;
+                });
                 Trackables.discarded(JFS.class, jfs);
-            } catch (IOException ex) {
+            } catch (Exception ex) {
                 LOG.log(Level.WARNING, "Closing jfs", ex);
+                try {
+                    if (!jfs.isReallyClosed()) {
+                        jfs.close();
+                    }
+                } catch (Exception e2) {
+                    LOG.log(Level.WARNING, "Closing jfs", e2);
+                }
             }
         }
     }

@@ -19,6 +19,7 @@ import org.nemesis.antlr.live.impl.AntlrGenerationSubscriptionsImpl;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.Supplier;
+import javax.swing.text.Document;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.misc.utils.CachingSupplier;
@@ -39,6 +40,29 @@ public final class RebuildSubscriptions {
     // Async is preferable, but still testing it, so leaving this here
     // so tests can alter their expectaions
     static boolean SUBSCRIBE_BUILDS_ASYNC = true;
+    public static final long DEFAULT_JFS_TIMEOUT_MILLIS = 1_000 * 60 * 10; // 10 minutes
+    public static final long JFS_EXPIRATION;
+    public static final String SYSTEM_PROP_JFS_EXPIRATION_MINUTES = "jfs.expiration.minutes";
+
+    static {
+        long timeout = DEFAULT_JFS_TIMEOUT_MILLIS;
+        String syspropTimeout = System.getProperty(SYSTEM_PROP_JFS_EXPIRATION_MINUTES);
+        if (syspropTimeout != null) {
+            try {
+                long val = Long.parseLong(syspropTimeout);
+                if (val <= 0) {
+                    System.err.println("Bad value " + val + " for "
+                            + SYSTEM_PROP_JFS_EXPIRATION_MINUTES);
+                }
+                timeout = val * (1000 * 60);
+            } catch (NumberFormatException nfe) {
+                System.err.println("Unparseable value for "
+                        + SYSTEM_PROP_JFS_EXPIRATION_MINUTES + ": '" + syspropTimeout
+                        + "'");
+            }
+        }
+        JFS_EXPIRATION = timeout;
+    }
 
     /**
      * Determine if a given file path + grammar tokens hash combination has been
@@ -158,8 +182,18 @@ public final class RebuildSubscriptions {
     }
 
     /**
-     * If the passed generation result is unusable, increment its fail count towards throttling,
-     * and return whether or not it is now throttled.
+     * Notify the infrastructure that a document is in use, so its JFS mapping
+     * should not be discarded.
+     *
+     * @param doc A document
+     */
+    public static boolean touched(Document doc) {
+        return AntlrGenerationSubscriptionsImpl.touched(doc);
+    }
+
+    /**
+     * If the passed generation result is unusable, increment its fail count
+     * towards throttling, and return whether or not it is now throttled.
      *
      * @param res A generationn result
      * @return whether or not it is now throttled

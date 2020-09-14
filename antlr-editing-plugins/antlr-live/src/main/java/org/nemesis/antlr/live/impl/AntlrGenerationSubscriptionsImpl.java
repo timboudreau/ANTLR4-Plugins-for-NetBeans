@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
+import javax.swing.text.Document;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.live.BrokenSourceThrottle;
 import org.nemesis.antlr.live.Subscriber;
@@ -31,6 +32,7 @@ import org.nemesis.jfs.JFS;
 import org.nemesis.misc.utils.CachingSupplier;
 import org.netbeans.api.project.FileOwnerQuery;
 import org.netbeans.api.project.Project;
+import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.filesystems.FileObject;
 
 /**
@@ -41,6 +43,10 @@ public final class AntlrGenerationSubscriptionsImpl {
 
     private static final Logger LOG = Logger.getLogger(AntlrGenerationSubscriptionsImpl.class.getName());
     static final UnixPath IMPORTS = UnixPath.get("imports");
+
+    public static boolean touched(Document doc) {
+        return instance()._touched(doc);
+    }
 
     final BrokenSourceThrottle throttle = new BrokenSourceThrottle();
     private final JFSManager jfses = new JFSManager();
@@ -144,5 +150,17 @@ public final class AntlrGenerationSubscriptionsImpl {
         if (subscribers.hasNoSubscribers()) {
             subscribersByProject.remove(subscribers.die());
         }
+    }
+
+    private boolean _touched(Document doc) {
+        FileObject fo = NbEditorUtilities.getFileObject(doc);
+        if (fo != null && fo.getMIMEType().equals(ANTLR_MIME_TYPE) ) {
+            Project proj = FileOwnerQuery.getOwner(fo);
+            if (proj!= null && proj != FileOwnerQuery.UNOWNED) {
+                AntlrGenerationSubscriptionsForProject subscribers = subscribersByProject.get(proj);
+                return subscribers.touched(fo, doc);
+            }
+        }
+        return false;
     }
 }

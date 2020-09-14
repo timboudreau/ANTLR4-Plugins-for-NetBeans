@@ -22,6 +22,7 @@ import com.mastfrog.util.path.UnixPath;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.IOException;
 import java.io.Writer;
+import java.nio.file.Path;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -35,6 +36,7 @@ import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.compilation.WithGrammarRunner;
 import org.nemesis.antlr.live.execution.InvocationRunner;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
+import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
@@ -53,7 +55,7 @@ final class InvocationEnvironment<T, R> {
     private final InvocationRunner<T, R> runner;
     private final FileObject file;
     private final AtomicReference<EnvironmentState> state
-            = new AtomicReference<>(new EnvironmentState<>());
+            = new AtomicReference<>(new EnvironmentState());
     private Supplier<JFS> jfsSupplier;
 
     InvocationEnvironment(InvocationRunnerLookupKey<T> key, InvocationRunner<T, R> runner, FileObject file) {
@@ -81,7 +83,7 @@ final class InvocationEnvironment<T, R> {
 
     private GrammarRunResult<T> doBuild(AntlrGenerationEvent event, FileObject grammarFile,
             AntlrGenerationResult genResult, JFS jfs) throws IOException {
-        EnvironmentState<T, R> state = this.state.get();
+        EnvironmentState state = this.state.get();
         if (state.isUnchanged(event, jfs)) {
             return null;
         }
@@ -117,30 +119,53 @@ final class InvocationEnvironment<T, R> {
                     WithGrammarRunner wgr = runBuilder
                             .build(event.extraction.source().name());
 
-
 //                            wgr.
-
                     return null;
                 });
+    }
+
+    static class BuildAnalyzer extends CompilerRunnerAndAnalyzer<AntlrGenerationResult> {
+
+        public BuildAnalyzer(Supplier<JFS> jfses, Path originalFilePath) {
+            super(jfses, AntlrLoggers.STD_TASK_COMPILE_ANALYZER, originalFilePath);
+        }
+
+        @Override
+        protected boolean onFailure(AntlrGenerationResult res, CompileResult compileResult, int attempt, boolean regenerated) {
+            if (attempt > 1) {
+                res.rebuild();
+            }
+            return true;
+        }
+
+        @Override
+        protected void logInfo(AntlrGenerationResult res, Consumer<String> pw) {
+            pw.accept("GEN PACKAGE: " + res.packageName);
+            pw.accept("GRAMMAR SRC LOC: " + res.grammarSourceLocation);
+            pw.accept("SOURCE OUT LOC: " + res.javaSourceOutputLocation);
+            pw.accept("ORIG FILE: " + res.originalFilePath);
+            pw.accept("FULL JFS LISTING:");
+        }
     }
 
     private GrammarRunResult<T> performGenerationAndCompilation(EnvironmentState state, AntlrGenerationEvent event,
             FileObject grammarFile, AntlrGenerationResult genResult, JFS jfs,
             IOPetaFunction<JFSCompileBuilder, CompileResult, ClassloaderSupplierConsumer, Bool, R, GrammarRunResult<T>> c) throws IOException {
-        CompilerRunnerAndAnalyzer runAndAnalyze = new CompilerRunnerAndAnalyzer(() -> jfs);
+        BuildAnalyzer runAndAnalyze = new BuildAnalyzer(jfsSupplier, genResult.originalFilePath);
         Obj<CompileResult> compileResultHolder = Obj.create();
         Obj<R> arg = Obj.create();
         Bool regenerated = Bool.create();
+        JFSCompileBuilder bldr = new JFSCompileBuilder(jfs);
         Obj<JFSCompileBuilder> compileBuilder = Obj.create();
         ClassloaderSupplierConsumer csc = new ClassloaderSupplierConsumer();
         try {
             return jfs.whileLockedWithWithLockDowngrade(() -> {
-                compileResultHolder.set(runAndAnalyze.withCompilerOutputWriter(jfs, genResult, (Writer writer, JFSCompileBuilder bldr) -> {
+                compileResultHolder.set(runAndAnalyze.withCompilerOutputWriter(jfs, genResult, bldr, (Writer writer, JFSCompileBuilder b) -> {
                     Obj<UnixPath> singleSource = Obj.create();
                     arg.set(runner.configureCompilation(event.tree, genResult, event.extraction, jfs,
                             bldr, genResult.packageName(), csc, singleSource));
                     compileBuilder.set(bldr);
-                    return runAndAnalyze.performCompilation(singleSource, bldr, writer, genResult, regenerated);
+                    return runAndAnalyze.performCompilation(jfs, singleSource, b, writer, genResult, regenerated);
                 }));
             }, () -> {
                 if (compileResultHolder.isSet()) {
@@ -155,13 +180,18 @@ final class InvocationEnvironment<T, R> {
         }
     }
 
-    static class EnvironmentState<T, R> {
+    class EnvironmentState {
 
         GrammarRunResult<T> lastResult;
         AntlrGenerationResult lastGenerationResult;
         CompileResult lastCompilationResult;
         R lastArg;
         WithGrammarRunner lastRunner;
+
+        synchronized void update(AntlrGenerationEvent evt, CompileResult res, WithGrammarRunner runner, R arg, String grammarTokensHash) {
+            AntlrGenerationAndCompilationResult agci = runner.lastGenerationResult();
+
+        }
 
         /**
          * Do validity and up-to-date checks; if we return true, then there is
@@ -178,6 +208,11 @@ final class InvocationEnvironment<T, R> {
             // last run was not successful
             if (lastResult == null || lastGenerationResult == null || lastArg == null || lastCompilationResult == null) {
                 return false;
+            }
+            if (lastArg != null) {
+                if (!runner.isStillValid(lastArg)) {
+                    return false;
+                }
             }
             // JFS was unused for a long time and was replaced - may not
             // contain anything at all yet

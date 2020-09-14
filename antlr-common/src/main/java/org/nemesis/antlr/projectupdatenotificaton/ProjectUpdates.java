@@ -21,6 +21,7 @@ import com.mastfrog.function.throwing.io.IOSupplier;
 import com.mastfrog.util.collections.CollectionUtils;
 import java.io.File;
 import java.io.IOException;
+import java.nio.BufferUnderflowException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -92,6 +93,14 @@ public final class ProjectUpdates {
                 if (channel.size() > 0) {
                     paths = DynamicGraph.load(channel, CacheFileUtils::readPath);
                 }
+            } catch (IOException | BufferUnderflowException ioe) {
+                LOG.log(Level.INFO, "Corrupted dependency graph cache in " + path+ ". Deleting.", ioe);
+                try {
+                    Files.delete(path);
+                } catch (IOException ex) {
+                    LOG.log(Level.INFO, "Corrupted dependency graph cache in " + path+ " failed.", ex);
+                }
+                paths = new DynamicGraph<>();
             }
         }
         if (path != null) {

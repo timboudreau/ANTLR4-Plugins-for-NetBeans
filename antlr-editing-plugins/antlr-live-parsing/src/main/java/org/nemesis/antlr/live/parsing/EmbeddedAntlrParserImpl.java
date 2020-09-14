@@ -20,6 +20,7 @@ import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
+import java.awt.EventQueue;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
@@ -154,23 +155,18 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             return true;
         }
         if (!info.isUpToDate()) {
-            synchronized (staleCheckLock) {
-                info = environment.get();
-                if (!info.isUpToDate()) {
-                    LOG.log(Level.FINE, "{0} force reparse due to {1} up to date? ",
-                            new Object[]{path.getFileName(), new Object[]{info, info.isUpToDate()}});
-//                    System.out.println("NOT UP TO DATE FORCE REPARSE on " + getClass().getSimpleName() + "@" + System.identityHashCode(this)
-//                            + " for " + info.modifications.changes() + " on " + Thread.currentThread());
-                    int oldRev = rev.get();
-                    forceGrammarFileReparse(info);
-                    if (rev.get() != oldRev) {
-                        EmbeddedParsingEnvironment newEnv = this.environment.get();
-//                        System.out.println("ENV CHANGED? " + (newEnv != info) + " changes now " + newEnv.modifications.changes());
-//                    } else {
-//                        System.out.println("REV HAS NOT CHANGED");
-                    }
-                    return true;
+//            synchronized (staleCheckLock) {
+            info = environment.get();
+            if (!info.isUpToDate()) {
+                LOG.log(Level.FINE, "{0} force reparse due to {1} up to date? ",
+                        new Object[]{path.getFileName(), new Object[]{info, info.isUpToDate()}});
+                int oldRev = rev.get();
+                forceGrammarFileReparse(info);
+                if (rev.get() != oldRev) {
+                    EmbeddedParsingEnvironment newEnv = this.environment.get();
                 }
+                return true;
+//                }
             }
         }
         return false;
@@ -276,75 +272,88 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             Obj<EmbeddedAntlrParserResult> resHolder = Obj.create();
             // We need to grab the parser manager lock for our mime type
             // here, basically to keep everybody else out.
-            ParserManager.parse(mimeType, new UserTask() {
-                // Seems we need to preemptively acquire the parser manager's
-                // lock, so as to avoid a deadlock
-                @Override
-                public void run(ResultIterator ri) throws Exception {
-                    EmbeddedParsingEnvironment info = environment.get();
+            if (!EventQueue.isDispatchThread()) {
+                // Sigh - this locking is more correct, but it is also the
+                // source of many UI freezes.  So, try letting the EDT parse
+                // freely and see if that wreaks more havoc or less
+                ParserManager.parse(mimeType, new UserTask() {
+                    // Seems we need to preemptively acquire the parser manager's
+                    // lock, so as to avoid a deadlock
+                    @Override
+                    public void run(ResultIterator ri) throws Exception {
+                        doReparseText(resHolder, toParse);
+                    }
+
+                });
+            } else {
+                doReparseText(resHolder, toParse);
+            }
+            return resHolder.get();
+        });
+    }
+
+    boolean doReparseText(Obj<EmbeddedAntlrParserResult> resHolder, CharSequence toParse) throws Exception {
+        EmbeddedParsingEnvironment info = environment.get();
 //                    info.runResult.jfs().whileLockedWithWithLockDowngrade(() -> {
 //
 //                    }, () -> null);
+// XXX way too many levels of locking in here.
+// Should not need an internal lock.
+// Should not need the parser lock.
+// Should use the JFS read lock (?)
 
-                    // XXX way too many levels of locking in here.
-                    // Should not need an internal lock.
-                    // Should not need the parser lock.
-                    // Should use the JFS read lock (?)
-
-                    ReentrantReadWriteLock.WriteLock writeLock = parseLock.writeLock();
-                    ReentrantReadWriteLock.ReadLock readLock = parseLock.readLock();
-                    writeLock.lock();
-                    AntlrProxies.ParseTreeProxy res;
-                    boolean wasStale = false;
-                    try {
-                        try {
-                            wasStale = checkStaleAndReparseGrammarIfNeeded(info);
-                            if (wasStale) {
-                                EmbeddedParsingEnvironment newInfo = environment.get();
-                                LOG.log(Level.FINER, "Stale check {0} replaced parser env? {1}",
-                                        new Object[]{grammarName,
-                                            newInfo != info});
-                                Debug.message("Replace env " + (info != newInfo), newInfo::toString);
-                                info = newInfo;
-                            }
-                        } finally {
-                            readLock.lock();
-                            writeLock.unlock();
-                        }
-                        if (!wasStale) {
-                            LastParseInfo lpi = lastParseInfo.get();
-                            if (lpi.canReuse(toParse)) { // XXX
-                                LOG.log(Level.FINEST, "Reuse previous parser result {0} "
-                                        + "for same or null text", lpi);
-                                Debug.message(logName + "-reuse-" + info.grammarTokensHash,
-                                        lpi::toString);
-                                resHolder.set(lpi.parserResult);
-                                return;
-                            }
-                        }
-                        Debug.message("Will parse with", info.parser::toString);
-                        res = info.parser.parse(logName, toParse);
-                    } finally {
-                        readLock.unlock();
-                    }
-                    LOG.log(Level.FINEST, "Parsed to {0} by {1}",
-                            new Object[]{res.loggingInfo(), info.parser});
-                    String gth = info.grammarTokensHash;
-                    EmbeddedAntlrParserResult result = new EmbeddedAntlrParserResult(path, res,
-                            info.runResult, info.grammarTokensHash, grammarName);
-                    if (toParse != null) {
-                        lastParseInfo.set(new LastParseInfo(result, toParse));
-                        Trackables.track(AntlrProxies.ParseTreeProxy.class, res, () -> {
-                            return res.loggingInfo() + "\t" + gth + "\n" + logName;
-                        });
-                    }
-                    LOG.log(Level.FINE, "New parser result {0}", result);
-                    Debug.success(logName + "-created-" + res.loggingInfo(), result::toString);
-                    resHolder.set(result);
+        ReentrantReadWriteLock.WriteLock writeLock = parseLock.writeLock();
+        ReentrantReadWriteLock.ReadLock readLock = parseLock.readLock();
+        writeLock.lock();
+        AntlrProxies.ParseTreeProxy res;
+        boolean wasStale = false;
+        try {
+            try {
+                wasStale = checkStaleAndReparseGrammarIfNeeded(info);
+                if (wasStale) {
+                    EmbeddedParsingEnvironment newInfo = environment.get();
+                    LOG.log(Level.FINER, "Stale check {0} replaced parser env? {1}",
+                            new Object[]{grammarName,
+                                newInfo != info});
+                    Debug.message("Replace env " + (info != newInfo), newInfo::toString);
+                    info = newInfo;
                 }
+            } finally {
+                readLock.lock();
+                writeLock.unlock();
+            }
+            if (!wasStale) {
+                LastParseInfo lpi = lastParseInfo.get();
+                if (lpi.canReuse(toParse)) {
+                    // XXX
+                    LOG.log(Level.FINEST, "Reuse previous parser result {0} "
+                            + "for same or null text", lpi);
+                    Debug.message(logName + "-reuse-" + info.grammarTokensHash,
+                            lpi::toString);
+                    resHolder.set(lpi.parserResult);
+                    return true;
+                }
+            }
+            Debug.message("Will parse with", info.parser::toString);
+            res = info.parser.parse(logName, toParse);
+        } finally {
+            readLock.unlock();
+        }
+        LOG.log(Level.FINEST, "Parsed to {0} by {1}",
+                new Object[]{res.loggingInfo(), info.parser});
+        String gth = info.grammarTokensHash;
+        EmbeddedAntlrParserResult result = new EmbeddedAntlrParserResult(path, res,
+                info.runResult, info.grammarTokensHash, grammarName);
+        if (toParse != null) {
+            lastParseInfo.set(new LastParseInfo(result, toParse));
+            Trackables.track(AntlrProxies.ParseTreeProxy.class, res, () -> {
+                return res.loggingInfo() + "\t" + gth + "\n" + logName;
             });
-            return resHolder.get();
-        });
+        }
+        LOG.log(Level.FINE, "New parser result {0}", result);
+        Debug.success(logName + "-created-" + res.loggingInfo(), result::toString);
+        resHolder.set(result);
+        return false;
     }
 
     private boolean forceGrammarFileReparse(EmbeddedParsingEnvironment info) throws Exception {

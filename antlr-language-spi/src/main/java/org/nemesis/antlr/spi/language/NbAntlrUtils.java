@@ -36,6 +36,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
 import org.nemesis.extraction.key.NameReferenceSetKey;
+import org.nemesis.misc.utils.concurrent.WorkCoalescer;
 import org.netbeans.api.lexer.TokenId;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
@@ -336,7 +337,7 @@ public final class NbAntlrUtils {
 //            WeakReference<Extraction> old = ref.get();
             TimedWeakReference<Extraction> nue = new TimedWeakReference<>( ext );
             ref.set( nue );
-            if (old != null) {
+            if ( old != null ) {
                 old.discard();
             }
         }
@@ -351,7 +352,8 @@ public final class NbAntlrUtils {
                 .getProperty( EXTRACTION_DOCUMENT_PROPERTY );
         if ( ref == null ) {
             synchronized ( NbAntlrUtils.class ) {
-                ref = ( AtomicReference<TimedWeakReference<Extraction>> ) doc.getProperty( EXTRACTION_DOCUMENT_PROPERTY );
+                ref = ( AtomicReference<TimedWeakReference<Extraction>> ) doc
+                        .getProperty( EXTRACTION_DOCUMENT_PROPERTY );
                 if ( ref == null ) {
                     ref = new AtomicReference<>();
                     doc.putProperty( EXTRACTION_DOCUMENT_PROPERTY, ref );
@@ -413,19 +415,44 @@ public final class NbAntlrUtils {
                 }
             }
         }
-        Extraction result = null;
+        TimedWeakReference<Extraction> result = null;
+        Extraction r;
         try {
-            result = parseImmediately( document );
-            if ( ref != null && result != null && !result.isPlaceholder() ) {
-                ref.set( new TimedWeakReference<>( result ) );
-                if (weak != null) {
-                    weak.discard();
+            result = coa( document ).coalesceComputation( () -> {
+                try {
+                    return new TimedWeakReference<Extraction>( parseImmediately( document ) );
+                } catch ( Exception ex ) {
+                    Exceptions.printStackTrace( ex );
+                    return null;
                 }
-            }
-        } catch ( Exception ex ) {
+            }, res -> {
+                                                      // do nothing
+                                                  }, ref );
+        } catch ( InterruptedException ex ) {
             Exceptions.printStackTrace( ex );
         }
-        return result != null ? result : Extraction.empty( NbEditorUtilities.getMimeType( document ) );
+        r = result == null ? null : result.get();
+//                                                                    // do nothing
+//                                                         }, ref );
+//        if ( ref != null && result != null && !result.isPlaceholder() ) {
+//            ref.set( new TimedWeakReference<>( result ) );
+//            if ( weak != null ) {
+//                weak.discard();
+//            }
+//        }
+
+        return r != null ? r : Extraction.empty( NbEditorUtilities.getMimeType( document ) );
+    }
+
+    static WorkCoalescer<TimedWeakReference<Extraction>> coa( Document doc ) {
+        WorkCoalescer<TimedWeakReference<Extraction>> result = ( WorkCoalescer<TimedWeakReference<Extraction>> ) doc
+                .getProperty( "_coa" );
+
+        if ( result == null ) {
+            result = new WorkCoalescer<>();
+            doc.putProperty( "_coa", result );
+        }
+        return result;
     }
 
     static PostprocessingMode postProcessingMode() {

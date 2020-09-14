@@ -73,6 +73,7 @@ import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileModifications;
 import org.nemesis.misc.utils.ActivityPriority;
+import org.nemesis.misc.utils.concurrent.WorkCoalescer;
 import org.netbeans.api.project.Project;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.openide.filesystems.FileObject;
@@ -131,6 +132,10 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         generatorCache = sinfo.caches.<AntlrGenerator>createCache(AntlrGenerator.class, MapFactories.WEAK, fo -> null);
     } // need a defensive copy
 
+    static boolean needSynchronousDispatch() {
+        return EventQueue.isDispatchThread() || ActivityPriority.get().isRealtime();
+    }
+
     static final long INITIAL_LOAD;
     static final long STARTUP_DELAY = 10000;
     static final boolean IS_TEST;
@@ -155,8 +160,21 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
 //        if (inStartupDelay()) {
 //            return new Applier();
 //        } else {
-            return new UndelayedApplier();
+        return new UndelayedApplier();
 //        }
+    }
+
+    /**
+     * Simply tickle the timeout that would destroy the JFS - called by the
+     * preview editor to ensure it doesn't happen, and to get out in front of
+     * upcoming parses after the IDE has been idle.
+     *
+     * @param fo A file object
+     * @param doc A document
+     */
+    boolean touched(FileObject fo, Document doc) {
+        assert !EventQueue.isDispatchThread();
+        return mappingManager.touch();
     }
 
     static class Applier implements EventApplier<FileObject, AntlrRegenerationEvent, Subscriber> {
@@ -301,11 +319,40 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
             if (doc == null) {
                 ParsingUtils.parse(file);
             } else {
-                ParsingUtils.parse(doc);
+                WorkCoalescer<Boolean> coa = forceParseCoalescer(doc);
+                AtomicReference<Boolean> fpRef = fpRef(doc);
+                coa.coalesceComputation(() -> {
+                    try {
+                        ParsingUtils.parse(doc);
+                    } catch (Exception ex) {
+                        Exceptions.printStackTrace(ex);
+                        return Boolean.FALSE;
+                    }
+                    return Boolean.TRUE;
+                }, (Boolean bool) -> {
+                }, fpRef);
             }
         } catch (Exception ex) {
             LOG.log(Level.SEVERE, file + "", ex);
         }
+    }
+
+    private AtomicReference<Boolean> fpRef(Document doc) {
+        AtomicReference<Boolean> fpRef = (AtomicReference<Boolean>) doc.getProperty("_fpRef");
+        if (fpRef == null) {
+            fpRef = new AtomicReference<>();
+            doc.putProperty("_fpRef", fpRef);
+        }
+        return fpRef;
+    }
+
+    private WorkCoalescer<Boolean> forceParseCoalescer(Document doc) {
+        WorkCoalescer<Boolean> wc = (WorkCoalescer<Boolean>) doc.getProperty("_fpc");
+        if (wc == null) {
+            wc = new WorkCoalescer<>();
+            doc.putProperty("_fpc", wc);
+        }
+        return wc;
     }
 
     private void doFakeOnSubscribeParse(FileObject key) {
@@ -650,7 +697,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         if (fo != null) {
             AntlrGenerationResult oldRes = resultCache.get(fo);
             if (oldRes != null && oldRes.isReusable() && oldRes.isUpToDate()) {
-                return oldRes;
+                return oldRes.recycle();
             }
         }
         AntlrGenerationResult res = localRerunner.run(grammarFileName, logStream, generate);
@@ -753,6 +800,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
             }
             AntlrGenerationResult xlate = generationResult.forSiblingGrammar(ParsingUtils.toPath(fo),
                     coords.path(), tokensHash);
+            // This is most certainly wrong
             if (xlate != null) {
                 generationWasRunFor.put(fo, xlate);
                 forceParse(fo, "Could not create sibling result " + fo.getNameExt()

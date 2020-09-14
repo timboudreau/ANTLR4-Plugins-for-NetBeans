@@ -55,6 +55,19 @@ public class JFSCompileBuilder {
         this.jfs = jfs;
     }
 
+    public JFSCompileBuilder withJFS(JFS jfs) {
+        return withJFSSupplier(() -> jfs);
+    }
+
+    public JFSCompileBuilder withJFSSupplier(Supplier<JFS> jfs) {
+        JFSCompileBuilder bldr = new JFSCompileBuilder(jfs);
+        bldr.classpath.addAll(classpath);
+        bldr.options.copyFrom(options);
+        bldr.locationsToCompile.addAll(locationsToCompile);
+        bldr.compilerOutputWriter = compilerOutputWriter;
+        return bldr;
+    }
+
     public String toString() {
         StringBuilder result = new StringBuilder("JFSCompileBuilder(")
                 .append(jfs.get().id()).append("\nOptions: ")
