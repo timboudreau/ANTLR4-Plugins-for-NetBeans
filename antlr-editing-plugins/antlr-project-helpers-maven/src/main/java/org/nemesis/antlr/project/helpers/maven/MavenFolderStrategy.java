@@ -15,11 +15,18 @@
  */
 package org.nemesis.antlr.project.helpers.maven;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.logging.Level;
@@ -33,6 +40,8 @@ import org.netbeans.api.project.Project;
 import org.netbeans.api.project.ProjectManager;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.modules.Places;
+import org.openide.util.RequestProcessor;
 
 /**
  *
@@ -40,9 +49,11 @@ import org.openide.filesystems.FileUtil;
  */
 final class MavenFolderStrategy implements FolderLookupStrategyImplementation {
 
+    private static final Logger LOG = Logger.getLogger(MavenFolderStrategy.class.getName());
     static final String MAVEN = "Maven";
     private final Project project;
-    private static final Map<Project, MavenInfo> PROJECT_INFO = new WeakHashMap<>();
+    private static final Map<Path, MavenInfo> PROJECT_INFO
+            = new ConcurrentHashMap<>();
     private static volatile boolean listening;
     private final FolderQuery initialQuery;
     static final Consumer<Path> LISTENER = path -> {
@@ -50,13 +61,25 @@ final class MavenFolderStrategy implements FolderLookupStrategyImplementation {
             FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
             Project prj = ProjectManager.getDefault().findProject(fo);
             if (prj != null) {
-                PROJECT_INFO.remove(prj);
+                LOG.log(Level.INFO, "Drop cached info for {0}", path);
+                PROJECT_INFO.remove(path);
+                new Exception("Drop info for " + path).printStackTrace();
             }
         } catch (IOException ioe) {
             Logger.getLogger(MavenFolderStrategy.class.getName()).log(Level.SEVERE,
                     "Updates for " + path, ioe);
         }
+        loadCache();
     };
+
+    private static Path pathForProject(Project prj) {
+        FileObject fo = prj.getProjectDirectory();
+        File file = FileUtil.toFile(fo);
+        if (file != null) {
+            return file.toPath();
+        }
+        return null;
+    }
 
     MavenFolderStrategy(Project project, FolderQuery initialQuery) {
         this.project = project;
@@ -67,11 +90,117 @@ final class MavenFolderStrategy implements FolderLookupStrategyImplementation {
         return infoForProject(project);
     }
 
+    static boolean cacheLoaded;
+
+    static synchronized void loadCache() {
+        if (!cacheLoaded) {
+            cacheLoaded = true;
+            try {
+                SerCache cache = SerCache.load();
+                if (cache != null && !cache.isEmpty()) {
+                    LOG.log(Level.INFO, "Loaded maven cache {0}", cache);
+                    MavenInfo.putKnownNonAntlr(cache.knownNonAntlr);
+                    for (Map.Entry<String, MavenInfo> e : cache.projectInfo.entrySet()) {
+                        Path path = Paths.get(e.getKey());
+                        if (Files.exists(path)) {
+                            FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(Paths.get(e.getKey()).toFile()));
+                            if (fo != null) {
+                                Project prj = ProjectManager.getDefault().findProject(fo);
+                                if (prj != null) {
+                                    PROJECT_INFO.put(path, e.getValue());
+                                }
+                            }
+                        }
+                    }
+                    LOG.log(Level.INFO, "Cache now {0}", PROJECT_INFO);
+                } else {
+                    LOG.log(Level.INFO, "No or empty maven cache {0}", cache);
+                }
+            } catch (IOException | ClassNotFoundException ex) {
+                Logger.getLogger(MavenFolderStrategy.class.getName())
+                        .log(Level.INFO, "Could not load cache", ex);
+            }
+        }
+    }
+
+    static void saveCache() {
+        SerCache sc = new SerCache();
+        if (!sc.isEmpty()) {
+            try {
+                sc.save();
+                LOG.log(Level.INFO, "Saved maven cache {0}", sc);
+            } catch (IOException ex) {
+                Logger.getLogger(MavenFolderStrategy.class.getName())
+                        .log(Level.INFO, "Could not load cache", ex);
+            }
+        }
+    }
+    private static final RequestProcessor.Task SAVE_TASK
+            = RequestProcessor.getDefault().create(MavenFolderStrategy::saveCache);
+    private static final int SAVE_TASK_DELAY_MS = 20000;
+
+    static void scheduleCacheSave() {
+        SAVE_TASK.schedule(SAVE_TASK_DELAY_MS);
+    }
+
+    static class SerCache implements Serializable {
+
+        final Map<String, MavenInfo> projectInfo;
+        final Map<String, Long> knownNonAntlr = MavenInfo.knownNonAntlrProjects();
+        static final long serialVersionUID = -4558997829579415276L;
+        static final String CACHE_FILE = "maven-antlr-project-cache.ser";
+
+        SerCache() {
+            projectInfo = new HashMap<>(PROJECT_INFO.size());
+            for (Map.Entry<Path, MavenInfo> e : PROJECT_INFO.entrySet()) {
+                if (Files.exists(e.getKey())) {
+                    projectInfo.put(e.getKey().toString(), e.getValue());
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            return projectInfo.size() + " cached project infos and "
+                    + knownNonAntlr.size() + " known-non-antlr-projects";
+        }
+
+        boolean isEmpty() {
+            return projectInfo.isEmpty() && knownNonAntlr.isEmpty();
+        }
+
+        void save() throws IOException {
+            Path path = new File(Places.getCacheDirectory(), CACHE_FILE).toPath();
+            try (ObjectOutputStream out = new ObjectOutputStream(Files.newOutputStream(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE))) {
+                out.writeObject(this);
+            }
+            LOG.log(Level.INFO, "Saved cache to {0}", path);
+        }
+
+        static SerCache load() throws IOException, ClassNotFoundException {
+            Path path = new File(Places.getCacheDirectory(), CACHE_FILE).toPath();
+            if (Files.exists(path)) {
+                try (ObjectInputStream in = new ObjectInputStream(Files.newInputStream(path, StandardOpenOption.READ))) {
+                    return (SerCache) in.readObject();
+                }
+            } else {
+                LOG.log(Level.INFO, "No cache file {0}", path);
+            }
+            return null;
+        }
+    }
+
     static MavenInfo infoForProject(Project project) {
-        MavenInfo info = PROJECT_INFO.get(project);
+        Path path = pathForProject(project);
+        MavenInfo info = PROJECT_INFO.get(path);
         if (info == null) {
-            info = new MavenInfo(project);
-            PROJECT_INFO.put(project, info);
+            loadCache();
+            info = PROJECT_INFO.get(path);
+            if (info == null) {
+                info = new MavenInfo(project);
+                PROJECT_INFO.put(path, info);
+                scheduleCacheSave();
+            }
         }
         if (!listening) {
             listening = true;
@@ -81,7 +210,8 @@ final class MavenFolderStrategy implements FolderLookupStrategyImplementation {
     }
 
     static void drop(Project project) {
-        PROJECT_INFO.remove(project);
+        PROJECT_INFO.remove(pathForProject(project));
+        scheduleCacheSave();
     }
 
     @Override

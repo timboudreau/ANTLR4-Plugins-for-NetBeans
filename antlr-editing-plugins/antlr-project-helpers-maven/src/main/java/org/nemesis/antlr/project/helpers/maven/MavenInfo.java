@@ -17,8 +17,12 @@ package org.nemesis.antlr.project.helpers.maven;
 
 import com.mastfrog.function.throwing.ThrowingTriFunction;
 import com.mastfrog.util.collections.CollectionUtils;
+import java.io.Externalizable;
 import java.io.File;
 import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
+import java.io.Serializable;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.nemesis.antlr.project.AntlrConfiguration;
+import static org.nemesis.antlr.project.helpers.maven.MavenFolderStrategy.scheduleCacheSave;
 import org.nemesis.antlr.project.impl.FoldersHelperTrampoline;
 import org.nemesis.antlr.projectupdatenotificaton.ProjectUpdates;
 import org.netbeans.api.project.Project;
@@ -44,8 +49,9 @@ import org.openide.filesystems.FileUtil;
  *
  * @author Tim Boudreau
  */
-final class MavenInfo {
+final class MavenInfo implements Serializable {
 
+    static final long serialVersionUID = 2L;
     public static final String ANTLR_MAVEN_DEFAULT_OUTPUT_DIRECTORY
             = // sourceDirectory
             "generated-sources/antlr4";
@@ -66,16 +72,17 @@ final class MavenInfo {
     public static final String ANTLR_PROP_VISITOR = "visitor";
     public static final String ANTLR_PROP_LISTENER = "listener";
 
-    private final Path projectDir;
+    private final String projectDir;
+    private transient MavenAntlrConfiguration cachedInfo;
     private PomInfo info;
 
     MavenInfo(Project project) {
         FileObject fo = project.getProjectDirectory();
-        projectDir = FileUtil.toFile(fo).toPath();
+        projectDir = FileUtil.toFile(fo).toPath().toString();
     }
 
     private MavenInfo(Path dir, PomInfo pomInfo) {
-        this.projectDir = dir;
+        this.projectDir = dir.toString();
         this.info = pomInfo;
     }
 
@@ -85,7 +92,7 @@ final class MavenInfo {
     }
 
     Path projectDir() {
-        return projectDir;
+        return Paths.get(projectDir);
     }
 
     static MavenAntlrConfiguration createAntlrConfig(MavenInfo info, Path baseDir) {
@@ -157,7 +164,6 @@ final class MavenInfo {
         return result;
     }
 
-    private MavenAntlrConfiguration cachedInfo;
 
     public MavenAntlrConfiguration pluginInfo() {
         if (cachedInfo != null) {
@@ -169,17 +175,29 @@ final class MavenInfo {
         if (cachedInfo != null) {
             return cachedInfo;
         }
-        return cachedInfo = createAntlrConfig(this, projectDir);
+        return cachedInfo = createAntlrConfig(this, projectDir());
     }
 
     public PomInfo pomInfo() {
         if (info != null && info.isUpToDate()) {
             return info;
         }
-        return info = createInfo();
+        PomInfo result = info = createInfo();
+        if (result != null) {
+            scheduleCacheSave();
+        }
+        return result;
     }
 
     private static Map<String, Long> knownNonAntlr = new ConcurrentHashMap<>();
+
+    static Map<String, Long> knownNonAntlrProjects() {
+        return new HashMap<>(knownNonAntlr);
+    }
+
+    static void putKnownNonAntlr(Map<String, Long> items) {
+        knownNonAntlr.putAll(items);
+    }
 
     private PomInfo createInfo() {
         try {
@@ -188,7 +206,7 @@ final class MavenInfo {
             // or it's parents' POM files - otherwise we will parse all the
             // way back to the topmost parent project every time the IDE
             // scans sources
-            Path pom = projectDir.resolve("pom.xml");
+            Path pom = projectDir().resolve("pom.xml");
             long currLastModified = Files.getLastModifiedTime(pom).toMillis();
             Long lm = knownNonAntlr.get(pom.toString());
             if (lm != null) {
@@ -223,25 +241,74 @@ final class MavenInfo {
         System.out.println("PI: " + pi); // println ok
         MavenAntlrConfiguration pluginInfo = mi.pluginInfo();
         AntlrConfiguration config = FoldersHelperTrampoline.getDefault().newAntlrConfiguration(pluginInfo.antlrImportDir(), pluginInfo.antlrSourceDir(), pluginInfo.antlrOutputDir(),
-                 pluginInfo.listener(), pluginInfo.visitor(), pluginInfo.atn(), pluginInfo.forceATN(), pluginInfo.includePattern(), pluginInfo.excludePattern(), pluginInfo.encoding(), pluginInfo.buildDir(), "Maven", pluginInfo.isGuessedConfig(), pluginInfo.buildOutput(), pluginInfo.testOutput(), pluginInfo.javaSources(), pluginInfo.testSources());
+                pluginInfo.listener(), pluginInfo.visitor(), pluginInfo.atn(), pluginInfo.forceATN(), pluginInfo.includePattern(), pluginInfo.excludePattern(), pluginInfo.encoding(), pluginInfo.buildDir(), "Maven", pluginInfo.isGuessedConfig(), pluginInfo.buildOutput(), pluginInfo.testOutput(), pluginInfo.javaSources(), pluginInfo.testSources());
 
         System.out.println("FINAL CONFIG:\n" + config); // println ok
     }
 
-    private static final class PomInfo {
+    private static final class PomInfo implements Externalizable {
 
-        private final Map<String, String> configurationValues = new HashMap<>();
+        static final long serialVersionUID = -2023L;
+        private static final int rev =1;
+        private final Map<String, String> configurationValues = new HashMap<>(32);
         private final Map<Path, Long> lastModified;
         private Charset encoding = Charset.defaultCharset();
         private String buildDir = "target";
         private String buildOutput = "target/classes";
         private String testOutput = "target/test-classes";
         private String sources = "src/main/java";
+        static ThreadLocal<Set<Path>> currentlyLoading = ThreadLocal.withInitial(HashSet::new);
+        static Set<Path> blacklistedPoms = new HashSet<>();
         private String testSources = "src/test/java";
 
         PomInfo(Map<Path, Long> lastModified) {
             this.lastModified = lastModified == null ? Collections.emptyMap() : lastModified;
         }
+
+        public PomInfo() {
+            this.lastModified = new HashMap<>();
+        }
+
+        @Override
+        public void writeExternal(ObjectOutput out) throws IOException {
+            out.writeInt(1);
+            Map<String, Long> lm = new HashMap<>(lastModified.size());
+            for (Map.Entry<Path, Long> e : lastModified.entrySet()) {
+                lm.put(e.getKey().toString(), e.getValue());
+            }
+            out.writeObject(lm);
+            out.writeObject(configurationValues);
+            out.writeUTF(encoding.name());
+            out.writeUTF(buildDir);
+            out.writeUTF(buildOutput);
+            out.writeUTF(testOutput);
+            out.writeUTF(sources);
+            out.writeUTF(testSources);
+        }
+
+        @Override
+        public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+            int rev = in.readInt();
+            switch(rev) {
+                case 1 :
+                    Map<String,Long> lm = (Map<String,Long>) in.readObject();
+                    for (Map.Entry<String, Long> e : lm.entrySet()) {
+                        lastModified.put(Paths.get(e.getKey()), e.getValue());
+                    }
+                    configurationValues.putAll((Map<String,String>) in.readObject());
+                    encoding = Charset.forName(in.readUTF());
+                    buildDir = in.readUTF();
+                    buildOutput = in.readUTF();
+                    testOutput = in.readUTF();
+                    sources = in.readUTF();
+                    testSources = in.readUTF();
+                    break;
+                default :
+                    throw new IOException("Unknown ser rev " + rev);
+            }
+        }
+
+
 
         public boolean isUpToDate() {
             if (lastModified.isEmpty()) {
@@ -423,8 +490,6 @@ final class MavenInfo {
             return createPomInfo(lastModified, parents, resolv);
         }
 
-        static ThreadLocal<Set<Path>> currentlyLoading = ThreadLocal.withInitial(HashSet::new);
-        static Set<Path> blacklistedPoms = new HashSet<>();
 
         static PomInfo withParentPoms(Path path, Map<Path, Long> lastModifieds, List<PomFileAnalyzer> all, ThrowingTriFunction<PomFileAnalyzer, Map<Path, Long>, List<PomFileAnalyzer>, PomInfo> onDone) throws Exception {
             if (!Files.exists(path)) {

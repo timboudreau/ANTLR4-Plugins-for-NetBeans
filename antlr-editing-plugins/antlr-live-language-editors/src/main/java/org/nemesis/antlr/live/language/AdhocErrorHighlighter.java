@@ -200,6 +200,9 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
     }
 
     private void doRefresh(HighlightingInfo info) {
+        if (info == null || info.semantics == null) {
+            return;
+        }
         AntlrProxies.ParseTreeProxy semantics = info.semantics;
         if (!semantics.isUnparsed() && semantics.text() == null || semantics.text().length() < 2) {
             // Just a no-text parse the lexer used to extract a list of tokens; ignore it.

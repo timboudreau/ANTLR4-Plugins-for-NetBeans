@@ -110,9 +110,9 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
         if (isActive()) {
             Document doc = ctx.getDocument();
             if (doc != null) {
-                EventQueue.invokeLater(() -> {
+//                EventQueue.invokeLater(() -> {
                     ParseCoalescer.getDefault().enqueueParse(doc, this);
-                });
+//                });
             }
         }
     }

@@ -42,7 +42,7 @@ import org.openide.util.RequestProcessor;
  */
 final class ParseCoalescer {
 
-    private static final int HIGHLIGHTING_PER_MIME_TYPE_THREADS = 5;
+    private static final int HIGHLIGHTING_PER_MIME_TYPE_THREADS = 1;
     private final Map<Document, RunReparse> tasks = new WeakHashMap<>();
     private final Map<String, RequestProcessor> threadPoolForMimeType
             = new ConcurrentHashMap<>();

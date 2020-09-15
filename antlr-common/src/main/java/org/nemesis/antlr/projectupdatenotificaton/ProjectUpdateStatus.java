@@ -163,7 +163,8 @@ final class ProjectUpdateStatus implements UpToDateness {
             }
         }
         boolean result = oldTimestamp != newTimestamp || oldSize != newSize;
-        if (toNotify != null) {
+        boolean isInitial = oldTimestamp == 0 || oldSize == 0;
+        if (toNotify != null && !isInitial) {
             for (Path p : toNotify) {
                 ProjectUpdates.notifyPathChanged(p);
             }

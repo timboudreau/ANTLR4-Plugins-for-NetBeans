@@ -272,7 +272,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             Obj<EmbeddedAntlrParserResult> resHolder = Obj.create();
             // We need to grab the parser manager lock for our mime type
             // here, basically to keep everybody else out.
-            if (!EventQueue.isDispatchThread()) {
+            if (!EventQueue.isDispatchThread() && ActivityPriority.get() != ActivityPriority.REALTIME) {
                 // Sigh - this locking is more correct, but it is also the
                 // source of many UI freezes.  So, try letting the EDT parse
                 // freely and see if that wreaks more havoc or less

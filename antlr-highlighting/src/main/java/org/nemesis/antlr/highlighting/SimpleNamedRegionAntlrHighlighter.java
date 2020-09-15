@@ -90,10 +90,12 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
         return new SimpleNamedRegionAntlrHighlighter<>(key, xformed);
     }
 
+    static long LOG_OFFSET = System.currentTimeMillis();
     @Override
     public void refresh(Document doc, Extraction ext, OffsetsBag bag, Integer ignored) {
         NamedSemanticRegions<T> regions = ext.namedRegions(key);
-        log("{0} refresh {1} NamedSemanticRegions for {2}", key, regions.size(), doc);
+        log("{0} refresh {1} NamedSemanticRegions for {2} for {3} parse {4}",
+                key, regions.size(), doc, ext.source().name(), ext.sourceLastModifiedAtExtractionTime() - LOG_OFFSET);
         if (!regions.isEmpty()) {
             Map<T, AttributeSet> cache = new HashMap<>(cacheSize);
             for (NamedSemanticRegion<T> region : regions.index()) {
