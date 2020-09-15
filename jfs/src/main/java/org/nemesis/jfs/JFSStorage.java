@@ -375,7 +375,10 @@ final class JFSStorage {
         for (Map.Entry<Name, JFSFileObjectImpl> e : files.entrySet()) {
             if (e.getKey().isPackage(path, recurse)) {
                 if (e.getValue() instanceof JavaFileObject) {
-                    result.add(e.getValue().toJavaFileObject());
+                    JavaFileObject jfa = (JavaFileObject) e.getValue();
+                    if (kinds.contains(jfa.getKind())) {
+                        result.add(e.getValue().toJavaFileObject());
+                    }
                 }
             }
         }
