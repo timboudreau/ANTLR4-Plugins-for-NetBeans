@@ -40,13 +40,13 @@ import org.nemesis.antlr.memory.tool.ext.EpsilonRuleInfo;
 import org.nemesis.antlr.memory.tool.ext.ProblematicEbnfInfo;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.editor.position.PositionRange;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
 import org.netbeans.modules.editor.NbEditorUtilities;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
 import org.openide.text.NbDocument;
 import org.openide.util.NbBundle;
@@ -73,7 +73,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator {
     }
 
     @Override
-    protected boolean generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes, Document doc, PositionFactory positions, OffsetsBag highlights) throws BadLocationException {
+    protected boolean generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes, Document doc, PositionFactory positions, HighlightConsumer highlights) throws BadLocationException {
         Bool any = Bool.create();
         updateErrorHighlights(tree, extraction, res, populate, fixes, doc, positions, highlights, any);
         return any.getAsBoolean();
@@ -82,7 +82,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator {
     private void updateErrorHighlights(ANTLRv4Parser.GrammarFileContext tree,
             Extraction extraction, AntlrGenerationResult res,
             ParseResultContents populate, Fixes fixes, Document doc,
-            PositionFactory positions, OffsetsBag brandNewBag,
+            PositionFactory positions, HighlightConsumer brandNewBag,
             Bool anyHighlights) throws BadLocationException {
         if (res == null || extraction == null) {
             LOG.log(Level.FINE, "Null generation result; abort error processing {0}",
@@ -253,7 +253,7 @@ public final class AntlrErrorHighlightsAndHints extends AntlrHintGenerator {
         + "''{1}'' or \n''{2}''"
     })
     private boolean handleEpsilon(ParsedAntlrError err, Fixes fixes, Extraction ext, EpsilonRuleInfo eps,
-            OffsetsBag brandNewBag, Bool anyHighlights) throws BadLocationException {
+            HighlightConsumer brandNewBag, Bool anyHighlights) throws BadLocationException {
         if (eps.problem() != null) {
             ProblematicEbnfInfo prob = eps.problem();
             IntRange<? extends IntRange<?>> problemBlock

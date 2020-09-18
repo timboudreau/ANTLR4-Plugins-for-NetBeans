@@ -69,7 +69,7 @@ final class ParseCoalescer {
         private final AtomicBoolean pending = new AtomicBoolean();
         private final WeakReference<Document> docRef;
         private final RequestProcessor.Task task;
-        private static final int DELAY = 100;
+        private static final int DELAY = 375;
 
         @SuppressWarnings("LeakingThisInConstructor")
         RunReparse(Document doc, RequestProcessor proc) {
@@ -97,6 +97,9 @@ final class ParseCoalescer {
                         Document doc = docRef.get();
                         if (doc != null) {
                             Extraction ext = NbAntlrUtils.extractionFor(doc);
+                            while (ext.isSourceProbablyModifiedSinceCreation()) {
+                                ext = NbAntlrUtils.extractionFor(doc);
+                            }
                             for (GeneralHighlighter<?> hl : enqueued) {
                                 hl.refresh(doc, ext);
                             }

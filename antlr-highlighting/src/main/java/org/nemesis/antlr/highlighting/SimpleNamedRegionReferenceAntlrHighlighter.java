@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.highlighting;
 
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -32,7 +33,6 @@ import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NameReferenceSetKey;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
 /**
  *
@@ -64,33 +64,37 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
 
     @Override
     public String toString() {
-        return "SimpleNamedRegionReferenceAntlrHighlighter{" + key + ", coloring=" + coloringLookup + '}';
+        return "SNRRAH{" + key + '}';
     }
 
-    static <T extends Enum<T>> SimpleNamedRegionReferenceAntlrHighlighter<T> fixed(NameReferenceSetKey<T> key, Supplier<AttributeSet> lookup) {
+    static <T extends Enum<T>> SimpleNamedRegionReferenceAntlrHighlighter<T> fixed(NameReferenceSetKey<T> key,
+            Supplier<AttributeSet> lookup) {
         return new SimpleNamedRegionReferenceAntlrHighlighter<>(key, t -> {
             return lookup.get();
         });
     }
 
-    static <T extends Enum<T>> SimpleNamedRegionReferenceAntlrHighlighter<T> fixed(String mimeType, NameReferenceSetKey<T> key, String coloring) {
+    static <T extends Enum<T>> SimpleNamedRegionReferenceAntlrHighlighter<T> fixed(String mimeType,
+            NameReferenceSetKey<T> key, String coloring) {
         return fixed(key, coloringLookup(mimeType, coloring));
     }
 
-    static <T extends Enum<T>> SimpleNamedRegionReferenceAntlrHighlighter<T> create(String mimeType, NameReferenceSetKey<T> key, Function<NamedSemanticRegionReference<T>, String> coloringNameProvider) {
+    static <T extends Enum<T>> SimpleNamedRegionReferenceAntlrHighlighter<T> create(String mimeType,
+            NameReferenceSetKey<T> key, Function<NamedSemanticRegionReference<T>, String> coloringNameProvider) {
         Function<String, AttributeSet> coloringFinder = coloringForMimeType(mimeType);
         Function<NamedSemanticRegionReference<T>, AttributeSet> xformed = coloringNameProvider.andThen(coloringFinder);
         return new SimpleNamedRegionReferenceAntlrHighlighter<>(key, xformed);
     }
 
     @Override
-    public void refresh(Document doc, Extraction ext, OffsetsBag bag, Integer caret) {
+    public void refresh(Document doc, Extraction ext, HighlightConsumer bag, Integer caret) {
         NamedRegionReferenceSets<T> regions = ext.references(key);
         if (regions == null) {
             LOG.log(Level.FINE, "Null regions for {0}.  Parse cancelled?", key);
             return;
         }
-        log("refresh {0} NamedRegionReferenceSets for {1} track originals {2} caret {3}", regions.size(), doc, highlightReferencesUnderCaret, caret);
+        log("refresh {0} NamedRegionReferenceSets for {1} track originals {2} caret {3} ext {4}",
+                regions.size(), doc, highlightReferencesUnderCaret, caret, ext.sourceLastModifiedAtExtractionTime());
         if (!regions.isEmpty()) {
             Map<T, AttributeSet> cache = new HashMap<>(cacheSize);
             if (!highlightReferencesUnderCaret) {

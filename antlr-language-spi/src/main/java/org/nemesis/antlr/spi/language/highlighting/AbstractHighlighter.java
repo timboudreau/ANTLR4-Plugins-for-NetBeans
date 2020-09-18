@@ -15,7 +15,7 @@
  */
 package org.nemesis.antlr.spi.language.highlighting;
 
-import com.mastfrog.function.state.Bool;
+import com.mastfrog.util.strings.Strings;
 import java.awt.EventQueue;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
@@ -31,6 +31,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
@@ -43,11 +45,9 @@ import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.netbeans.spi.editor.highlighting.HighlightsSequence;
 import org.netbeans.spi.editor.highlighting.ZOrder;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
-import org.openide.util.Mutex;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 
@@ -88,9 +88,6 @@ public abstract class AbstractHighlighter {
     private final LazyHighlightsContainer lazy = new LazyHighlightsContainer( this );
     protected final HighlightsLayerFactory.Context ctx;
     private final CompL compl = new CompL();
-    private final Object bagLock = new Object();
-    private OffsetsBag theBag;
-    private final boolean mergeHighlights;
     protected final Logger LOG;
 
     protected AbstractHighlighter( HighlightsLayerFactory.Context ctx ) {
@@ -101,7 +98,6 @@ public abstract class AbstractHighlighter {
     protected AbstractHighlighter( HighlightsLayerFactory.Context ctx, boolean mergeHighlights ) {
         this.LOG = Logger.getLogger( getClass().getName() );
         this.ctx = ctx;
-        this.mergeHighlights = mergeHighlights;
         Document doc = ctx.getDocument();
         // XXX listen for changes, etc
         JTextComponent theEditor = ctx.getComponent();
@@ -112,6 +108,7 @@ public abstract class AbstractHighlighter {
         // deceptive, but the combination of both ensures we catch all adds/removes
         theEditor.addPropertyChangeListener( "ancestor",
                                              WeakListeners.propertyChange( compl, "ancestor", theEditor ) );
+        theBag = new AlternateBag( Strings.lazy( this ) );
 //        bag = new OffsetsBag(ctx.getDocument(), mergeHighlights);
         LOG.log( Level.FINE, "Create {0} for {1}", new Object[]{ getClass().getName(), doc } );
         // Ensure we are initialized, and don't assume we are constructed in the
@@ -144,42 +141,28 @@ public abstract class AbstractHighlighter {
     protected abstract void deactivated( FileObject file, Document doc );
 
     private void onAfterDeactivated() {
-        // Clean up the bag so it doesn't hang around forever as a listener
-        // in the document's listener list
-        OffsetsBag bag = bag( false );
-        if ( bag != null ) {
-            bag.discard();
-            if ( theBag == bag ) {
-                theBag = null;
-            }
-        }
     }
 
-    private OffsetsBag bag( boolean create ) {
-        OffsetsBag result = null;
-        if ( !create ) {
-            // Do not synchronize on "this" or another externally visible
-            // field - subclasses may use it for
-            // their own purposes (ex. AntlrRuntimeErrorsHighlighter)
-            synchronized ( bagLock ) {
-                result = theBag;
-            }
-        } else if ( isActive() ) {
-            synchronized ( bagLock ) {
-                if ( theBag == null && create ) {
-                    Document doc = ctx.getDocument();
-                    if ( doc != null ) {
-                        result = theBag = new OffsetsBag( doc, mergeHighlights );
-                    }
-                } else {
-                    result = theBag;
-                }
-            }
-        }
-        return result;
+    private final AlternateBag theBag;
+
+    private AlternateBag bag( boolean create ) {
+        return theBag;
     }
 
-    protected static OffsetsBag bag( AbstractHighlighter other ) {
+    private String identifier() {
+        Object o = ctx.getDocument().getProperty( StreamDescriptionProperty );
+        String fileName;
+        if ( o instanceof DataObject ) {
+            fileName = ( ( DataObject ) o ).getName();
+        } else if ( o instanceof FileObject ) {
+            fileName = ( ( FileObject ) o ).getName();
+        } else {
+            fileName = Objects.toString( o );
+        }
+        return getClass().getSimpleName() + ":" + fileName + " " + toString();
+    }
+
+    protected static AlternateBag bag( AbstractHighlighter other ) {
         return other.bag( false );
     }
 
@@ -194,34 +177,25 @@ public abstract class AbstractHighlighter {
      *                          it is passed, adding highlights where needed, and returns true if it
      *                          added any highlights to it, false if not.
      */
-    protected final void updateHighlights( Predicate<OffsetsBag> highlightsUpdater ) {
-        OffsetsBag bag = bag( true );
+    protected final void updateHighlights( Predicate<HighlightConsumer> highlightsUpdater ) {
+        AlternateBag bag = bag( true );
         if ( bag == null ) {
             return;
         }
-        OffsetsBag brandNewBag = new OffsetsBag( ctx.getDocument(), mergeHighlights );
-        Bool doUpdate = Bool.create();
+        boolean hasHighlights;
         try {
-            doUpdate.set( highlightsUpdater.test( brandNewBag ) );
+            hasHighlights = highlightsUpdater.test( bag );
+            if ( !hasHighlights ) {
+                System.out.println( "UPD HIGHLIGHTS ON " + this + " RESULT " + hasHighlights);
+//                bag.clear();
+            }
         } finally {
-            Mutex.EVENT.readAccess( () -> {
-                // We may have been closed / deactivated before
-                // Mutex.EVENT's EventQueue.invokeLater() call completes,
-                // and that can result in tripping an AssertionError.
-                // Since active updates are based on a ComponentListener that
-                // should only be called from the event thread, we are safe
-                // enough that if isActive() is true and the bag is still
-                // the instance referenced from the field, then it is still valid
-                if ( isActive() && theBag == bag ) {
-                    if ( doUpdate.getAsBoolean() ) {
-                        bag.setHighlights( brandNewBag );
-                    } else {
-                        bag.clear();
-                    }
-                }
-                brandNewBag.discard();
-            } );
+            commit();
         }
+    }
+
+    protected void commit() {
+        theBag.commit();
     }
 
     /**
@@ -242,8 +216,12 @@ public abstract class AbstractHighlighter {
      * @return A request processor
      */
     protected final RequestProcessor threadPool() {
+//        if ( true ) {
+//            return ALL_HIGHLIGHTERS;
+//        }
         return threadPool( getClass() );
     }
+    static final RequestProcessor ALL_HIGHLIGHTERS = new RequestProcessor( "AbstractHighlighter", 1 );
 
     @Override
     public String toString() {
@@ -314,7 +292,7 @@ public abstract class AbstractHighlighter {
     }
 
     public final HighlightsContainer getHighlightsBag() {
-        return lazy;
+        return theBag;
     }
 
     /**
@@ -361,7 +339,7 @@ public abstract class AbstractHighlighter {
      * the component becomes visible or is hidden, so it can ignore changes
      * when the component is not onscreen.
      */
-    private final class CompL extends ComponentAdapter implements Runnable, PropertyChangeListener {
+    private final class CompL extends ComponentAdapter implements Runnable, PropertyChangeListener, DocumentListener {
 
         // Volatile because while highlighters are only attached and detached from the
         // event thread, it can be read from any thread that checks state
@@ -413,6 +391,7 @@ public abstract class AbstractHighlighter {
                 synchronized ( this ) {
                     LOG.log( Level.FINE, "Activating against {0}", fo );
                     try {
+                        doc.removeDocumentListener( this );
                         deactivated( fo, doc );
                     } finally {
                         onAfterDeactivated();
@@ -432,6 +411,7 @@ public abstract class AbstractHighlighter {
                     synchronized ( this ) {
                         LOG.log( Level.FINE, "Activating against {0}", fo );
                         activated( fo, doc );
+                        doc.addDocumentListener( this );
                     }
                 } catch ( Exception ex ) {
                     LOG.log( Level.SEVERE, "Exception activating against "
@@ -453,6 +433,21 @@ public abstract class AbstractHighlighter {
             if ( active ) {
                 activate();
             }
+        }
+
+        @Override
+        public void insertUpdate( DocumentEvent e ) {
+            theBag.onInsertion( e.getLength(), e.getOffset() );
+        }
+
+        @Override
+        public void removeUpdate( DocumentEvent e ) {
+            theBag.onDeletion( e.getLength(), e.getOffset() );
+        }
+
+        @Override
+        public void changedUpdate( DocumentEvent e ) {
+            // do nothing
         }
     }
 
@@ -492,8 +487,8 @@ public abstract class AbstractHighlighter {
             }
         }
 
-        private synchronized OffsetsBag realBag( boolean create ) {
-            OffsetsBag result = hl.bag( create );
+        private synchronized AlternateBag realBag( boolean create ) {
+            AlternateBag result = hl.bag( create );
             if ( result != null ) {
                 int hash = System.identityHashCode( result );
                 if ( hash != lastIdHash ) {
@@ -507,7 +502,7 @@ public abstract class AbstractHighlighter {
 
         @Override
         public HighlightsSequence getHighlights( int startOffset, int endOffset ) {
-            OffsetsBag bag = realBag( false );
+            AlternateBag bag = realBag( false );
             if ( bag == null ) {
                 return HighlightsSequence.EMPTY;
             }

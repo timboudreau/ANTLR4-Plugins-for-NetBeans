@@ -27,8 +27,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class ShutdownHooks {
 
-    private static final ThrowingRunnable onShutdown = ThrowingRunnable.oneShot(true);
     private static final AtomicBoolean INITIALIZED = new AtomicBoolean();
+    private static volatile boolean shuttingDown;
+    private static final ThrowingRunnable onShutdown = ThrowingRunnable.oneShot(true).andAlwaysFirst(() -> {
+        shuttingDown = true;
+    });
 
     public static void addWeakRunnable(Runnable run) {
         add(new WeakRunnable(run));
@@ -58,6 +61,10 @@ public final class ShutdownHooks {
         Thread thread = new Thread(onShutdown.toRunnable());
         thread.setName("antlr-general-shutdown");
         Runtime.getRuntime().addShutdownHook(thread);
+    }
+
+    public static boolean isShuttingDown() {
+        return shuttingDown;
     }
 
     static final class WeakThrowingRunnable implements ThrowingRunnable {

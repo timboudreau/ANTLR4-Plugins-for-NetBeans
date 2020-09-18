@@ -40,13 +40,13 @@ import org.nemesis.antlr.error.highlighting.spi.ErrorHintGenerator;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.settings.AttributesUtilities;
 import org.netbeans.api.editor.settings.EditorStyleConstants;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -72,7 +72,7 @@ public class LeftRecursionErrors extends ErrorHintGenerator {
     @Override
     protected boolean handle(ANTLRv4Parser.GrammarFileContext tree, ParsedAntlrError err,
             Fixes fixes, Extraction ext, Document doc, PositionFactory positions,
-            OffsetsBag brandNewBag, Bool anyHighlights,
+            HighlightConsumer brandNewBag, Bool anyHighlights,
             Supplier<EditorAttributesFinder> colorings) throws BadLocationException {
         int bstart = err.message().lastIndexOf('[') + 1;
         int bend = err.message().lastIndexOf(']') + 1;

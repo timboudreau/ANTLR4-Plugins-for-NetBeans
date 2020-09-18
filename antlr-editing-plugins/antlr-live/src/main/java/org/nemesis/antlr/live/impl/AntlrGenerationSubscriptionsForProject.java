@@ -53,6 +53,7 @@ import org.nemesis.antlr.ANTLRv4Lexer;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.common.AntlrConstants;
+import org.nemesis.antlr.common.ShutdownHooks;
 import org.nemesis.antlr.live.BrokenSourceThrottle;
 import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.Subscriber;
@@ -471,6 +472,9 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
 
     @Override
     protected void onReparse(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
+        if (ShutdownHooks.isShuttingDown()) {
+            return;
+        }
         BrokenSourceThrottle throttle = AntlrGenerationSubscriptionsImpl.throttle();
         if (extraction != null && !extraction.isPlaceholder()) {
             String hs = extraction.tokensHash();

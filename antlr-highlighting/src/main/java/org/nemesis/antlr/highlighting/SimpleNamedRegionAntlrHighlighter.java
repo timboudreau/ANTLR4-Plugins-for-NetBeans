@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.highlighting;
 
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -29,7 +30,6 @@ import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NamedRegionKey;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
 /**
  *
@@ -59,7 +59,7 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
 
     @Override
     public String toString() {
-        return "SimpleNamedRegionAntlrHighlighter{" + key + " with " + coloringLookup + '}';
+        return "SNRAH{" + key + '}';
     }
 
     static <T extends Enum<T>> SimpleNamedRegionAntlrHighlighter<T> fixed(NamedRegionKey<T> key, Supplier<AttributeSet> lookup) {
@@ -92,7 +92,7 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
 
     static long LOG_OFFSET = System.currentTimeMillis();
     @Override
-    public void refresh(Document doc, Extraction ext, OffsetsBag bag, Integer ignored) {
+    public void refresh(Document doc, Extraction ext, HighlightConsumer bag, Integer ignored) {
         NamedSemanticRegions<T> regions = ext.namedRegions(key);
         log("{0} refresh {1} NamedSemanticRegions for {2} for {3} parse {4}",
                 key, regions.size(), doc, ext.source().name(), ext.sourceLastModifiedAtExtractionTime() - LOG_OFFSET);

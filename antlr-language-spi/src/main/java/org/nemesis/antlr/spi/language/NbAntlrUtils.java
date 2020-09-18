@@ -420,7 +420,7 @@ public final class NbAntlrUtils {
         try {
             result = coa( document ).coalesceComputation( () -> {
                 try {
-                    return new TimedWeakReference<Extraction>( parseImmediately( document ) );
+                    return new TimedWeakReference<>( parseImmediately( document ) );
                 } catch ( Exception ex ) {
                     Exceptions.printStackTrace( ex );
                     return null;

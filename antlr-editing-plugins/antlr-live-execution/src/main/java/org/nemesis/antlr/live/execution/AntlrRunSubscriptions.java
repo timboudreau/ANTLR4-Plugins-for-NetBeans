@@ -54,6 +54,7 @@ import static javax.tools.StandardLocation.CLASS_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_OUTPUT;
 import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
+import org.nemesis.antlr.common.ShutdownHooks;
 import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
 import org.nemesis.antlr.compilation.AntlrGeneratorAndCompiler;
 import org.nemesis.antlr.compilation.AntlrRunBuilder;
@@ -448,7 +449,7 @@ public class AntlrRunSubscriptions {
                 String mimeType, Extraction extraction,
                 AntlrGenerationResult res, ParseResultContents populate,
                 Fixes fixes) {
-            if (!res.isSuccess()) {
+            if (!res.isSuccess() || ShutdownHooks.isShuttingDown()) {
                 LOG.log(Level.FINE, "Unusable generation result {0}", res);
                 if (res.thrown != null) {
                     LOG.log(Level.INFO, "Generating " + extraction.source(), res.thrown);
@@ -460,7 +461,7 @@ public class AntlrRunSubscriptions {
                 String msg = "Passed gen result for wrong file: " + file + " vs " + fo
                         + " gen result is for " + res.originalFilePath + " " + res.grammarName
                         + " " + res.grammarFile;
-                LOG.log(Level.INFO, msg, new Exception(msg));
+                LOG.log(Level.FINER, msg, new Exception(msg));
                 FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(res.originalFilePath.toFile()));
                 extraction = NbAntlrUtils.extractionFor(fo);
             }
@@ -489,7 +490,7 @@ public class AntlrRunSubscriptions {
                         throw err;
                     }
                 }, grr -> {
-                    System.out.println("COA JOB GETS " + grr);
+//                    System.out.println("COA JOB GETS " + grr);
                 }, coaRef);
             } catch (InterruptedException ex) {
                 Exceptions.printStackTrace(ex);

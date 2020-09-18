@@ -29,6 +29,7 @@ import javax.swing.text.Caret;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import org.nemesis.antlr.spi.language.highlighting.AbstractHighlighter;
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
 import org.netbeans.api.editor.settings.FontColorSettings;
@@ -36,7 +37,6 @@ import org.netbeans.lib.editor.util.swing.DocumentListenerPriority;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
 import org.openide.util.Lookup;
 import org.openide.util.LookupEvent;
@@ -81,7 +81,14 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
         LOG.log(level, msg, args);
     }
 
-    protected final void refresh(Document doc, T argument, Extraction ext, OffsetsBag bag) {
+    private volatile long last;
+    protected final void refresh(Document doc, T argument, Extraction ext, HighlightConsumer bag) {
+        long when = ext.sourceLastModifiedAtExtractionTime();
+        if (when < last) {
+            System.out.println("SKIP REFRESH OF " + this + " HAVE NEWER TIME " + last + " THAN " + when);
+            return;
+        }
+        last = when;
         Integer caret = argument instanceof Integer ? (Integer) argument : null;
         implementation.refresh(doc, ext, bag, caret);
     }
@@ -110,9 +117,9 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
         if (isActive()) {
             Document doc = ctx.getDocument();
             if (doc != null) {
-//                EventQueue.invokeLater(() -> {
+                EventQueue.invokeLater(() -> {
                     ParseCoalescer.getDefault().enqueueParse(doc, this);
-//                });
+                });
             }
         }
     }
@@ -154,7 +161,7 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
             implements DocumentListener, LookupListener, Runnable {
 
         private Lookup.Result<FontColorSettings> res;
-        private AtomicBoolean pendingRefresh = new AtomicBoolean();
+        private final AtomicBoolean pendingRefresh = new AtomicBoolean();
 
         @SuppressWarnings("LeakingThisInConstructor")
         public DocumentOriented(Context ctx, int refreshDelay, AntlrHighlighter implementation) {

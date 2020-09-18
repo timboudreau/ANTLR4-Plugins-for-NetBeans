@@ -49,6 +49,7 @@ import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.refactoring.usages.ImportersFinder;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.graph.hetero.BitSetHeteroObjectGraph;
@@ -63,7 +64,6 @@ import org.nemesis.extraction.key.ExtractionKey;
 import org.netbeans.api.editor.settings.AttributesUtilities;
 import static org.netbeans.api.editor.settings.EditorStyleConstants.WaveUnderlineColor;
 import org.netbeans.modules.refactoring.api.Problem;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
 import org.openide.util.NbBundle;
 import org.openide.util.lookup.ServiceProvider;
@@ -112,7 +112,7 @@ public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
     @Override
     protected boolean generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction,
             AntlrGenerationResult res, ParseResultContents populate, Fixes fixes, Document doc,
-            PositionFactory positions, OffsetsBag highlights) throws BadLocationException {
+            PositionFactory positions, HighlightConsumer highlights) throws BadLocationException {
         if (res == null || res.mainGrammar == null || res.mainGrammar.isLexer()) {
             // XXX should use usages finder for lexer rules
             return false;

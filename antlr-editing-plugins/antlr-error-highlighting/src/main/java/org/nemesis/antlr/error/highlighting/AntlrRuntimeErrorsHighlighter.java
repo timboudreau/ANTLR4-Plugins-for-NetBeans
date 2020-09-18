@@ -36,6 +36,7 @@ import org.nemesis.antlr.live.Subscriber;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.antlr.spi.language.highlighting.AlternateBag;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
@@ -43,7 +44,6 @@ import org.netbeans.api.editor.mimelookup.MimeRegistrations;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.ZOrder;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 
@@ -237,9 +237,9 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
                     En en1 = keys.get(ix);
                     Thread.yield();
                     if (other.runIndex() > en1.runIndex) {
-                        OffsetsBag b = bag(this);
+                        AlternateBag b = bag(this);
                         if (b != null) {
-                            OffsetsBag otherBag = bag(other);
+                            AlternateBag otherBag = bag(other);
                             b.setHighlights(otherBag);
                             fixes.copyFrom(en1.fixes);
                             return;
@@ -281,7 +281,7 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
                             int ri = en1.runIndex;
                             for (int i = 0; i < 30; i++) {
                                 if (hl.runIndex() > ri) {
-                                    OffsetsBag newerBag = bag(hl);
+                                    AlternateBag newerBag = bag(hl);
                                     brandNewBag.setHighlights(newerBag);
                                     fixes.copyFrom(en1.fixes);
                                 } else {

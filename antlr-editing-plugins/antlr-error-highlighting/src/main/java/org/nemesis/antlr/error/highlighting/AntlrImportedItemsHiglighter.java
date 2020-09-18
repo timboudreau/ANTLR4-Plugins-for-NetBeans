@@ -29,6 +29,7 @@ import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
+import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
 import org.nemesis.antlr.spi.language.highlighting.AbstractHighlighter;
@@ -104,6 +105,7 @@ public class AntlrImportedItemsHiglighter extends AbstractHighlighter implements
         Extraction extraction = lastExtraction.getAndSet(null);
         if (isActive() && extraction != null) {
             if (!extraction.unknowns(AntlrKeys.RULE_NAME_REFERENCES).isEmpty()) {
+                extraction = NbAntlrUtils.extractionFor(ctx.getDocument());
                 Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> attributions
                         = extraction.resolveAll(AntlrKeys.RULE_NAME_REFERENCES);
                 SemanticRegions<AttributedForeignNameReference<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes>> attributed = attributions.attributed();

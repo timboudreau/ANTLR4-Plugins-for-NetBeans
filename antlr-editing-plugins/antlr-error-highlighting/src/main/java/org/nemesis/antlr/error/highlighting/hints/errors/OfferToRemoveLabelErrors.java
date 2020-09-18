@@ -27,10 +27,10 @@ import org.nemesis.antlr.error.highlighting.hints.util.EditorAttributesFinder;
 import org.nemesis.antlr.error.highlighting.spi.ErrorHintGenerator;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.editor.position.PositionRange;
 import org.nemesis.extraction.Extraction;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -53,7 +53,7 @@ public class OfferToRemoveLabelErrors extends ErrorHintGenerator {
 
     @Override
     protected boolean handle(ANTLRv4Parser.GrammarFileContext tree, ParsedAntlrError err, Fixes fixes,
-            Extraction ext, Document d, PositionFactory positions, OffsetsBag brandNewBag,
+            Extraction ext, Document d, PositionFactory positions, HighlightConsumer brandNewBag,
             Bool anyHighlights, Supplier<EditorAttributesFinder> colorings) throws BadLocationException {
         Bool added = Bool.create();
         String errorIdentifier = err.id();

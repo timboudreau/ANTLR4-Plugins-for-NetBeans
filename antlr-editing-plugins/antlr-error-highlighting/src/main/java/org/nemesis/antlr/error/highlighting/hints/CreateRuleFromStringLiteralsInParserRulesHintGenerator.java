@@ -64,7 +64,9 @@ import org.openide.util.lookup.ServiceProvider;
 public class CreateRuleFromStringLiteralsInParserRulesHintGenerator extends NonHighlightingHintGenerator {
 
     @Override
-    protected void generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes, Document doc, PositionFactory positions) throws BadLocationException {
+    protected void generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction,
+            AntlrGenerationResult res, ParseResultContents populate, Fixes fixes,
+            Document doc, PositionFactory positions) throws BadLocationException {
         SemanticRegions<HintsAndErrorsExtractors.TermCtx> terms = extraction.regions(HintsAndErrorsExtractors.LONELY_STRING_LITERALS);
         SemanticRegions<HintsAndErrorsExtractors.SingleTermCtx> matchingRules = extraction.regions(HintsAndErrorsExtractors.SOLO_STRING_LITERALS);
         Map<String, String> index = new HashMap<>();

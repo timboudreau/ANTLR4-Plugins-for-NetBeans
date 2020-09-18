@@ -30,11 +30,11 @@ import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.error.highlighting.hints.util.EditorAttributesFinder;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.text.NbDocument;
 import org.openide.util.Lookup;
 import org.openide.util.Utilities;
@@ -82,7 +82,7 @@ public abstract class ErrorHintGenerator {
      */
     protected abstract boolean handle(GrammarFileContext tree, ParsedAntlrError err,
             Fixes fixes, Extraction ext, Document doc, PositionFactory positions,
-            OffsetsBag brandNewBag, Bool anyHighlights,
+            HighlightConsumer brandNewBag, Bool anyHighlights,
             Supplier<EditorAttributesFinder> colorings) throws BadLocationException;
 
     private static void init() {
@@ -97,7 +97,7 @@ public abstract class ErrorHintGenerator {
 
     public static boolean handleError(GrammarFileContext tree, ParsedAntlrError err,
             Fixes fixes, Extraction ext, Document doc, PositionFactory positions,
-            OffsetsBag brandNewBag, Bool anyHighlights,
+            HighlightConsumer brandNewBag, Bool anyHighlights,
             Supplier<EditorAttributesFinder> colorings) throws BadLocationException {
         ErrorHintGenerator gen = forError(err);
         if (gen != null) {

@@ -28,11 +28,11 @@ import org.nemesis.antlr.error.highlighting.spi.ErrorHintGenerator;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.editor.position.PositionRange;
 import org.nemesis.extraction.Extraction;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.netbeans.spi.editor.hints.Severity;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.lookup.ServiceProvider;
@@ -65,7 +65,7 @@ public class UndefinedRuleRefSuggester extends ErrorHintGenerator {
     @SuppressWarnings("null")
     protected boolean handle(ANTLRv4Parser.GrammarFileContext tree, ParsedAntlrError err,
             Fixes fixes, Extraction ext, Document doc, PositionFactory positions,
-            OffsetsBag brandNewBag, Bool anyHighlights,
+            HighlightConsumer brandNewBag, Bool anyHighlights,
             Supplier<EditorAttributesFinder> colorings) throws BadLocationException {
         return withOffsetsOf(doc, err, (start, end) -> {
             brandNewBag.addHighlight(start, end, colorings.get().errors());

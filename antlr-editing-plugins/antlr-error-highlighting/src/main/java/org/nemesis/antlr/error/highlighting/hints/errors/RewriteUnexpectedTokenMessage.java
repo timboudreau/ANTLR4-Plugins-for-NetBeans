@@ -26,9 +26,9 @@ import org.nemesis.antlr.error.highlighting.hints.util.EditorAttributesFinder;
 import org.nemesis.antlr.error.highlighting.spi.ErrorHintGenerator;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.extraction.Extraction;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.util.NbBundle;
 
 /**
@@ -48,7 +48,7 @@ public class RewriteUnexpectedTokenMessage extends ErrorHintGenerator {
     @Override
     protected boolean handle(ANTLRv4Parser.GrammarFileContext tree, ParsedAntlrError err,
             Fixes fixes, Extraction ext, Document doc, PositionFactory positions,
-            OffsetsBag brandNewBag, Bool anyHighlights,
+            HighlightConsumer brandNewBag, Bool anyHighlights,
             Supplier<EditorAttributesFinder> colorings) throws BadLocationException {
         Bool result = Bool.create();
         offsetsOf(doc, err, (start, end) -> {

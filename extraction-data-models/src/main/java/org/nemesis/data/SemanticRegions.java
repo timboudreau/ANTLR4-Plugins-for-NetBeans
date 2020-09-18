@@ -15,6 +15,8 @@
  */
 package org.nemesis.data;
 
+import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.collections.IntSet;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -30,6 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import org.nemesis.data.SemanticRegions.SemanticRegionImpl;
 import org.nemesis.data.impl.ArrayUtil;
@@ -93,6 +96,184 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
     private int size;
     private boolean hasNesting = false;
     private int firstUnsortedEndsEntry = -1;
+
+    public SemanticRegions<T> flatten(Function<List<? extends T>, T> coalescer) {
+        if (!hasNesting) {
+            return this;
+        }
+        LinkedList<T> stack = new LinkedList<>();
+        SemanticRegionsBuilder<T> bldr = new SemanticRegionsBuilder<>(keyType());
+        IntSet divisions = IntSet.create(size + size / 2);
+        for (int i = 0; i < size; i++) {
+            int start = starts[i];
+            int end = ends[i];
+            divisions.add(start);
+            divisions.add(end);
+        }
+        for (int i = 0; i < divisions.size() - 1; i++) {
+            int div = divisions.valueAt(i);
+            SemanticRegion<T> reg = at(div);
+            if (reg != null) {
+                SemanticRegion<T> par = reg.parent();
+                boolean hasParents = par != null;
+                if (hasParents) {
+                    stack.clear();
+                    stack.add(reg.key());
+                    while (par != null) {
+                        stack.add(0, par.key());
+                        par = par.parent();
+                    }
+                }
+                int next = divisions.valueAt(i + 1);
+                T key = hasParents ? coalescer.apply(stack) : reg.key();
+                bldr.add(key, div, next);
+            }
+        }
+        return bldr.build();
+    }
+
+    public SemanticRegions<T> withDeletion(int chars, int atPosition) {
+        if (chars == 0 || size == 0 || atPosition > ends[size - 1]) {
+            return this;
+        }
+        if (atPosition <= starts[0] && atPosition + chars >= ends[size - 1]) {
+            return empty();
+        }
+        int deletionEnd = atPosition + chars;
+        int newSize = size;
+        int[] newStarts = new int[size];
+        int[] newEnds = new int[size];
+        T[] newKeys = (T[]) CollectionUtils.genericArray(keys.getClass().getComponentType(), newSize);
+        int fiu = firstUnsortedEndsEntry;
+        for (int i = 0, cursor = 0; i < size; i++, cursor++) {
+            int start = starts[i];
+            int end = ends[i];
+            if (atPosition <= start && deletionEnd >= end) {
+                cursor--;
+                newSize--;
+                if (fiu > 0) {
+                    fiu--;
+                }
+            } else if (end <= atPosition) { // before deletion - no change
+                newStarts[cursor] = start;
+                newEnds[cursor] = end;
+                newKeys[cursor] = keys[i];
+            } else if (start >= atPosition && end <= deletionEnd) { // deletion contains region - skip the region entirely
+                cursor--;
+                newSize--;
+            } else if (start <= atPosition && end > deletionEnd) { // deletion straddles start of region
+                int rem = end - deletionEnd;
+                newStarts[cursor] = start;
+                newEnds[cursor] = end - chars;
+                newKeys[cursor] = keys[i];
+            } else if (start > atPosition && end < deletionEnd) { // deletion internal to this region
+                newStarts[cursor] = start;
+                newEnds[cursor] = end - chars;
+                newKeys[cursor] = keys[i];
+            } else if (start > atPosition && start < deletionEnd && deletionEnd > end) { // deletion straddles end of region
+                newStarts[cursor] = start;
+                newEnds[cursor] = atPosition;
+                newKeys[cursor] = keys[i];
+            } else if (atPosition > start && deletionEnd < end) {
+                newStarts[cursor] = start;
+                newEnds[cursor] = end - chars;
+                newKeys[cursor] = keys[i];
+            } else if (atPosition > start && atPosition < end && deletionEnd >= end) {
+                newStarts[cursor] = start;
+                newEnds[cursor] = atPosition;
+                newKeys[cursor] = keys[i];
+            } else if (atPosition > start + 1 && atPosition < end && deletionEnd >= end) {
+                if (start == atPosition - 1) {
+                    cursor--;
+                    newSize--;
+                    if (fiu > 0) {
+                        fiu--;
+                    }
+                } else {
+                    newStarts[cursor] = start;
+                    newEnds[cursor] = atPosition;
+                    newKeys[cursor] = keys[i];
+                }
+            } else if (atPosition > start + 1 && atPosition < end && deletionEnd >= end) { // deletion from middle crossing end of region
+                newStarts[cursor] = start;
+                newEnds[cursor] = atPosition - 1;
+                newKeys[cursor] = keys[i];
+                if (newEnds[cursor] == newStarts[cursor]) {
+                    if (fiu > 0) {
+                        fiu--;
+                    }
+                    cursor--;
+                    newSize--;
+                }
+            } else if (start >= atPosition + chars) { // after end of deletion - subtract chars from start and end
+                newStarts[cursor] = start - chars;
+                newEnds[cursor] = end - chars;
+                newKeys[cursor] = keys[i];
+            } else if (start > atPosition && deletionEnd < end) {
+                newStarts[cursor] = atPosition;
+                newEnds[cursor] = (end - deletionEnd) + atPosition;
+                newKeys[cursor] = keys[i];
+            } else {
+                throw new AssertionError("Huh? " + i + "/" + cursor + " " + start + ":" + end + " deleting " + atPosition
+                        + ":" + deletionEnd + " for " + keys[i] + " atPosition > start " + (atPosition > start)
+                        + " atPosition < end" + (atPosition < end) + " end >= deletionEnd " + (end >= deletionEnd));
+            }
+        }
+        SemanticRegions<T> result = new SemanticRegions<>(newStarts, newEnds, newKeys, newSize, fiu, hasNesting);
+        assert result.keyType() == keys.getClass().getComponentType() : "Key type wrong: " + result.keyType();
+        return result;
+    }
+
+    public SemanticRegions<T> withInsertion(int chars, int atPosition) {
+        if (chars == 0 || size == 0 || atPosition > ends[size - 1]) {
+            return this;
+        }
+        assert chars > 0;
+        assert atPosition >= 0;
+        if (atPosition <= starts[0]) { // just shift everything by chars
+            int[] newStarts = new int[size];
+            int[] newEnds = new int[size];
+            for (int i = 0; i < size; i++) {
+                newStarts[i] = starts[i] + chars;
+                newEnds[i] = ends[i] + chars;
+            }
+            return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
+        } else if (atPosition >= starts[size - 1] && atPosition <= ends[size - 1]) {
+            int[] newStarts = Arrays.copyOf(starts, size);
+            int[] newEnds = Arrays.copyOf(ends, size);
+            newEnds[size - 1] += chars;
+            return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
+        } else if (atPosition > starts[0] && atPosition < ends[0]) {
+            int[] newStarts = new int[size];
+            int[] newEnds = new int[size];
+            newStarts[0] = starts[0];
+            newEnds[0] = ends[0] + chars;
+            for (int i = 1; i < size; i++) {
+                newStarts[i] = starts[i] + chars;
+                newEnds[i] = ends[i] + chars;
+            }
+            return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
+        }
+        SemanticRegion<T> target = at(atPosition);
+        int[] newStarts = Arrays.copyOf(starts, size);
+        int[] newEnds = Arrays.copyOf(ends, size);
+        if (target == null) {
+            for (int i = 0; i < size; i++) {
+                if (newStarts[i] >= atPosition) {
+                    newStarts[i] += chars;
+                    newEnds[i] += chars;
+                }
+            }
+        } else {
+            int ix = target.index();
+            newEnds[ix] += chars;
+            for (int i = ix + 1; i < size; i++) {
+                newStarts[i] += chars;
+                newEnds[i] += chars;
+            }
+        }
+        return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
+    }
 
     /*
     Organizes a nested structure as two arrays, starts and ends.  The starts
@@ -473,6 +654,14 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         assert checkInvariants();
     }
 
+    /**
+     * Get the <i>innermost</i> (narrowest) element whose start is less than or
+     * equal to the passed position, and whose end is less than the passed
+     * position.
+     *
+     * @param pos A position in this collection's coordinate space
+     * @return A region or null
+     */
     @Override
     public SemanticRegion<T> at(int pos) {
         int[] id = indexAndDepthAt(pos);

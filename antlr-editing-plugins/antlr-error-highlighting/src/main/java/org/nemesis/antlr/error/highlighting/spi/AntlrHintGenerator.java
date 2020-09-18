@@ -25,9 +25,9 @@ import org.nemesis.antlr.error.highlighting.hints.util.EditorAttributesFinder;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.extraction.Extraction;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.util.Lookup;
 import org.openide.util.NbPreferences;
 
@@ -112,7 +112,7 @@ public abstract class AntlrHintGenerator {
      */
     public final boolean generateHints(ANTLRv4Parser.GrammarFileContext tree,
             Extraction extraction, AntlrGenerationResult res, ParseResultContents populate,
-            Fixes fixes, Document doc, PositionFactory positions, OffsetsBag highlights) throws BadLocationException {
+            Fixes fixes, Document doc, PositionFactory positions, HighlightConsumer highlights) throws BadLocationException {
         if (isEnabled()) {
             return generate(tree, extraction, res, populate, fixes, doc, positions, highlights);
         }
@@ -138,7 +138,7 @@ public abstract class AntlrHintGenerator {
      */
     protected abstract boolean generate(ANTLRv4Parser.GrammarFileContext tree,
             Extraction extraction, AntlrGenerationResult res, ParseResultContents populate,
-            Fixes fixes, Document doc, PositionFactory positions, OffsetsBag highlights) throws BadLocationException;
+            Fixes fixes, Document doc, PositionFactory positions, HighlightConsumer highlights) throws BadLocationException;
 
     /**
      * Turns length text into "head...tail".

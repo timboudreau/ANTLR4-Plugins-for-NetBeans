@@ -21,9 +21,9 @@ import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
+import org.nemesis.antlr.spi.language.highlighting.HighlightConsumer;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.extraction.Extraction;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
 /**
  * Convenience subclass for the common case where hint generation does not add
@@ -34,11 +34,15 @@ import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 public abstract class NonHighlightingHintGenerator extends AntlrHintGenerator {
 
     @Override
-    protected final boolean generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes, Document doc, PositionFactory positions, OffsetsBag highlights) throws BadLocationException {
+    protected final boolean generate(ANTLRv4Parser.GrammarFileContext tree,
+            Extraction extraction, AntlrGenerationResult res, ParseResultContents populate,
+            Fixes fixes, Document doc, PositionFactory positions, HighlightConsumer highlights) throws BadLocationException {
         generate(tree, extraction, res, populate, fixes, doc, positions);
         return false;
     }
 
-    protected abstract void generate(ANTLRv4Parser.GrammarFileContext tree, Extraction extraction, AntlrGenerationResult res, ParseResultContents populate, Fixes fixes, Document doc, PositionFactory positions) throws BadLocationException;
+    protected abstract void generate(ANTLRv4Parser.GrammarFileContext tree, 
+            Extraction extraction, AntlrGenerationResult res, ParseResultContents populate,
+            Fixes fixes, Document doc, PositionFactory positions) throws BadLocationException;
 
 }
