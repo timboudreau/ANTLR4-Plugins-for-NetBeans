@@ -304,7 +304,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
 
         ReentrantReadWriteLock.WriteLock writeLock = parseLock.writeLock();
         ReentrantReadWriteLock.ReadLock readLock = parseLock.readLock();
-        writeLock.lock();
+//        writeLock.lock();
         AntlrProxies.ParseTreeProxy res;
         boolean wasStale = false;
         try {
@@ -319,8 +319,8 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                     info = newInfo;
                 }
             } finally {
-                readLock.lock();
-                writeLock.unlock();
+//                readLock.lock();
+//                writeLock.unlock();
             }
             if (!wasStale) {
                 LastParseInfo lpi = lastParseInfo.get();
@@ -337,7 +337,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             Debug.message("Will parse with", info.parser::toString);
             res = info.parser.parse(logName, toParse);
         } finally {
-            readLock.unlock();
+//            readLock.unlock();
         }
         LOG.log(Level.FINEST, "Parsed to {0} by {1}",
                 new Object[]{res.loggingInfo(), info.parser});

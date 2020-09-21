@@ -21,7 +21,6 @@ import com.mastfrog.range.Range;
 import java.awt.EventQueue;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -41,10 +40,15 @@ import org.netbeans.spi.editor.highlighting.support.AbstractHighlightsContainer;
  * things to be faster, and simpler; it also avoids a bug in OffsetsBag that,
  * post-insertion, results in highlights that were offscreen when a character is
  * inserted retain their pre-insert offsets.
+ * <p>
+ * The principal difference with OffsetsBag in usage is that an entire set of
+ * highlights is applied, and then commit() is called to actually update the live
+ * data; there are no incremental updates.
+ * </p>
  *
  * @author Tim Boudreau
  */
-public final class AlternateBag extends AbstractHighlightsContainer implements HighlightConsumer {
+final class AlternateBag extends AbstractHighlightsContainer implements HighlightConsumer {
 
     private final List<RangeEntry> entries = new ArrayList<>();
     private short ix = 0;
@@ -73,8 +77,8 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
         entries.add( new RangeEntry( startOffset, endOffset - startOffset, attributes, ix++ ) );
     }
 
+    @Override
     public void clear() {
-        new Exception( "Clear bag " + this ).printStackTrace();
         entries.clear();
         ix = 0;
         synchronized ( this ) {
@@ -85,7 +89,6 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
 
     void onDeletion( int chars, int at ) {
         int was = rev;
-//        System.out.println( "onDeletion " + chars + " at " + at + " in " + this );
         SemanticRegions<AttributeSet> old = current;
         if ( old == null || old.isEmpty() ) {
             return;
@@ -106,7 +109,6 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
 
     void onInsertion( int chars, int at ) {
         int was = rev;
-//        System.out.println( "onInsertion " + chars + " at " + at + " in " + this );
         SemanticRegions<AttributeSet> old = current;
         if ( old == null || old.isEmpty() ) {
             return;
@@ -127,7 +129,6 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
 
     SemanticRegions<AttributeSet> build() {
         if ( entries.isEmpty() ) {
-//            System.out.println( "  build but have empty regions" );
             return SemanticRegions.empty();
         }
         SemanticRegionsBuilder<AttributeSet> bldr = SemanticRegions.builder( AttributeSet.class );
@@ -141,8 +142,8 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
         }
         ix = 0;
         return bldr.build().flatten( attrs -> {
-            return AttributesUtilities.createComposite( attrs.toArray( new AttributeSet[attrs.size()]));
-        });
+            return AttributesUtilities.createComposite( attrs.toArray( new AttributeSet[ attrs.size() ] ) );
+        } );
     }
 
     void commit() {
@@ -151,21 +152,16 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
         synchronized ( this ) {
             rev++;
             current = nue;
-            if ( nue != null && nue.size() > 0 ) {
-                System.out.println( "commit " + nue.size() + " for " + this );
-            }
         }
         fireHighlights( old, nue );
     }
 
+    private static boolean async = !Boolean.getBoolean( "unit.test" );
+
     private void fireHighlights( SemanticRegions<AttributeSet> old, SemanticRegions<AttributeSet> nue ) {
-//        if ( true ) {
-//            fireHighlightsChange( 0, Integer.MAX_VALUE );
-//        }
         int was = rev;
-        EventQueue.invokeLater( () -> {
+        Runnable dispatch = () -> {
             if ( rev != was ) {
-                System.out.println( "skip fire" );
                 return;
             }
             if ( nue.isEmpty() && ( old == null || old.isEmpty() ) ) {
@@ -214,7 +210,12 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
                 }
             }
             fireHighlightsChange( changeStart, changeEnd );
-        } );
+        };
+        if ( async ) {
+            EventQueue.invokeLater( dispatch );
+        } else {
+            dispatch.run();
+        }
     }
 
     @Override
@@ -224,38 +225,17 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
         synchronized ( this ) {
             regions = current;
         }
-        if ( current == null || current.isEmpty() ) {
-//            System.out.println( "current null, return empty for " + this );
+        if ( regions == null || regions.isEmpty() ) {
             return HighlightsSequence.EMPTY;
         }
-        if ( false && endOffset - startOffset == 1 ) {
+        if ( endOffset - startOffset == 1 ) {
             SemanticRegion<AttributeSet> item = regions.at( startOffset );
             if ( item == null ) {
                 return HighlightsSequence.EMPTY;
             }
-            SemanticRegion<AttributeSet> par = item.parent();
-            AttributeSet attrs = item.key();
-            if ( par != null ) {
-                LinkedList<AttributeSet> l = new LinkedList<>();
-                l.add( attrs );
-                while ( par != null ) {
-                    l.add( 0, par.key() );
-                    par = par.parent();
-                }
-                for ( SemanticRegion<AttributeSet> ch : item.allChildren() ) {
-                    if ( ch.start() == item.start() ) {
-                        l.add( ch.key() );
-                    } else {
-                        break;
-                    }
-                }
-                attrs = AttributesUtilities.createComposite( l.toArray( new AttributeSet[ l.size() ] ) );
-            }
-//            System.out.println( "sng highlights " + startOffset + ":" + endOffset + " for " + this );
-            return new SingleSeq( startOffset, attrs );
+            return new SingleSeq( startOffset, item.key() );
         }
-//        System.out.println( "mult highlights " + startOffset + ":" + endOffset + " for " + this );
-        return new Seq( current, startOffset, endOffset );
+        return new Seq( regions, startOffset, endOffset );
     }
 
     @Override
@@ -277,7 +257,7 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
      * Many requests are for the character at the caret, so provide these more
      * efficiently.
      */
-    static class SingleSeq implements HighlightsSequence {
+    class SingleSeq implements HighlightsSequence {
         private final int start;
         private final AttributeSet attrs;
         private boolean used;
@@ -322,7 +302,6 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
 
         private final SemanticRegions<AttributeSet> regions;
         private SemanticRegion<AttributeSet> curr;
-        private List<AttributeSet> activeScratch = new ArrayList<>( 12 );
         int cursor = -1;
         private final int startOffset;
         private final int endOffset;
@@ -331,30 +310,16 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
             this.regions = regions;
             this.startOffset = startOffset;
             this.endOffset = endOffset;
-            if ( startOffset > 0 ) {
-                SemanticRegion reg = regions.at( startOffset );
-                if ( reg == null ) {
-//                    System.out.println( "SCAN FOR " + startOffset );
-                    for ( int i = 0; i < regions.size(); i++ ) {
-                        SemanticRegion<AttributeSet> test = regions.forIndex( i );
-                        if ( test.contains( startOffset ) ) {
-//                            System.out.println( "settle at " + test + " for " + startOffset + ":" + endOffset );
-                            cursor = i - 1;
-                            break;
-                        }
-                    }
+            SemanticRegion<AttributeSet> first = regions.nearestTo( startOffset );
+            if ( first.end() <= startOffset ) {
+                if ( first.index() < regions.size() - 1 ) {
+                    first = regions.forIndex( first.index() + 1 );
                 } else {
-//                    System.out.println(
-//                            "  AT GETS " + startOffset + " -> " + reg + " for " + startOffset + ":" + endOffset );
-                    cursor = reg.index() - 1;
+                    cursor = regions.size();
                 }
-            } else {
-                for ( int i = 0; i < regions.size(); i++ ) {
-                    if ( regions.forIndex( i ).start() != 0 ) {
-                        break;
-                    }
-                    cursor = i - 1;
-                }
+            }
+            if ( cursor == -1 ) {
+                cursor = first.index() - 1;
             }
         }
 
@@ -376,23 +341,8 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
             if ( result ) {
                 curr = regions.forIndex( cursor );
                 if ( curr.start() >= endOffset ) {
-                    result = false;
                     cursor = regions.size();
-                } else {
-                    // Find the *innermost* entry at the given position -
-                    // there may be
-                    for ( int i = curr.index() + 1; i < regions.size(); i++ ) {
-                        SemanticRegion<AttributeSet> nested = regions.forIndex( i );
-                        if ( nested.start() == curr.start() && nested.end() > endOffset ) {
-                            cursor = nested.index();
-//                            System.out.println( " ff to " + nested + " from " + curr + " for start " + curr.start()
-//                                                + " and " + startOffset + ":" + endOffset );
-                            curr = nested;
-                        } else {
-                            break;
-                        }
-                    }
-                    cursor = curr.index();
+                    result = false;
                 }
             }
             return result;
@@ -414,27 +364,7 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
             if ( curr == null ) {
                 throw new NoSuchElementException();
             }
-            int end = curr.end();
-            if ( cursor < regions.size() - 1 ) {
-                SemanticRegion<AttributeSet> next = regions.forIndex( cursor + 1 );
-                if ( curr.contains( next.start() ) && next.start() != curr.start() ) {
-                    if ( next.start() == curr.start() ) {
-                        end = next.end();
-                    } else {
-//                        System.out.println(
-//                                "  ff end to " + next.start() + ":" + next.end() + " for " + startOffset + ":" + endOffset );
-                        if ( next.start() > curr.start() && next.start() > startOffset ) {
-                            end = next.start();
-//                            System.out.println( "WWEIRD: " + curr + " / " + next );
-                        } else {
-//                            System.out.println( "WEIRD: " + curr + " / " + next );
-                        }
-                    }
-                }
-            }
-            int result = Math.min( end, endOffset );
-//            System.out.println( "    ret " + end + " for " + end + " / " + endOffset );
-            return result;
+            return Math.min( curr.end(), endOffset );
         }
 
         @Override
@@ -442,30 +372,7 @@ public final class AlternateBag extends AbstractHighlightsContainer implements H
             if ( curr == null ) {
                 throw new NoSuchElementException();
             }
-            SemanticRegion<AttributeSet> par = curr.parent();
-            while ( par != null ) {
-                activeScratch.add( 0, par.key() );
-                par = par.parent();
-            }
-            for ( SemanticRegion<AttributeSet> ch : curr.allChildren() ) {
-                if ( ch.start() == curr.start() ) {
-                    // XXX out of order with curr's
-                    activeScratch.add( ch.key() );
-                } else {
-                    break;
-                }
-            }
-            AttributeSet attrs = curr.key();
-            if ( !activeScratch.isEmpty() ) {
-                activeScratch.add( attrs );
-                attrs = AttributesUtilities.createComposite( activeScratch.toArray( new AttributeSet[ activeScratch
-                        .size() ] ) );
-                activeScratch.clear();
-            }
-//            System.out
-//                    .println( "ATTRS " + attrs + " for " + curr.start() + ":" + curr.end() + " size " + curr.size()
-//                              + " on " + this );
-            return attrs;
+            return curr.key();
         }
     }
 

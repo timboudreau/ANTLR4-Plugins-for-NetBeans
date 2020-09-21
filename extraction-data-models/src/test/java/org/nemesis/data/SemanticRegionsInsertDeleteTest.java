@@ -19,6 +19,7 @@ import com.mastfrog.range.RangeRelation;
 import java.util.Arrays;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import org.junit.Test;
 import org.nemesis.data.SemanticRegions.SemanticRegionsBuilder;
@@ -28,6 +29,46 @@ import org.nemesis.data.SemanticRegions.SemanticRegionsBuilder;
  * @author Tim Boudreau
  */
 public class SemanticRegionsInsertDeleteTest {
+
+    @Test
+    public void testSearch() {
+        SemanticRegions<String> str = SemanticRegions.builder(String.class)
+                .add("A", 0, 6)
+                .add("B", 0, 2)
+                .add("C", 1, 2)
+                .add("D", 4, 5)
+                .add("E", 10, 20)
+                .add("F", 12, 15)
+                .add("G", 13, 15)
+                .add("H", 16, 18)
+                .add("I", 18, 19)
+                .add("Q", 25, 30)
+                .build();
+
+        assertSearch(1, str, "C");
+        assertSearch(4, str, "D");
+        assertSearch(0, str, "B");
+        assertSearch(8, str, "E");
+        assertSearch(9, str, "E");
+        assertSearch(6, str, "D");
+        assertSearch(20, str, "E");
+        assertSearch(21, str, "E");
+        assertSearch(22, str, "E");
+        assertSearch(19, str, "I");
+        assertSearch(23, str, "Q");
+        assertSearch(24, str, "Q");
+        assertSearch(25, str, "Q");
+        assertSearch(26, str, "Q");
+        assertSearch(30, str, "Q");
+        assertSearch(1000, str, "Q");
+        assertSearch(-1, str, "A");
+        assertSearch(-100, str, "A");
+    }
+
+    private void assertSearch(int position, SemanticRegions<String> regions, String match) {
+        SemanticRegion<String> near = regions.nearestTo(position);
+        assertNotNull("No match for " + position, near);
+    }
 
     @Test
     public void testFlatten() {

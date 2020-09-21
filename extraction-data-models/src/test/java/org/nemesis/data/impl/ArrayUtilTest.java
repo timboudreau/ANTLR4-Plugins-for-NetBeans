@@ -15,6 +15,7 @@
  */
 package org.nemesis.data.impl;
 
+import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.strings.Strings;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,7 +76,7 @@ public class ArrayUtilTest {
     }
 
     private void assertPrefixes(String[] items, String prefix, String... expected) {
-        System.out.println("\n------------------------\n" + prefix + " in " + Strings.join(',', items));
+//        System.out.println("\n------------------------\n" + prefix + " in " + Strings.join(',', items));
         Arrays.sort(items);
         List<String> exp = Arrays.asList(expected);
         List<String> got = new ArrayList<>();
@@ -84,6 +85,37 @@ public class ArrayUtilTest {
         });
         assertEquals("Searching for '" + prefix + "' in " + items.length
                 + " items: '" + Strings.join(',', items), exp, got);
+    }
+
+//    @Test
+    public void testDuplicateTolerantFuzzySearch() {
+        IntList il = IntList.create(100);
+        for (int i = 0; i < 10; i++) {
+            il.add(i);
+            il.add(i);
+        }
+        System.out.println("list is " + il);
+        int[] arr = il.toIntArray();
+        for (int i = 0; i < arr.length; i++) {
+            System.out.println(i + ". " + arr[i]);
+        }
+        assertSearch(10, com.mastfrog.util.search.Bias.BACKWARD, 5, arr);
+        
+        assertSearch(arr.length-1, com.mastfrog.util.search.Bias.FORWARD, 9, arr);
+        assertSearch(arr.length-2, com.mastfrog.util.search.Bias.BACKWARD, 9, arr);
+        assertSearch(1, com.mastfrog.util.search.Bias.FORWARD, 0, arr);
+        assertSearch(0, com.mastfrog.util.search.Bias.BACKWARD, 0, arr);
+        assertSearch(11, com.mastfrog.util.search.Bias.FORWARD, 5, arr);
+
+        assertSearch(13, com.mastfrog.util.search.Bias.FORWARD, 6, arr);
+        assertSearch(13, com.mastfrog.util.search.Bias.BACKWARD, 12, arr);
+        
+    }
+
+    private static void assertSearch(int expect, com.mastfrog.util.search.Bias bias, int searchingFor, int[] in) {
+        int result = ArrayUtil.duplicateTolerantFuzzyBinarySearch(searchingFor, bias, in, in.length);
+        String msg = "Expected index " + expect + " searching " + bias.name() + " for " + searchingFor + " in " + Arrays.toString(in);
+        assertEquals(msg, expect, result);
     }
 
 }

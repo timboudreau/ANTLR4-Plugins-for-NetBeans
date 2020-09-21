@@ -417,18 +417,29 @@ public final class NbAntlrUtils {
         }
         TimedWeakReference<Extraction> result = null;
         Extraction r;
+        Extraction[] strongRef = new Extraction[ 1 ];
         try {
-            result = coa( document ).coalesceComputation( () -> {
-                try {
-                    return new TimedWeakReference<>( parseImmediately( document ) );
-                } catch ( Exception ex ) {
-                    Exceptions.printStackTrace( ex );
-                    return null;
+            do {
+                Extraction prev = strongRef[ 0 ];
+                result = coa( document ).coalesceComputation( () -> {
+                    try {
+                        strongRef[ 0 ] = parseImmediately( document );
+                        return new TimedWeakReference<>( strongRef[ 0 ] );
+                    } catch ( Exception ex ) {
+                        Exceptions.printStackTrace( ex );
+                        return null;
+                    }
+                }, ref );
+                if ( prev == strongRef[ 0 ] && prev != null) {
+                    break;
+                } else if (strongRef[0] == null) {
+                    break;
                 }
-            }, res -> {
-                                                      // do nothing
-                                                  }, ref );
+
+            } while ( result.get() == null || result.get().isSourceProbablyModifiedSinceCreation() );
         } catch ( InterruptedException ex ) {
+            Exceptions.printStackTrace( ex );
+        } catch ( WorkCoalescer.ComputationFailedException ex ) {
             Exceptions.printStackTrace( ex );
         }
         r = result == null ? null : result.get();
@@ -444,12 +455,25 @@ public final class NbAntlrUtils {
         return r != null ? r : Extraction.empty( NbEditorUtilities.getMimeType( document ) );
     }
 
+    static String idForDoc(Document doc) {
+        Object o = doc.getProperty(StreamDescriptionProperty);
+        if (o instanceof DataObject) {
+            return ((DataObject) o).getName();
+        } else if (o instanceof FileObject) {
+            return ((FileObject) o).getName();
+        } else if (o != null) {
+            return o.toString();
+        } else {
+            return doc.toString();
+        }
+    }
+
     static WorkCoalescer<TimedWeakReference<Extraction>> coa( Document doc ) {
         WorkCoalescer<TimedWeakReference<Extraction>> result = ( WorkCoalescer<TimedWeakReference<Extraction>> ) doc
                 .getProperty( "_coa" );
 
         if ( result == null ) {
-            result = new WorkCoalescer<>();
+            result = new WorkCoalescer<>("extraction-cache-" + idForDoc(doc));
             doc.putProperty( "_coa", result );
         }
         return result;

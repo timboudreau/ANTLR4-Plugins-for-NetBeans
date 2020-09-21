@@ -20,6 +20,7 @@ import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
 /**
+ * Wrapper interface for the input side of OffsetsBag.
  *
  * @author Tim Boudreau
  */
@@ -33,34 +34,5 @@ public interface HighlightConsumer {
 
     static HighlightConsumer wrap(OffsetsBag bag) {
         return new BagWrapper(bag);
-    }
-
-    static final class BagWrapper implements HighlightConsumer {
-
-        private final OffsetsBag bag;
-
-        public BagWrapper(OffsetsBag bag) {
-            this.bag = bag;
-        }
-
-        @Override
-        public void addHighlight(int startOffset, int endOffset, AttributeSet attributes) {
-            bag.addHighlight(startOffset, endOffset, attributes);
-        }
-
-        @Override
-        public void clear() {
-            bag.clear();
-        }
-
-        @Override
-        public void setHighlights(HighlightsContainer other) {
-            if (other instanceof OffsetsBag) {
-                OffsetsBag off = (OffsetsBag) other;
-                bag.setHighlights(bag);
-            } else {
-                bag.setHighlights(other.getHighlights(0, Integer.MAX_VALUE));
-            }
-        }
     }
 }

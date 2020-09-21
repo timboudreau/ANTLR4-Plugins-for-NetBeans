@@ -17,10 +17,6 @@ package org.nemesis.antlr.error.highlighting;
 
 import org.nemesis.antlr.spi.language.highlighting.AbstractHighlighter;
 import com.mastfrog.function.state.Bool;
-import com.mastfrog.util.collections.MapFactories;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,13 +32,11 @@ import org.nemesis.antlr.live.Subscriber;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
 import org.nemesis.antlr.spi.language.fix.Fixes;
-import org.nemesis.antlr.spi.language.highlighting.AlternateBag;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.api.editor.mimelookup.MimeRegistration;
 import org.netbeans.api.editor.mimelookup.MimeRegistrations;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
-import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory.Context;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
@@ -97,7 +91,6 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
     @Override
     protected void deactivated(FileObject file, Document doc) {
         Runnable un = unsubscriber;
-        currentTokensHash = null;
         unsubscriber = null;
         if (un != null) {
             un.run();
@@ -105,65 +98,7 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
     }
 
     private final AtomicInteger uses = new AtomicInteger();
-    private volatile String currentTokensHash;
 
-    static Map<En, AntlrRuntimeErrorsHighlighter> ENTRY = MapFactories.EQUALITY_CONCURRENT.createMap(8, true);
-
-    static final class En {
-
-        private final int docId;
-        private final int compId;
-        private final String hash;
-        private final Thread thread = Thread.currentThread();
-        final int runIndex;
-        final Fixes fixes;
-
-        En(Context ctx, String hash, int runIndex, Fixes fixes) {
-            this.runIndex = runIndex;
-            Document d = ctx.getDocument();
-            docId = d == null ? 0 : System.identityHashCode(d);
-            this.hash = hash;
-            JTextComponent jtc = ctx.getComponent();
-            compId = jtc == null ? 0 : System.identityHashCode(jtc);
-            this.fixes = fixes;
-        }
-
-        @Override
-        public int hashCode() {
-            int hash = 5;
-            hash = 43 * hash + this.docId;
-            hash = 43 * hash + this.compId;
-            hash = 43 * hash + Objects.hashCode(this.hash);
-            return hash;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            final En other = (En) obj;
-            if (this.docId != other.docId) {
-                return false;
-            }
-            if (this.compId != other.compId) {
-                return false;
-            }
-            return Objects.equals(this.hash, other.hash);
-        }
-
-        @Override
-        public String toString() {
-            return docId + ":" + compId + ":" + hash + "-" + runIndex
-                    + " " + thread.getName();
-        }
-    }
 
     @Override
     public void onRebuilt(ANTLRv4Parser.GrammarFileContext tree,
@@ -221,37 +156,9 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
             return;
         }
         PositionFactory positions = PositionFactory.forDocument(d);
-//        if (Objects.equals(currentTokensHash, extraction.tokensHash())) {
-//            LOG.log(Level.INFO, "Called with already processed tokens hash - ignore");
-//            return;
-//        }
-        currentTokensHash = extraction.tokensHash();
-        En en = new En(ctx, extraction.tokensHash(), uses.get(), fixes);
-        AntlrRuntimeErrorsHighlighter other = null;
-        synchronized (this) {
-            List<En> keys = new ArrayList<>(ENTRY.keySet());
-            other = ENTRY.put(en, this);
-            if (other != this && other != null) {
-                int ix = keys.indexOf(en);
-                if (ix >= 0) {
-                    En en1 = keys.get(ix);
-                    Thread.yield();
-                    if (other.runIndex() > en1.runIndex) {
-                        AlternateBag b = bag(this);
-                        if (b != null) {
-                            AlternateBag otherBag = bag(other);
-                            b.setHighlights(otherBag);
-                            fixes.copyFrom(en1.fixes);
-                            return;
-                        }
-                    }
-                }
-            }
-        }
         try {
             updateHighlights(brandNewBag -> {
                 Bool anyHighlights = Bool.create();
-                boolean usingResults = true;
                 for (AntlrHintGenerator gen : AntlrHintGenerator.all()) {
                     try {
                         boolean highlightsAdded = gen.generateHints(tree,
@@ -264,40 +171,11 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
                         LOG.log(Level.SEVERE, "Checking extraction up to date for "
                                 + extraction.source().name(), ex);
                     }
-//                if (runIndex != uses.get()) {
-//                    LOG.log(Level.INFO, "Not finishing hint run due to reentry of {0} with {1}",
-//                            new Object[]{extraction.source(), extraction.tokensHash()});
-//                    usingResults = false;
-//                    break;
-//                }
                 }
-                synchronized (this) {
-                    AntlrRuntimeErrorsHighlighter hl = ENTRY.get(en);
-                    if (hl != null && hl != this) {
-                        List<En> keys = new ArrayList<>(ENTRY.keySet());
-                        int ix = keys.indexOf(en);
-                        if (ix >= 0) {
-                            En en1 = keys.get(ix);
-                            int ri = en1.runIndex;
-                            for (int i = 0; i < 30; i++) {
-                                if (hl.runIndex() > ri) {
-                                    AlternateBag newerBag = bag(hl);
-                                    brandNewBag.setHighlights(newerBag);
-                                    fixes.copyFrom(en1.fixes);
-                                } else {
-                                    Thread.yield();
-                                }
-                            }
-                        }
-                    }
-                }
-                return usingResults && anyHighlights.getAsBoolean();
+                return anyHighlights.getAsBoolean();
             });
         } finally {
             uses.getAndIncrement();
-            synchronized (this) {
-                ENTRY.remove(en);
-            }
         }
     }
 

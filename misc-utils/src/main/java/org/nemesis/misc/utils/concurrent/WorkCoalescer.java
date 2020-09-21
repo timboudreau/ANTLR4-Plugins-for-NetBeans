@@ -13,42 +13,109 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Ensures that when multiple threads are enqueued to do the same work, only
- * one thread actually does it and the rest receive the result.
+ * Ensures that when multiple threads are enqueued to do the same work, only one
+ * thread actually does it and the rest receive the result. Basically the
+ * opposite of a mutex - a mutex sequences work so each thread does it
+ * exclusively; this ensures that while only one thread does the work, the
+ * computation is done once and all threads trying to do the same work
+ * concurrently receive the same result.
  *
  * @author Tim Boudreau
  */
-public class WorkCoalescer<T> {
+public final class WorkCoalescer<T> {
 
-    final Mutrix mutricia = new Mutrix();
+    final Mutrix mutricia;
 
     private final int spins;
     private final int spinSleep;
+    private volatile long lastUse = System.currentTimeMillis();
+    private volatile int calls;
+    private volatile int coalesces;
 
-    public WorkCoalescer() {
-        this(20, 5);
+    public WorkCoalescer(String name) {
+        this(name, 20, 5);
     }
 
-    public WorkCoalescer(int spins, int spinSleep) {
+    public WorkCoalescer(String name, int spins, int spinSleep) {
         this.spins = spins;
         this.spinSleep = spinSleep;
+        mutricia = new Mutrix(name);
     }
 
+    /**
+     * Get a fraction representing the total number of calls divided by
+     * the number of calls which did not lock but used a result being concurrently
+     * computed by another thread.
+     *
+     * @return A fraction, or -1 if this instance has never been used
+     */
+    public float coalescence() {
+        float c = calls;
+        return c == 0 ? -1 : (float) coalesces /  c;
+    }
+
+
+    /**
+     * Get the number of milliseconds this coalescer has been idle;
+     *
+     * @return A number of milliseconds
+     */
+    public long idleMillis() {
+        return System.currentTimeMillis() - lastUse;
+    }
+
+    /**
+     * Variant of the three-argument overload of this method which does not take
+     * a Consumer.
+     *
+     * @param resultComputation The computation to run
+     * @param ref A reference which will receive the result of the computation,
+     * either because it was already concurrently being computed on another thread
+     * when this one entered, or by computing it here
+     * @return The result
+     * @throws InterruptedException
+     * @throws org.nemesis.misc.utils.concurrent.WorkCoalescer.ComputationFailedException
+     */
     @SuppressWarnings("CallToThreadYield")
-    public T coalesceComputation(Supplier<T> resultComputation, Consumer<T> c, AtomicReference<T> ref) throws InterruptedException {
+    public T coalesceComputation(Supplier<T> resultComputation, AtomicReference<T> ref) throws InterruptedException, ComputationFailedException {
+        return coalesceComputation(resultComputation, null, ref);
+    }
+
+    /**
+     * Enter the computation, passing a supplier that will produce it, an optional consumer that
+     * will consume it, and an AtomicReference to store it in.  The caller must ensure that the
+     * same AtomicReference is passed to every call - only the caller can know when it is safe
+     * to <i>clear</i> the reference, and this object is intended to be long-lived - so the only
+     * choice this class would have would be to leak the reference to the last result until
+     * a new call that creates another one;  since this is intended for use with parse trees
+     * and wrappers for them, which can be quite large, that is a bad idea.
+     *
+     * @param resultComputation  A thing which computes the result
+     * @param c An optional consumer
+     * @param ref A reference that is used to share the result with other threads
+     * @return The result
+     * @throws InterruptedException If the thread is interrupted
+     * @throws org.nemesis.misc.utils.concurrent.WorkCoalescer.ComputationFailedException
+     * if the work threw an exception; use <code>isOriginatingThread()</code> to know if the
+     * failure occurred on the current thread
+     */
+    public T coalesceComputation(Supplier<T> resultComputation, Consumer<T> c, AtomicReference<T> ref) throws InterruptedException, ComputationFailedException {
+        lastUse = System.currentTimeMillis();
+        // I know, I know, thread yield, don't rely on the thread scheduler for correctness,
+        // yadda yadda.  The POINT here is to allow as many threads as are getting ready to
+        // do the work to queue up here, so the work is done once and all get the
+        // result
+        Thread.yield();
         boolean locked = false;
+        calls++;
         try {
             // Mmm, mutricious1
             locked = mutricia.lock();
-            T result;
             if (locked) {
-                result = resultComputation.get();
-                ref.set(result);
-                mutricia.yieldForWaiters();
-                result = ref.get();
-                c.accept(result);
-                return result;
+                return mutricia.run(resultComputation, c, ref);
             } else {
+                coalesces++;
+                T result;
                 // A very small busywait here, and I mean micro - we are
                 // not waiting for the computation to complete - the call to
                 // lock() had us sleep through that.  But we can race with
@@ -60,22 +127,28 @@ public class WorkCoalescer<T> {
                         LockSupport.park(spinSleep);
                     }
                 }
-                result = ref.get();
+                if (result == null) {
+                    result = ref.get();
+                }
                 if (result == null) {
                     ref.set(result = resultComputation.get());
                 }
-                c.accept(result);
+                if (c != null) {
+                    c.accept(result);
+                }
                 return result;
             }
         } finally {
             if (locked) {
                 mutricia.unlock();
+            } else {
+                mutricia.rethrow();
             }
         }
     }
 
     public void disable() {
-        mutricia.disable();;
+        mutricia.disable();
     }
 
     public boolean isDisabled() {
@@ -86,9 +159,28 @@ public class WorkCoalescer<T> {
         mutricia.enable();
     }
 
+    public static class ComputationFailedException extends Exception {
+
+        private final long threadId;
+
+        public ComputationFailedException(Thread thread, String message, Throwable cause) {
+            super(message + " on " + thread.getName(), cause);
+            threadId = thread.getId();
+        }
+
+        public ComputationFailedException(String message, Throwable cause) {
+            this(Thread.currentThread(), message, cause);
+        }
+
+        public boolean isOriginatingThread() {
+            return Thread.currentThread().getId() == threadId;
+        }
+    }
+
     /**
-     * Kind of like a mutex, but not.  Allows at most one thread at a time to lock it;
-     * a second call to lock from a different thread  will block and return false.
+     * Kind of like a mutex, but not. Allows at most one thread at a time to
+     * lock it; a second call to lock from a different thread will block and
+     * return false.
      */
     static class Mutrix {
 
@@ -102,6 +194,30 @@ public class WorkCoalescer<T> {
         private static final int PARTIALLY_LOCKED = 1;
         private static final int FULLY_LOCKED = 2;
         private static final int DISPATCHING = 3;
+        private volatile ComputationFailedException failure;
+        private final String name;
+
+        Mutrix(String name) {
+            this.name = name;
+        }
+
+        <T> T run(Supplier<T> supp, Consumer<T> cons, AtomicReference<? super T> ref) throws ComputationFailedException {
+            failure = null;
+            T obj = null;
+            try {
+                obj = supp.get();
+                ref.set(obj);
+            } catch (Exception | Error ex) {
+                ComputationFailedException f = failure = new ComputationFailedException(name, ex);
+                throw f;
+            } finally {
+                yieldForWaiters();
+            }
+            if (cons != null) {
+                cons.accept(obj);
+            }
+            return obj;
+        }
 
         void yieldForWaiters() {
             if (state != 0) {
@@ -130,7 +246,6 @@ public class WorkCoalescer<T> {
          * @return True if this thread is the first to enter
          */
         public boolean lock() {
-//            assert !waiters.fi
             boolean result = up.compareAndSet(this, UNLOCKED, FULLY_LOCKED);
             if (!result) {
                 if (state == DISABLED) {
@@ -150,7 +265,7 @@ public class WorkCoalescer<T> {
          *
          * @return True if unlocking happened
          */
-        public boolean unlock() {
+        public boolean unlock() throws ComputationFailedException {
             boolean result = up.compareAndSet(this, FULLY_LOCKED, PARTIALLY_LOCKED);
             if (result) {
                 waiters.removeByIdentity(Thread.currentThread());
@@ -161,7 +276,10 @@ public class WorkCoalescer<T> {
                 // unpark will not see the thread as parked and unpark it, so we
                 // will leave behind stalled threads.  This 0.3ms delay solves
                 // that.
-                LockSupport.parkNanos(300000);
+
+                // XXX mysteriously, this call never returns when on the EDT
+//                LockSupport.parkNanos(300000);
+                Thread.yield();
                 while (!waiters.isEmpty()) {
                     waiters.drainTo(sink);
                 }
@@ -169,7 +287,17 @@ public class WorkCoalescer<T> {
                     sink.drain(this::unparkThread);
                 }
             }
+            if (failure != null) {
+                throw failure;
+            }
             return result;
+        }
+
+        public void rethrow() throws ComputationFailedException {
+            ComputationFailedException f = failure;
+            if (f != null) {
+                throw f;
+            }
         }
 
         private void unparkThread(Thread th) {
@@ -197,7 +325,6 @@ public class WorkCoalescer<T> {
             }
             try {
                 while (!waiters.isEmpty()) {
-                    System.out.println("rdrain " + waiters.size());
                     waiters.drain(this::unparkThread);
                 }
             } finally {

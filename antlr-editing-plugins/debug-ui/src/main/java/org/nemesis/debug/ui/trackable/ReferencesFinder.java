@@ -447,7 +447,6 @@ java.lang.NullPointerException
                 }
             }
             if (m == null) {
-                System.out.println("failed to get contents of " + path);
                 return;
             }
             for (Map.Entry<?, ?> e : m.entrySet()) {
@@ -603,7 +602,6 @@ java.lang.NullPointerException
         @Override
         @SuppressWarnings("CallToThreadYield")
         protected void doApply(Object o, String path, BiConsumer<String, Object> bi, VisitTracker visits) {
-//            System.out.println(path);
             Class<?> c = o.getClass();
             if (c == Class.class) {
                 return;
@@ -685,8 +683,6 @@ java.lang.NullPointerException
                             f.setAccessible(true);
                             Object val = f.get(null);
                             if (val != null) {
-//                                System.out.println("Visit static " + type.getSimpleName() + "." + f.getName()
-//                                        + " of " + f.getType().getSimpleName());
                                 if (visits.shouldVisit(val)) {
                                     bi.accept(path + "->" + type.getSimpleName() + "." + f.getName(), val);
                                 }

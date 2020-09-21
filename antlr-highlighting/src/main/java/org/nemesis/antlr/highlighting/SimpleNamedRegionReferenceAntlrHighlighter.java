@@ -24,6 +24,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.Document;
+import static javax.swing.text.Document.StreamDescriptionProperty;
+import static org.nemesis.antlr.highlighting.SimpleNamedRegionAntlrHighlighter.LOG_OFFSET;
 import static org.nemesis.antlr.highlighting.SimpleSemanticRegionAntlrHighlighter.coloringForMimeType;
 import static org.nemesis.antlr.highlighting.SimpleSemanticRegionAntlrHighlighter.coloringLookup;
 import org.nemesis.data.named.NamedRegionReferenceSet;
@@ -33,6 +35,8 @@ import org.nemesis.data.named.NamedSemanticRegionReference;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.key.NameReferenceSetKey;
+import org.openide.filesystems.FileObject;
+import org.openide.loaders.DataObject;
 
 /**
  *
@@ -44,10 +48,12 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
     private final Function<NamedSemanticRegionReference<T>, AttributeSet> coloringLookup;
     private final int cacheSize;
     private boolean highlightReferencesUnderCaret;
-    private static final Logger LOG = Logger.getLogger(SimpleNamedRegionAntlrHighlighter.class.getName());
+    private static final Logger LOG = Logger.getLogger(SimpleNamedRegionReferenceAntlrHighlighter.class.getName());
 
     private static void log(String msg, Object... args) {
-        LOG.log(Level.FINER, msg, args);
+        if (LOG.isLoggable(Level.FINER)) {
+            LOG.log(Level.FINER, msg, args);
+        }
     }
 
     @SuppressWarnings("LeakingThisInConstructor")
@@ -64,7 +70,8 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
 
     @Override
     public String toString() {
-        return "SNRRAH{" + key + '}';
+        return "SNRRAH{" + Integer.toString(System.identityHashCode(this)) + ":" + key 
+                + (highlightReferencesUnderCaret ? "caret-aware" : "") + '}';
     }
 
     static <T extends Enum<T>> SimpleNamedRegionReferenceAntlrHighlighter<T> fixed(NameReferenceSetKey<T> key,
@@ -86,6 +93,19 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
         return new SimpleNamedRegionReferenceAntlrHighlighter<>(key, xformed);
     }
 
+    static String idOf(Document doc) {
+        Object o = doc.getProperty(StreamDescriptionProperty);
+        if (o == null) {
+            return "null";
+        } else if (o instanceof FileObject) {
+            return ((FileObject) o).getName();
+        } else if (o instanceof DataObject) {
+            return ((DataObject) o).getName();
+        } else {
+            return o.toString();
+        }
+    }
+
     @Override
     public void refresh(Document doc, Extraction ext, HighlightConsumer bag, Integer caret) {
         NamedRegionReferenceSets<T> regions = ext.references(key);
@@ -93,8 +113,14 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
             LOG.log(Level.FINE, "Null regions for {0}.  Parse cancelled?", key);
             return;
         }
-        log("refresh {0} NamedRegionReferenceSets for {1} track originals {2} caret {3} ext {4}",
-                regions.size(), doc, highlightReferencesUnderCaret, caret, ext.sourceLastModifiedAtExtractionTime());
+        LOG.finer(() -> {
+            String result = "refresh " + regions.size() + " refs for " + idOf(doc)
+                    + " lastMod " + (ext.sourceLastModifiedAtExtractionTime() - LOG_OFFSET);
+            if (highlightReferencesUnderCaret) {
+                result += " caret " + caret;
+            }
+            return result;
+        });
         if (!regions.isEmpty()) {
             Map<T, AttributeSet> cache = new HashMap<>(cacheSize);
             if (!highlightReferencesUnderCaret) {
@@ -170,7 +196,8 @@ final class SimpleNamedRegionReferenceAntlrHighlighter<T extends Enum<T>> implem
                                 // highlighters
                                 if (ref.contains(caret)) {
                                     if (log) {
-                                        LOG.log(Level.FINEST, "Skip {0}:{1} ref for {2}", new Object[]{target.start(), target.end(), target.name()});
+                                        LOG.log(Level.FINEST, "Skip {0}:{1} ref for {2}",
+                                                new Object[]{target.start(), target.end(), target.name()});
                                     }
                                 } else {
                                     // Add the highlight for this reference

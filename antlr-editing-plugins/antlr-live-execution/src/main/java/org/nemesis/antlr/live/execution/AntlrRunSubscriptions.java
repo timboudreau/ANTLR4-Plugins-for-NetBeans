@@ -197,12 +197,15 @@ public class AntlrRunSubscriptions {
         private final Consumer<Entry<?, ?>> onEmpty;
         private boolean disposed;
         private final FileObject fo;
+        private final WorkCoalescer<Obj<GrammarRunResult<T>>> coa;
+        private final AtomicReference<Obj<GrammarRunResult<T>>> coaRef = new AtomicReference<>(Obj.create());
 
         public Entry(InvocationRunner<T, A> runner,
                 FileObject fo,
                 BiConsumer<Extraction, GrammarRunResult<T>> res,
                 Consumer<Entry<?, ?>> onEmpty) {
             this.runner = runner;
+            coa  = new WorkCoalescer<>("antlr-run-subscriptions-builds-" + fo.getNameExt());
             refs.get(fo).add(new ConsumerReference(res));
             this.onEmpty = onEmpty;
             this.fo = fo;
@@ -441,9 +444,6 @@ public class AntlrRunSubscriptions {
             return results;
         }
 
-        private final WorkCoalescer<Obj<GrammarRunResult<T>>> coa = new WorkCoalescer<>();
-        private final AtomicReference<Obj<GrammarRunResult<T>>> coaRef = new AtomicReference<>(Obj.create());
-
         @Override
         public void onRebuilt(GrammarFileContext tree,
                 String mimeType, Extraction extraction,
@@ -494,7 +494,10 @@ public class AntlrRunSubscriptions {
                 }, coaRef);
             } catch (InterruptedException ex) {
                 Exceptions.printStackTrace(ex);
+            } catch (WorkCoalescer.ComputationFailedException ex) {
+                Exceptions.printStackTrace(ex);
             }
+            System.out.println("Run-Sub coalescence " + coa.coalescence());
         }
 
         private Obj<GrammarRunResult<T>> doTheThing(GrammarFileContext tree, Extraction extraction, AntlrGenerationResult res, JFS jfs) throws IOException {

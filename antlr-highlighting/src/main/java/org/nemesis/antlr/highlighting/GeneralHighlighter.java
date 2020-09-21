@@ -52,7 +52,7 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
 
     protected final Document doc;
     protected final Logger LOG = Logger.getLogger(getClass().getName());
-    private final AntlrHighlighter implementation;
+    protected final AntlrHighlighter implementation;
 
     GeneralHighlighter(Context ctx, int refreshDelay, AntlrHighlighter implementation) {
         super(ctx, implementation.mergeHighlights());
@@ -74,7 +74,7 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
 
     @Override
     public String toString() {
-        return "GeneralHighlighter{" + implementation + "}";
+        return getClass().getSimpleName() + "{" + implementation + "}";
     }
 
     final void log(Level level, String msg, Object... args) {
@@ -85,7 +85,6 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
     protected final void refresh(Document doc, T argument, Extraction ext, HighlightConsumer bag) {
         long when = ext.sourceLastModifiedAtExtractionTime();
         if (when < last) {
-            System.out.println("SKIP REFRESH OF " + this + " HAVE NEWER TIME " + last + " THAN " + when);
             return;
         }
         last = when;
@@ -114,14 +113,14 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
     }
 
     protected final void scheduleRefresh() {
-        if (isActive()) {
+//        if (isActive()) {
             Document doc = ctx.getDocument();
             if (doc != null) {
                 EventQueue.invokeLater(() -> {
                     ParseCoalescer.getDefault().enqueueParse(doc, this);
                 });
             }
-        }
+//        }
     }
 
     protected T getArgument() {
@@ -214,15 +213,16 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
             // the current key/document event has been processed and
             // wind up parsing the text of the file prior to the
             // edit the user is doing right now
-            if (pendingRefresh.compareAndSet(false, true)) {
-                EventQueue.invokeLater(this);
-            }
+//            if (pendingRefresh.compareAndSet(false, true)) {
+//                EventQueue.invokeLater(this);
+//            }
+            scheduleRefresh();
         }
 
         public void run() {
-            if (pendingRefresh.compareAndSet(true, false)) {
+//            if (pendingRefresh.compareAndSet(true, false)) {
                 scheduleRefresh();
-            }
+//            }
         }
     }
 

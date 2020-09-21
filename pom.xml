@@ -19,7 +19,7 @@ limitations under the License.
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.mastfrog</groupId>
     <artifactId>antlr-netbeans-parent</artifactId>
-    <version>2.0.79</version>
+    <version>2.0.80</version>
     <packaging>pom</packaging>
     <name>Antlr-NetBeans-Parent</name>
     <description>NetBeans ANTLR modules parent POM</description>
@@ -36,7 +36,7 @@ limitations under the License.
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
         <mastfrog.version>2.7.0</mastfrog.version>
-        <mastfrog.util.collections.version>2.7.0.4</mastfrog.util.collections.version>
+        <mastfrog.util.collections.version>2.7.0.5</mastfrog.util.collections.version>
         <mastfrog.util.graph.version>2.7.0.4</mastfrog.util.graph.version>
         <mastfrog.function.version>2.7.0.1</mastfrog.function.version>
         <mastfrog.subscriptions.version>2.7.0.2</mastfrog.subscriptions.version>

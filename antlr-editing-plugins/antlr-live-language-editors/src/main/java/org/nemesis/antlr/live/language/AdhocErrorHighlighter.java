@@ -68,7 +68,6 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElementKind;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyDetailedSyntaxError;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
-import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
@@ -241,7 +240,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                             if (alts.length() > 0) {
                                 alts.append(", ");
                             }
-                            ProxyTokenType type = semantics.tokenTypeForInt(bit);
+                            String type = semantics.parserRuleNames().get(bit);
                             alts.append(type);
                         }
                     }

@@ -275,6 +275,47 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
     }
 
+    public SemanticRegion<T> nearestTo(int position) {
+        if (isEmpty()) {
+            return null;
+        }
+        SemanticRegion<T> result = at(position);
+        if (result != null) {
+            return result;
+        }
+        if (position > ends[size - 1]) {
+            // we are guaranteed that the last is the smallest that
+            // can possibly match
+            return forIndex(size - 1);
+        }
+        int bestOffset = Integer.MAX_VALUE;
+        int bestIndex = -1;
+        for (int i = 0; i < size; i++) {
+            int start = starts[i];
+            int end = ends[i];
+            int diffStart = Math.abs(position - start);
+            int diffEnd = Math.abs(position - end);
+            if (diffStart <= diffEnd) {
+                if (diffStart < bestOffset) {
+                    bestOffset = diffStart;
+                    bestIndex = i;
+                }
+            } else {
+                if (diffEnd < bestOffset) {
+                    bestOffset = diffEnd;
+                    bestIndex = i;
+                }
+            }
+            if (start > position && end > position) {
+                break;
+            }
+        }
+        if (bestIndex != -1) {
+            return forIndex(bestIndex);
+        }
+        return null;
+    }
+
     /*
     Organizes a nested structure as two arrays, starts and ends.  The starts
     array is sorted, but the search algorithm is duplicate-tolerant (and not

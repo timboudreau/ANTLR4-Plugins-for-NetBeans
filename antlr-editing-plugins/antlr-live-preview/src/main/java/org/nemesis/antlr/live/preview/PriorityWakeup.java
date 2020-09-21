@@ -49,7 +49,6 @@ final class PriorityWakeup implements Runnable {
     }
 
     static void runImmediately(Runnable r) {
-        System.out.println("PRIORITY WAKEUP.");
         INSTANCE.q.offer(r);
     }
 

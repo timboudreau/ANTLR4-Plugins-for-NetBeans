@@ -31,6 +31,7 @@ import java.awt.EventQueue;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.text.DecimalFormat;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -47,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
+import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.tools.StandardLocation;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.nemesis.antlr.ANTLRv4Lexer;
@@ -79,6 +81,7 @@ import org.netbeans.api.project.Project;
 import org.netbeans.modules.parsing.api.Snapshot;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
 import org.openide.util.Pair;
 import org.openide.util.RequestProcessor;
@@ -330,13 +333,14 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                         return Boolean.FALSE;
                     }
                     return Boolean.TRUE;
-                }, (Boolean bool) -> {
                 }, fpRef);
+                System.out.println("Gen subscription coalescence " + PCT.format(coa.coalescence() * 100) + "%");
             }
         } catch (Exception ex) {
             LOG.log(Level.SEVERE, file + "", ex);
         }
     }
+    private static final DecimalFormat PCT = new DecimalFormat("##0.00");
 
     private AtomicReference<Boolean> fpRef(Document doc) {
         AtomicReference<Boolean> fpRef = (AtomicReference<Boolean>) doc.getProperty("_fpRef");
@@ -347,10 +351,23 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         return fpRef;
     }
 
+    static String idForDoc(Document doc) {
+        Object o = doc.getProperty(StreamDescriptionProperty);
+        if (o instanceof DataObject) {
+            return ((DataObject) o).getName();
+        } else if (o instanceof FileObject) {
+            return ((FileObject) o).getName();
+        } else if (o != null) {
+            return o.toString();
+        } else {
+            return doc.toString();
+        }
+    }
+
     private WorkCoalescer<Boolean> forceParseCoalescer(Document doc) {
         WorkCoalescer<Boolean> wc = (WorkCoalescer<Boolean>) doc.getProperty("_fpc");
         if (wc == null) {
-            wc = new WorkCoalescer<>();
+            wc = new WorkCoalescer<>("anglr-gen-force-parse-coalesce-" + idForDoc(doc));
             doc.putProperty("_fpc", wc);
         }
         return wc;

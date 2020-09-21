@@ -24,6 +24,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.Document;
+import static org.nemesis.antlr.highlighting.SimpleNamedRegionReferenceAntlrHighlighter.idOf;
 import static org.nemesis.antlr.highlighting.SimpleSemanticRegionAntlrHighlighter.coloringForMimeType;
 import static org.nemesis.antlr.highlighting.SimpleSemanticRegionAntlrHighlighter.coloringLookup;
 import org.nemesis.data.named.NamedSemanticRegion;
@@ -37,6 +38,7 @@ import org.nemesis.extraction.key.NamedRegionKey;
  */
 final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements AntlrHighlighter {
 
+    static long LOG_OFFSET = System.currentTimeMillis();
     private final NamedRegionKey<T> key;
     private final Function<NamedSemanticRegion<T>, AttributeSet> coloringLookup;
     private final int cacheSize;
@@ -53,8 +55,7 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
         this.key = key;
         this.coloringLookup = coloringLookup;
         cacheSize = key.type().getEnumConstants().length;
-        LOG.log(Level.FINE, "Create SimpleNamedRegionAntlrHighlighter for {0} with {1}",
-                new Object[]{key, coloringLookup});
+        LOG.log(Level.FINE, "Create SimpleNamedRegionAntlrHighlighter for {0}", key);
     }
 
     @Override
@@ -90,12 +91,11 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
         return new SimpleNamedRegionAntlrHighlighter<>(key, xformed);
     }
 
-    static long LOG_OFFSET = System.currentTimeMillis();
     @Override
     public void refresh(Document doc, Extraction ext, HighlightConsumer bag, Integer ignored) {
         NamedSemanticRegions<T> regions = ext.namedRegions(key);
-        log("{0} refresh {1} NamedSemanticRegions for {2} for {3} parse {4}",
-                key, regions.size(), doc, ext.source().name(), ext.sourceLastModifiedAtExtractionTime() - LOG_OFFSET);
+        LOG.finer(() -> "refresh " + regions.size() + " refs for " + idOf(doc)
+                + " lastMod " + (ext.sourceLastModifiedAtExtractionTime() - LOG_OFFSET));
         if (!regions.isEmpty()) {
             Map<T, AttributeSet> cache = new HashMap<>(cacheSize);
             for (NamedSemanticRegion<T> region : regions.index()) {
@@ -129,14 +129,16 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
         private final Function<String, AttributeSet> coloringFinder;
         private final Function<NamedSemanticRegion<T>, AttributeSet> oldxformed;
 
-        public DelegateToColoringNameSupplier(Function<String, AttributeSet> coloringFinder, Function<NamedSemanticRegion<T>, AttributeSet> oldxformed) {
+        public DelegateToColoringNameSupplier(Function<String, AttributeSet> coloringFinder,
+                Function<NamedSemanticRegion<T>, AttributeSet> oldxformed) {
             this.coloringFinder = coloringFinder;
             this.oldxformed = oldxformed;
         }
 
         @Override
         public String toString() {
-            return "DelegateToColoringNameSupplier(wrapping " + oldxformed + " using " + coloringFinder + ")";
+            return "DelegateToColoringNameSupplier(wrapping " + oldxformed
+                    + " using " + coloringFinder + ")";
         }
 
         @Override
@@ -158,7 +160,8 @@ final class SimpleNamedRegionAntlrHighlighter<T extends Enum<T>> implements Antl
         }
     }
 
-    static final class FixedLookup<T extends Enum<T>> implements Function<NamedSemanticRegion<T>, AttributeSet> {
+    static final class FixedLookup<T extends Enum<T>>
+            implements Function<NamedSemanticRegion<T>, AttributeSet> {
 
         private final Supplier<AttributeSet> lookup;
 

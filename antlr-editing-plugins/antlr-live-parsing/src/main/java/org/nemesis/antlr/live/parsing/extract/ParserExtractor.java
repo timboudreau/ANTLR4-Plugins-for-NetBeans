@@ -408,7 +408,7 @@ public class ParserExtractor {
         @Override //parser
         public Void visitErrorNode(ErrorNode node) { //parser
             builder.addErrorNode(node.getSourceInterval().a, node.getSourceInterval().b, currentDepth, node.getSymbol() //parser
-                .getStartIndex(), node.getSymbol().getStopIndex(), node.getSymbol().getText(), node.getSymbol().getType()); //parser
+                    .getStartIndex(), node.getSymbol().getStopIndex(), node.getSymbol().getText(), node.getSymbol().getType()); //parser
             return null; //parser
         } //parser
     } //parser

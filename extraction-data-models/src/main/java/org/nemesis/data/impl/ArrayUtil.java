@@ -42,6 +42,310 @@ public final class ArrayUtil {
         return genericArray((Class<T>) array.getClass().getComponentType(), newSize);
     }
 
+    static int fuzzyRangeSearch(int target, com.mastfrog.util.search.Bias bias, int[] starts, int[] ends, int size) {
+        // XXX fixme - should be used for finding nearest start or end in semantic regions
+        int nearestStart = duplicateTolerantFuzzyBinarySearch(target, bias, starts, size);
+        if (nearestStart < 0) {
+            return nearestStart;
+        }
+        int start = starts[nearestStart];
+        int end = ends[nearestStart];
+        if (target >= start && target < end) {
+            for (int check = nearestStart; check < size; check++) {
+                int nextStart = starts[check];
+                int nextEnd = ends[check];
+                if (target >= nextStart && target < nextEnd) {
+                    nearestStart = check;
+                } else {
+                    break;
+                }
+            }
+        } else {
+
+        }
+        return -1;
+    }
+
+    static int duplicateTolerantFuzzyBinarySearch(int target, com.mastfrog.util.search.Bias bias, int[] in, int size) {
+        // XXX fixme - should be used for finding nearest start or end in semantic regions
+        switch (size) {
+            case 0:
+                return -1;
+            case 1:
+                int val = in[0];
+                switch (bias) {
+                    case BACKWARD:
+                        System.out.println("A");
+                        return target >= val ? 0 : -1;
+                    case FORWARD:
+                        System.out.println("B");
+                        return target <= val ? 0 : -1;
+                    case NEAREST:
+                        System.out.println("C");
+                        return 0;
+                    case NONE:
+                        System.out.println("d");
+                        return target == val ? 0 : -1;
+                    default:
+                        throw new AssertionError(bias);
+                }
+            case 2:
+                int v0 = in[0];
+                int v1 = in[1];
+                if (v0 == target) {
+                    System.out.println("E");
+                    return 0;
+                } else if (v1 == target) {
+                    System.out.println("F");
+                    return 1;
+                }
+                switch (bias) {
+                    case NEAREST:
+                        int v0dist = Math.abs(target - v0);
+                        int v1dist = Math.abs(target - v1);
+                        if (v0dist < v1dist) {
+                            System.out.println("G");
+                            return 0;
+                        } else {
+                            System.out.println("H");
+                            return 1;
+                        }
+                    case NONE:
+                        if (v0 == target) {
+                            System.out.println("I");
+                            return 0;
+                        } else if (v1 == target) {
+                            System.out.println("J");
+                            return 1;
+                        } else {
+                            System.out.println("K");
+                            return -1;
+                        }
+                    case BACKWARD:
+                        if (v1 < target) {
+                            System.out.println("L");
+                            return 1;
+                        } else if (v0 < target) {
+                            System.out.println("M");
+                            return 0;
+                        } else {
+                            System.out.println("N");
+                            return -1;
+                        }
+                    case FORWARD:
+                        if (v0 > target) {
+                            System.out.println("O");
+                            return 0;
+                        } else if (v1 > target) {
+                            System.out.println("P");
+                            return 1;
+                        } else {
+                            System.out.println("Q");
+                            return -1;
+                        }
+                    default:
+                        throw new AssertionError(bias);
+                }
+            default:
+                return duplicateTolerantFuzzyBinarySearch(target, bias, in, 0, size - 1, size);
+        }
+    }
+
+    private static int duplicateTolerantFuzzyBinarySearch(int target, com.mastfrog.util.search.Bias bias, int[] in, int first, int last, int size) {
+        System.out.println("search " + bias.name() + " from " + first + " to " + last + " for " + target);
+        assert first <= last : "First > last " + first + ":" + last + " searching for " + target + " with " + size + " in " + Arrays.toString(in);
+        int firstVal = in[first];
+        int lastVal = in[last];
+        if (target == firstVal && firstVal == lastVal) {
+            System.out.println("a " + first + " " + last);
+            return narrowTargetUsingBiasOnExactMatch(bias, first, in, target, last, size);
+        } else if (target == firstVal) {
+            System.out.println("b " + first);
+            return narrowTargetUsingBiasOnExactMatch(bias, first, in, target, first, size);
+        } else if (target == lastVal) {
+            System.out.println("c " + last);
+            return narrowTargetUsingBiasOnExactMatch(bias, last, in, target, last, size);
+        } else if (first == last || first == last + 1) {
+            // exhausted our options
+            switch (bias) {
+                case NONE:
+                    System.out.println("d");
+                    return -1;
+                case BACKWARD:
+                    if (target > lastVal) {
+                        System.out.println("e " + last);
+                        return last;
+                    } else if (target > firstVal && target < lastVal) {
+                        System.out.println("f");
+                        return first;
+                    } else {
+                        System.out.println("g");
+                        return -1;
+                    }
+                case FORWARD:
+                    if (target < firstVal) {
+                        System.out.println("h");
+                        return first;
+                    } else if (target > firstVal && target < lastVal) {
+                        System.out.println("i");
+                        return first;
+                    } else {
+                        System.out.println("j");
+                        return -1;
+                    }
+                case NEAREST:
+                    int v0dist = Math.abs(target - firstVal);
+                    int v1dist = Math.abs(target - lastVal);
+                    if (v0dist < v1dist) {
+                        System.out.println("k");
+                        return first;
+                    } else {
+                        System.out.println("l");
+                        return last;
+                    }
+                default:
+                    throw new AssertionError(bias);
+            }
+        }
+        int midPoint = first + ((last - first) / 2);
+        int midVal = in[midPoint];
+        if (midVal != target) {
+            int mp2 = midPoint + 1;
+            if (mp2 != last && mp2 < size) {
+                int mv2 = in[mp2];
+                if (mv2 == target) {
+                    System.out.println("  shift forward for match " + mp2 + " with " + mv2  + " size % 2 " + (size % 2));
+                    midPoint = mp2;
+                    midVal = mv2;
+                }
+            }
+        }
+        System.out.println("mid " + midPoint + " with " + midVal);
+        int nextFirst = first + 1;
+        int nextLast = last - 1;
+        if (midVal == target) {
+            System.out.println("m " + midPoint);
+            return narrowTargetUsingBiasOnExactMatch(bias, midPoint, in, target, midPoint, size);
+        } else if (nextFirst == midPoint && nextLast != midPoint) {
+            System.out.println("n " + midPoint + ":" + nextLast);
+            return duplicateTolerantFuzzyBinarySearch(target, bias, in, midPoint, nextLast, size);
+        } else if (nextLast == midPoint && nextFirst != midPoint) {
+            System.out.println("o " + nextFirst + ":" + midPoint);
+            return duplicateTolerantFuzzyBinarySearch(target, bias, in, nextFirst, midPoint, size);
+        } else {
+            switch (bias) {
+                case FORWARD:
+                    if (midVal < target) {
+                        System.out.println("p " + (midPoint + 1) + ":" + nextLast);
+                        return duplicateTolerantFuzzyBinarySearch(target, bias, in, midPoint + 1, nextLast, size);
+                    } else {
+                        System.out.println("qr-1 " + nextFirst + ":" + (midPoint - 1));
+                        int res = duplicateTolerantFuzzyBinarySearch(target, bias, in, nextFirst, midPoint - 1, size);
+                        if (res < 0) {
+                            System.out.println("q");
+                            // we are already at the best target
+                            return midPoint;
+                        } else {
+                            System.out.println("r");
+                            return res;
+                        }
+                    }
+                case BACKWARD:
+                    if (midVal > target) {
+                        System.out.println("s");
+                        return duplicateTolerantFuzzyBinarySearch(target, bias, in, nextFirst, midPoint - 1, size);
+                    } else {
+                        System.out.println("tu " + nextFirst + ":" + (midPoint-1));
+                        int res = duplicateTolerantFuzzyBinarySearch(target, bias, in, nextFirst, midPoint - 1, size);
+                        if (res < 0) {
+                            System.out.println("t");
+                            return midPoint;
+                        } else {
+                            System.out.println("u " + nextFirst + ":" + (midPoint - 1) + " -> " + res);
+                            return res;
+                        }
+                    }
+                case NONE:
+                    if (midVal > target) {
+                        System.out.println("v");
+                        return duplicateTolerantFuzzyBinarySearch(target, bias, in, nextFirst, midPoint - 1, size);
+                    } else {
+                        System.out.println("w");
+                        return duplicateTolerantFuzzyBinarySearch(target, bias, in, midPoint + 1, nextLast, size);
+                    }
+                case NEAREST:
+                    int resA = duplicateTolerantFuzzyBinarySearch(target, bias, in, nextFirst, midPoint - 1, size);
+                    int resB = duplicateTolerantFuzzyBinarySearch(target, bias, in, midPoint + 1, nextLast, size);
+                    if (resA < 0 && resB < 0) {
+                        System.out.println("x");
+                        return -1;
+                    } else if (resA >= 0 && resB < 0) {
+                        System.out.println("y");
+                        return resA;
+                    } else if (resB >= 0 && resA < 0) {
+                        System.out.println("z");
+                        return resB;
+                    } else if (resA == resB) {
+                        System.out.println("aa");
+                        return resA;
+                    } else {
+                        int v0 = in[resA];
+                        int v1 = in[resB];
+                        int d0 = Math.abs(target - v0);
+                        int d1 = Math.abs(target - v1);
+                        if (d0 < d1) {
+                            System.out.println("bb");
+                            return resA;
+                        } else {
+                            System.out.println("cc");
+                            return resB;
+                        }
+                    }
+                default:
+                    throw new AssertionError(bias);
+            }
+        }
+    }
+
+    static int narrowTargetUsingBiasOnExactMatch(com.mastfrog.util.search.Bias bias, int first, int[] in, int target, int last, int size) throws AssertionError {
+        switch (bias) {
+            case NONE:
+                System.out.println("1");
+                return first;
+            case BACKWARD:
+                int firstResult = first;
+                if (firstResult > 0) {
+                    for (int i = firstResult - 1; i >= 0; i--) {
+                        if (in[i] == target) {
+                            System.out.println("  fr-");
+                            firstResult--;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                System.out.println("2");
+                return firstResult;
+            case FORWARD:
+                int lastResult = last;
+                for (int i = lastResult + 1; i < size; i++) {
+                    if (in[i] == target) {
+                        System.out.println("  lr+");
+                        lastResult++;
+                    } else {
+                        break;
+                    }
+                }
+                System.out.println("3");
+                return lastResult;
+            case NEAREST:
+                System.out.println("4");
+                return first + ((last - first) / 2);
+            default:
+                throw new AssertionError(bias);
+        }
+    }
+
     private static final class ArrayIUO implements IntUnaryOperator {
 
         private final int[] array;
@@ -444,6 +748,19 @@ public final class ArrayUtil {
         FORWARD,
         BACKWARD,
         NONE;
+
+        public com.mastfrog.util.search.Bias toSearchBias() {
+            switch (this) {
+                case BACKWARD:
+                    return com.mastfrog.util.search.Bias.BACKWARD;
+                case FORWARD:
+                    return com.mastfrog.util.search.Bias.FORWARD;
+                case NONE:
+                    return com.mastfrog.util.search.Bias.NONE;
+                default:
+                    throw new AssertionError(this);
+            }
+        }
     }
 
     public static int prefixBinarySearch(String[] sortedList, String prefix, IntConsumer results) {

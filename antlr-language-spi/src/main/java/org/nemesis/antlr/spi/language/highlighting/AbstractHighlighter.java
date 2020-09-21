@@ -23,31 +23,25 @@ import java.awt.event.ComponentListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
-import org.nemesis.editor.ops.DocumentOperator;
+import org.netbeans.lib.editor.util.swing.DocumentListenerPriority;
+import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
-import org.netbeans.spi.editor.highlighting.HighlightsChangeEvent;
-import org.netbeans.spi.editor.highlighting.HighlightsChangeListener;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
-import org.netbeans.spi.editor.highlighting.HighlightsSequence;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
-import org.openide.util.Exceptions;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 
@@ -84,11 +78,12 @@ import static javax.swing.text.Document.StreamDescriptionProperty;
  */
 public abstract class AbstractHighlighter {
 
+    @SuppressWarnings( "NonConstantLogger" )
+    protected final Logger LOG;
     private static final Map<Class<?>, RequestProcessor> rpByType = new HashMap<>();
-    private final LazyHighlightsContainer lazy = new LazyHighlightsContainer( this );
     protected final HighlightsLayerFactory.Context ctx;
     private final CompL compl = new CompL();
-    protected final Logger LOG;
+    private final AlternateBag theBag;
 
     protected AbstractHighlighter( HighlightsLayerFactory.Context ctx ) {
         this( ctx, true );
@@ -104,21 +99,19 @@ public abstract class AbstractHighlighter {
         // Listen for component events
         theEditor.addComponentListener( WeakListeners.create(
                 ComponentListener.class, compl, theEditor ) );
-        // Also listen for ancestor events, because component events can be
-        // deceptive, but the combination of both ensures we catch all adds/removes
-        theEditor.addPropertyChangeListener( "ancestor",
-                                             WeakListeners.propertyChange( compl, "ancestor", theEditor ) );
         theBag = new AlternateBag( Strings.lazy( this ) );
-//        bag = new OffsetsBag(ctx.getDocument(), mergeHighlights);
+        theEditor.addPropertyChangeListener(WeakListeners.propertyChange( compl, theEditor));
         LOG.log( Level.FINE, "Create {0} for {1}", new Object[]{ getClass().getName(), doc } );
         // Ensure we are initialized, and don't assume we are constructed in the
         // event thread; calling isShowing() in any other thread is unsafe
+
         EventQueue.invokeLater( () -> {
-            if ( ctx.getComponent().isShowing() ) {
-                LOG.log( Level.FINER, "Component is showing, set active" );
-                compl.setActive( true );
-            }
+//            if ( ctx.getComponent().isShowing() ) {
+            LOG.log( Level.FINER, "Component is showing, set active" );
+            compl.setActive( true );
+//            }
         } );
+//        }
     }
 
     /**
@@ -143,9 +136,7 @@ public abstract class AbstractHighlighter {
     private void onAfterDeactivated() {
     }
 
-    private final AlternateBag theBag;
-
-    private AlternateBag bag( boolean create ) {
+    private AlternateBag bag() {
         return theBag;
     }
 
@@ -162,10 +153,6 @@ public abstract class AbstractHighlighter {
         return getClass().getSimpleName() + ":" + fileName + " " + toString();
     }
 
-    protected static AlternateBag bag( AbstractHighlighter other ) {
-        return other.bag( false );
-    }
-
     /**
      * To update highlighting of the document, call this method with a closure
      * that accepts an OffsetsBag, and returns <code>true</code> if there were
@@ -178,7 +165,7 @@ public abstract class AbstractHighlighter {
      *                          added any highlights to it, false if not.
      */
     protected final void updateHighlights( Predicate<HighlightConsumer> highlightsUpdater ) {
-        AlternateBag bag = bag( true );
+        AlternateBag bag = bag();
         if ( bag == null ) {
             return;
         }
@@ -186,14 +173,18 @@ public abstract class AbstractHighlighter {
         try {
             hasHighlights = highlightsUpdater.test( bag );
             if ( !hasHighlights ) {
-                System.out.println( "UPD HIGHLIGHTS ON " + this + " RESULT " + hasHighlights);
-//                bag.clear();
+                bag.clear();
             }
         } finally {
             commit();
         }
     }
 
+    /**
+     * After a series of calls to update the bag in updateHighlights,
+     * this method actually commits the changes, causing it to be updated
+     * and potentially fire changes.
+     */
     protected void commit() {
         theBag.commit();
     }
@@ -216,9 +207,9 @@ public abstract class AbstractHighlighter {
      * @return A request processor
      */
     protected final RequestProcessor threadPool() {
-//        if ( true ) {
-//            return ALL_HIGHLIGHTERS;
-//        }
+        if ( true ) {
+            return ALL_HIGHLIGHTERS;
+        }
         return threadPool( getClass() );
     }
     static final RequestProcessor ALL_HIGHLIGHTERS = new RequestProcessor( "AbstractHighlighter", 1 );
@@ -339,7 +330,7 @@ public abstract class AbstractHighlighter {
      * the component becomes visible or is hidden, so it can ignore changes
      * when the component is not onscreen.
      */
-    private final class CompL extends ComponentAdapter implements Runnable, PropertyChangeListener, DocumentListener {
+    private final class CompL extends ComponentAdapter implements Runnable, DocumentListener, PropertyChangeListener {
 
         // Volatile because while highlighters are only attached and detached from the
         // event thread, it can be read from any thread that checks state
@@ -360,13 +351,9 @@ public abstract class AbstractHighlighter {
 
         @Override
         public void propertyChange( PropertyChangeEvent evt ) {
-            // This seems to get us in some weird trouble - hiding a tooltip
-            // appears to sometimes cause PopupManager.removeFromRootPane()
-            // to cause the editor to get re-parented, generating a flurry of
-            // unsubscribe/subscribes
-//            if ( "ancestor".equals( evt.getPropertyName() ) ) {
-//                setActive( evt.getNewValue() != null );
-//            }
+            if ("ancestor".equals(evt.getPropertyName())) {
+                
+            }
         }
 
         void setActive( boolean active ) {
@@ -391,7 +378,8 @@ public abstract class AbstractHighlighter {
                 synchronized ( this ) {
                     LOG.log( Level.FINE, "Activating against {0}", fo );
                     try {
-                        doc.removeDocumentListener( this );
+                        DocumentUtilities.removePriorityDocumentListener( doc, this, DocumentListenerPriority.AFTER_CARET_UPDATE);
+//                        doc.removeDocumentListener( this );
                         deactivated( fo, doc );
                     } finally {
                         onAfterDeactivated();
@@ -411,17 +399,13 @@ public abstract class AbstractHighlighter {
                     synchronized ( this ) {
                         LOG.log( Level.FINE, "Activating against {0}", fo );
                         activated( fo, doc );
-                        doc.addDocumentListener( this );
+                        DocumentUtilities.addPriorityDocumentListener( doc, this, DocumentListenerPriority.AFTER_CARET_UPDATE);
+//                        doc.addDocumentListener( this );
                     }
                 } catch ( Exception ex ) {
                     LOG.log( Level.SEVERE, "Exception activating against "
                                            + fo + " / " + doc, ex );
                 }
-                // Make sure the highlights container the editor is listening on
-                // tells the painting infrastructure that there is something to paint
-                // otherwise it will never paint with our highlight data until something
-                // external triggers it
-                lazy.tickle();
             } else {
                 LOG.log( Level.FINE, "Not active, don't subscribe to rebuilds of {0}",
                          ctx.getDocument() );
@@ -448,92 +432,6 @@ public abstract class AbstractHighlighter {
         @Override
         public void changedUpdate( DocumentEvent e ) {
             // do nothing
-        }
-    }
-
-    /**
-     * Allows our OffsetsBag to be fully detached and stop listening on the
-     * document when the editor is not displayed. If that comes with too much
-     * of a performance penalty, reconsider.
-     */
-    private static final class LazyHighlightsContainer implements HighlightsContainer, HighlightsChangeListener {
-        private final AbstractHighlighter hl;
-        private int lastIdHash;
-        private final List<HighlightsChangeListener> listeners = new CopyOnWriteArrayList<>();
-
-        public LazyHighlightsContainer( AbstractHighlighter hl ) {
-            this.hl = hl;
-        }
-
-        void tickle() {
-            Document doc = hl.ctx.getDocument();
-            if ( doc != null && !listeners.isEmpty() ) {
-                HighlightsChangeEvent evt;
-                try {
-                    evt = DocumentOperator.render( doc,
-                                                   () -> {
-                                                       int len = doc.getLength();
-                                                       if ( len > 0 ) {
-                                                           return new HighlightsChangeEvent( this, 0, len - 1 );
-                                                       }
-                                                       return null;
-                                                   } );
-                    if ( evt != null ) {
-                        fire( evt );
-                    }
-                } catch ( BadLocationException | RuntimeException | Error ex ) {
-                    Exceptions.printStackTrace( ex );
-                }
-            }
-        }
-
-        private synchronized AlternateBag realBag( boolean create ) {
-            AlternateBag result = hl.bag( create );
-            if ( result != null ) {
-                int hash = System.identityHashCode( result );
-                if ( hash != lastIdHash ) {
-                    lastIdHash = hash;
-                    result.addHighlightsChangeListener( this );
-                    tickle();
-                }
-            }
-            return result;
-        }
-
-        @Override
-        public HighlightsSequence getHighlights( int startOffset, int endOffset ) {
-            AlternateBag bag = realBag( false );
-            if ( bag == null ) {
-                return HighlightsSequence.EMPTY;
-            }
-            return bag.getHighlights( startOffset, endOffset );
-        }
-
-        @Override
-        public void addHighlightsChangeListener( HighlightsChangeListener listener ) {
-            listeners.add( listener );
-        }
-
-        @Override
-        public void removeHighlightsChangeListener( HighlightsChangeListener listener ) {
-            listeners.remove( listener );
-        }
-
-        private void fire( HighlightsChangeEvent e ) {
-            listeners.forEach( l -> {
-                l.highlightChanged( e );
-            } );
-        }
-
-        @Override
-        public void highlightChanged( HighlightsChangeEvent event ) {
-            // don't call the listeners while holding the lock
-            if ( !listeners.isEmpty() ) {
-                HighlightsChangeEvent e
-                        = new HighlightsChangeEvent( this, event.getStartOffset(),
-                                                     event.getEndOffset() );
-                fire( e );
-            }
         }
     }
 }

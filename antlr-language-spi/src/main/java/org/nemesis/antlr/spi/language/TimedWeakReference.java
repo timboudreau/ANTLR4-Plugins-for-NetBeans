@@ -15,13 +15,15 @@
  */
 package org.nemesis.antlr.spi.language;
 
+import com.mastfrog.util.collections.AtomicLinkedQueue;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.openide.util.Utilities;
 
 /**
@@ -31,11 +33,13 @@ import org.openide.util.Utilities;
 final class TimedWeakReference<T> extends WeakReference<T> implements Runnable {
 
     private static final long DELAY = 15000;
+    private static final long INITIAL_DELAY = 60000;
     private volatile T strong;
     private volatile long expiry = System.currentTimeMillis() + DELAY;
-    private static final List<TimedWeakReference<?>> INSTANCES
-            = new CopyOnWriteArrayList<>();
+    private static final AtomicLinkedQueue<TimedWeakReference<?>> INSTANCES
+            = new AtomicLinkedQueue<>();
 
+    @SuppressWarnings( "LeakingThisInConstructor" )
     TimedWeakReference( T referent ) {
         super( referent, Utilities.activeReferenceQueue() );
         strong = referent;
@@ -53,7 +57,6 @@ final class TimedWeakReference<T> extends WeakReference<T> implements Runnable {
     void discard() {
         strong = null;
         expiry = 0;
-        INSTANCES.remove(this);
     }
 
     @Override
@@ -84,27 +87,32 @@ final class TimedWeakReference<T> extends WeakReference<T> implements Runnable {
     static final Timer timer = new Timer( "timed-weak-refs", true );
 
     static {
-        timer.scheduleAtFixedRate( new CleanupTask(), 15000, DELAY );
+        timer.scheduleAtFixedRate( new CleanupTask(), INITIAL_DELAY, DELAY );
     }
 
     @Override
     public void run() {
-        INSTANCES.remove(this);
+        INSTANCES.remove( this );
     }
 
     static final class CleanupTask extends TimerTask {
         @Override
         public void run() {
             List<TimedWeakReference<?>> items = new ArrayList<>( INSTANCES );
-            for ( Iterator<TimedWeakReference<?>> it = items.iterator(); it.hasNext(); ) {
-                TimedWeakReference<?> t = it.next();
-                if ( t.isExpired() ) {
-                    t.reallyBecomeWeak();
-                } else {
-                    it.remove();
+            try {
+                for ( Iterator<TimedWeakReference<?>> it = items.iterator(); it.hasNext(); ) {
+                    TimedWeakReference<?> t = it.next();
+                    if ( t.isExpired() ) {
+                        t.reallyBecomeWeak();
+                    } else {
+                        it.remove();
+                    }
                 }
+                INSTANCES.removeAll( items );
+            } catch ( Exception | Error e ) {
+                Logger.getLogger( TimedWeakReference.class.getName() ).log(
+                        Level.SEVERE, "Exception removing " + items, e );
             }
-            INSTANCES.removeAll( items );
         }
     }
 }
