@@ -1764,8 +1764,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                     ab.variable("snapshotSource").notEquals().expression("null")
                                             .endCondition().withMessage(msg -> {
                                                 msg.append("Null returned from GrammarSource.find() with an instance of Snapshot of mimeType ")
-                                                        .append(mimeType).append(". Probably the antlr-input-nb is missing?");
-
+                                                        .append(mimeType).append(". Is the antlr-input-nb module is installed?");
                                             });
                                 });
                                 block.lineComment("Store the source and canceller temporarily in the map of source to canceller");
@@ -1778,16 +1777,21 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         //                                        .invoke("remove").withArgumentFromInvoking("getSource").on("snapshot").on("CANCELLATION_FOR_SOURCE")
                                         .invoke("put").withArgument("task").withArgument("result").on("RESULT_FOR_TASK")
                                         .synchronizeOn("this")
-                                        .statement("lastResult = result")
+                                        .assign("lastResult").toExpression("result")
                                         .endBlock().endIf()
                                         .catching("Exception")
                                         .logException(Level.SEVERE, "thrown")
                                         //                                        .invoke("printStackTrace").withArgument("thrown")
                                         //                                        .on(UTIL_EXCEPTIONS.simpleName())
                                         .fynalli().synchronizeOn("CANCELLATION_FOR_SOURCE")
+                                        .lineComment("Another thread can enter and replace the canceller before this "
+                                                + "method completes; it will likely be stalled ")
+                                        .lineComment("on the parser lock, but we do not want to clobber its canceller")
+                                        .declare("canceller").initializedByInvoking("get")
+                                        .withArgument("src").on("CANCELLATION_FOR_SOURCE")
+                                        .as(ATOMIC_BOOLEAN.simpleName())
                                         .iff(ifb -> {
-                                            ifb.invoke("get").withArgument("src").on("CANCELLATION_FOR_SOURCE")
-                                                    .isEquals("cancelled")
+                                            ifb.variable("cancelled").isEquals("canceller")
                                                     .invoke("remove").withArgument("src")
                                                     .on("CANCELLATION_FOR_SOURCE").endIf();
                                         })
@@ -1984,10 +1988,12 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .withArgument("contents").withArgument("cancelled")
                                         .withArgument("errors")
                                         .on("HELPER")
-                                        .statement("result[0] = pr")
+                                        .assign("result[0]").toExpression("pr")
+                                        //                                        .statement("result[0] = pr")
                                         .catching("Exception")
                                         .lineComment("The hook method may throw an exception, which we will need to catch")
-                                        .statement("thrown[0] = ex")
+                                        .assign("thrown[0]").toExpression("ex")
+                                        //                                        .statement("thrown[0] = ex")
                                         .as("ex").endTryCatch().endBlock()
                                         .on(prefix + "Hierarchy");
 
@@ -2284,7 +2290,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .withModifier(FINAL)
                 .field("category").withModifier(PRIVATE, FINAL).ofType(STRING)
                 .constructor(con -> {
-                    con.addArgument(STRING, "category").body().statement("this.category = category").endBlock();
+                    con.addArgument(STRING, "category").body()
+                            .assign("this.category").toExpression("category")
+//                            .statement("this.category = category")
+                            .endBlock();
                 })
                 .override("getName").withModifier(PUBLIC).returning(STRING).body().returning("category").endBlock()
                 .override("getNumericID").withModifier(PUBLIC).returning("int").bodyReturning("0")
@@ -2416,7 +2425,9 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .initializedTo(tokenCatName == null ? "TokenCategorizer.heuristicCategorizer()" : "new " + tokenCatName + "()")
                 .ofType("TokenCategorizer")
                 // Make it non-instantiable
-                .constructor().setModifier(PRIVATE).body().statement("throw new AssertionError()").endBlock();
+                .constructor().setModifier(PRIVATE).body()
+                    .andThrow().ofType("AssertionError");
+//                    .statement("throw new AssertionError()").endBlock();
 
         // Initialize arrays and maps of name -> token type for use by lookup methods
         // Some of this information we cannot collect at annotation processing time, because name arrays
@@ -2429,7 +2440,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .over("ALL")
                 .declare("symName").initializedByInvoking("symbolicName").on("tok").as(STRING)
                 .declare("litName").initializedByInvoking("literalName").on("tok").as(STRING)
-                .declare("litStripped").initializedWith("stripQuotes(litName)").as(STRING)
+                .declare("litStripped").initializedByInvoking("stripQuotes").withArgument("litName").inScope().as(STRING)
                 .ifNotNull("symName")
                 .invoke("put").withArgument("symName").withArgument("tok").on("bySymbolicName")
                 .endIf()
@@ -2442,11 +2453,22 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                 .endIf()
                 .endBlock()
                 .invoke("sort").withArgument("charsList").on("Collections")
-                .statement("chars = new char[charsList.size()]")
-                .statement("tokForChar = new " + tokenTypeName + "[charsList.size()]")
+                .assign("chars").toExpression("new char[charsList.size()]")
+//                .statement("chars = new char[charsList.size()]")
+//                .statement("tokForChar = new " + tokenTypeName + "[charsList.size()]")
+                .assign("tokForChar").toExpression("new " + tokenTypeName + "[charsList.size()]")
+                
                 .forVar("i").condition().lessThan().invoke("size").on("charsList").endCondition().running()
-                .statement("chars[i] = charsList.get(i)")
-                .statement("tokForChar[i] = tokForCharMap.get(charsList.get(i))")
+//                .statement("chars[i] = charsList.get(i)")
+//                .assign("chars[i]").toInvocation("get").withArgument("i").on("charsList")
+                .assignArrayElement("i").of("chars").toInvocation("get").withArgument("i").on("charsList")
+//                .statement("tokForChar[i] = tokForCharMap.get(charsList.get(i))")
+
+                .assignArrayElement("i").of("tokForChar").toInvocation("get").withArgumentFromInvoking("get")
+                .withArgument("i").on("charsList").on("tokForCharMap")
+//                .assign("tokForChar[i]").toInvocation("get").withArgumentFromInvoking("get").withArgument("i")
+//                    .on("charsList").on("tokForCharMap")
+
                 .endBlock()
                 .endBlock();
 

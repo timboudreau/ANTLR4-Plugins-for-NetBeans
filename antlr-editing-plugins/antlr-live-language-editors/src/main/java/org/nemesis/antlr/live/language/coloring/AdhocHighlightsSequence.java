@@ -204,7 +204,7 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
             if (tok.getStartIndex() > length || tok.getStopIndex() > length) {
                 break;
             }
-            String category = AdhocTokenId.categorize(type);
+            String category = type.category();
             // If no category, look for a coloring for the token name
             if ("default".equals(category)) {
                 if (type.symbolicName != null && colorings.contains(type.symbolicName)) {

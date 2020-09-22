@@ -83,68 +83,9 @@ public class AdhocTokenId implements TokenId, Comparable<TokenId> {
                 && !AntlrProxies.ERRONEOUS_TOKEN_NAME.equals(type.literalName);
     }
 
-    /**
-     * Attempts some heuristics based on token type name and contents to try to
-     * come up with reasonable default categorizations for syntax highlighting.
-     *
-     * @param type The proxy token
-     * @return A category
-     */
-    @SuppressWarnings("StringEquality")
-    public static String categorize(ProxyTokenType type) {
-        if (AntlrProxies.ERRONEOUS_TOKEN_NAME== type.name()) {
-            return "errors";
-        }
-        if (type.isDelimiterLike()) {
-            return "delimiters";
-        }
-        if (type.isOperatorLike()) {
-            return "operators";
-        }
-        if (type.isPunctuation()) {
-            return "symbols";
-        }
-        if (type.isKeywordLike()) {
-            return "keywords";
-        }
-        if (type.isSingleCharacter()) {
-            return "symbols";
-        }
-        if (type.nameContains("identifier")) {
-            return "identifier";
-        }
-        if (type.name() != null
-                && type.name().toLowerCase().startsWith("id")) {
-            return "identifier";
-        }
-        if (type.nameContains("literal")) {
-            return "literal";
-        }
-        if (type.nameContains("string")) {
-            return "string";
-        }
-        if (type.nameContains("number") 
-                || type.nameContains("integer")
-                || type.nameContains("float")
-                || type.nameContains("int")
-                || type.nameContains("num")) {
-            return "numbers";
-        }
-        if (type.nameContains("field")) {
-            return "field";
-        }
-        if (type.nameContains("comment") || type.nameContains("cmt")) {
-            return "comment";
-        }
-        if (type.nameContains("white") || type.nameContains("ws")) {
-            return "whitespace";
-        }
-        return "default";
-    }
-
     @Override
     public String primaryCategory() {
-        return categorize(type);
+        return type.category();
     }
 
     @Override

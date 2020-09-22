@@ -117,13 +117,46 @@ final class DocumentDeadlockBreaker {
             return false;
         }
 
+        private static boolean skipThread(String name) {
+            switch(name) {
+                // skip some irrelevant threads that could not be participating
+                case "JGit-Workqueue":
+                case "AWT-Shutdown":
+                case "Event Dispatch Thread": // preferences
+                case "Java2D Disposer":
+                case "Finalizer":
+                case "Framework Event Dispatcher":
+                case "Bundle File Closer":
+                case "Batik Cleaner Thread":
+                case "Common-Cleaner":
+                case "VM Thread":
+                case "VM Periodic Task Thread":
+                case "StrDedup":
+                case "DestroyJavaVM":
+                case "File Watcher":
+                case "FileSystemWatchService":
+                case "Framework Active Thread":
+                case "AWT-XAWT":
+                case "CLI Requests Server":
+                case "Notification Thread":
+                case "Signal Dispatcher":
+                case "Service Thread":
+                case "Reference Handler":
+                    return true;
+            }
+            if (name.startsWith("GC") || name.startsWith("G1") || name.startsWith("C1") || name.startsWith("C2")) {
+                return true;
+            }
+            return false;
+        }
+
         private StringBuilder collectStackTraces() {
             StringBuilder sb = new StringBuilder();
             Map<Object, Set<Thread>> sharedLocks = CollectionUtils.supplierMap(HashSet::new);
             Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
             for (Map.Entry<Thread, StackTraceElement[]> e : allStackTraces.entrySet()) {
                 Thread t = e.getKey();
-                if (t == Thread.currentThread()) {
+                if (t == Thread.currentThread() || skipThread(t.getName())) {
                     continue;
                 }
                 Thread.State state = t.getState();
@@ -131,6 +164,7 @@ final class DocumentDeadlockBreaker {
                     case BLOCKED:
                     case TIMED_WAITING:
                     case WAITING:
+                    case RUNNABLE :
                         Object blocker = LockSupport.getBlocker(t);
                         StackTraceElement[] els = e.getValue();
                         if (blocker != null) {

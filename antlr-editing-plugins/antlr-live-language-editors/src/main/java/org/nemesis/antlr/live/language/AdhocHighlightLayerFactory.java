@@ -66,7 +66,7 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
         HighlightsLayer[] result = (HighlightsLayer[]) doc.getProperty(DOC_PROP_HIGHLIGHTS_LAYERS);
         if (result == null) {
             AdhocHighlighterManager mgr = new AdhocHighlighterManager(mimeType, context);
-            AbstractAntlrHighlighter[] hls = mgr.highlighters();
+            AdhocHighlighter[] hls = mgr.highlighters();
             result = new HighlightsLayer[hls.length];
             for (int i = 0; i < hls.length; i++) {
                 result[i] = HighlightsLayer.create(hls[i].getClass().getName(),

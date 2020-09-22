@@ -66,20 +66,24 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
     }
 
     public void addHighlight( int startOffset, int endOffset, AttributeSet attributes ) {
-        if ( !entries.isEmpty() ) {
-            RangeEntry last = entries.get( entries.size() - 1 );
-            if ( last.start == startOffset && last.size == endOffset - startOffset ) {
-                AttributeSet nue = AttributesUtilities.createComposite( last.attrs, attributes );
-                last.attrs = nue;
-                return;
+        synchronized ( this ) {
+            if ( !entries.isEmpty() ) {
+                RangeEntry last = entries.get( entries.size() - 1 );
+                if ( last.start == startOffset && last.size == endOffset - startOffset ) {
+                    AttributeSet nue = AttributesUtilities.createComposite( last.attrs, attributes );
+                    last.attrs = nue;
+                    return;
+                }
             }
+            entries.add( new RangeEntry( startOffset, endOffset - startOffset, attributes, ix++ ) );
         }
-        entries.add( new RangeEntry( startOffset, endOffset - startOffset, attributes, ix++ ) );
     }
 
     @Override
     public void clear() {
-        entries.clear();
+        synchronized ( this ) {
+            entries.clear();
+        }
         ix = 0;
         synchronized ( this ) {
             current = null;
@@ -131,17 +135,20 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
         if ( entries.isEmpty() ) {
             return SemanticRegions.empty();
         }
-        SemanticRegionsBuilder<AttributeSet> bldr = SemanticRegions.builder( AttributeSet.class );
-        Collections.sort( entries );
-        try {
-            for ( RangeEntry re : entries ) {
-                bldr.add( re.attrs, re.start, re.end() );
-            }
-        } finally {
+        List<RangeEntry> copy = new ArrayList<>( entries.size() );
+        synchronized ( this ) {
+            copy.addAll( entries );
             entries.clear();
         }
+        SemanticRegionsBuilder<AttributeSet> bldr = SemanticRegions.builder( AttributeSet.class );
+        Collections.sort( copy );
+        for ( RangeEntry re : copy ) {
+            bldr.add( re.attrs, re.start, re.end() );
+        }
+        copy.clear();
         ix = 0;
         return bldr.build().flatten( attrs -> {
+            Collections.reverse( attrs );
             return AttributesUtilities.createComposite( attrs.toArray( new AttributeSet[ attrs.size() ] ) );
         } );
     }
@@ -242,8 +249,12 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
     public void setHighlights( HighlightsContainer other ) {
         if ( other instanceof AlternateBag ) {
             AlternateBag alt = ( AlternateBag ) other;
-            this.entries.clear();
-            this.entries.addAll( alt.entries );
+            synchronized ( this ) {
+                this.entries.clear();
+                synchronized ( other ) {
+                    this.entries.addAll( alt.entries );
+                }
+            }
             if ( ( ( AlternateBag ) other ).current != null ) {
                 synchronized ( this ) {
                     this.current = ( ( AlternateBag ) other ).current;

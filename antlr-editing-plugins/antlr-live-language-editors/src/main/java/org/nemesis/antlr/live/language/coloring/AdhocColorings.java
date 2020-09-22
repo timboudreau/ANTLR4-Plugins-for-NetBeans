@@ -23,15 +23,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Scanner;
 import java.util.Set;
-import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.logging.Level;
@@ -46,7 +48,7 @@ public class AdhocColorings implements DynamicColorings {
 
     private static final long serialVersionUID = 1;
     private final Map<String, AdhocColoring> colorings;
-    private final Map<String, AdhocColoring> defunct = new TreeMap<>();
+    private final Map<String, AdhocColoring> defunct = new HashMap<>();
     private boolean changesSuspended;
     private boolean pendingFire;
     private transient PropertyChangeSupport supp;
@@ -54,11 +56,11 @@ public class AdhocColorings implements DynamicColorings {
     private transient ChangeSupport csupp;
 
     public AdhocColorings() {
-        colorings = new TreeMap<>();
+        colorings = new HashMap<>();
     }
 
     private AdhocColorings(Map<String, AdhocColoring> all, Map<String, AdhocColoring> defunct) {
-        this.colorings = new TreeMap<>(all);
+        this.colorings = new HashMap<>(all);
         this.defunct.putAll(defunct);
     }
 
@@ -195,7 +197,7 @@ public class AdhocColorings implements DynamicColorings {
 
     @Override
     public Set<String> keys() {
-        return Collections.unmodifiableSet(colorings.keySet());
+        return new TreeSet<>(colorings.keySet());
     }
 
     public boolean withChangesSuspended(BooleanSupplier run) {
@@ -259,7 +261,9 @@ public class AdhocColorings implements DynamicColorings {
 
     public void store(OutputStream out) throws IOException {
         byte[] eq = "=".getBytes(UTF_8);
-        for (String key : colorings.keySet()) {
+        List<String> keys = new ArrayList<>(colorings.keySet());
+        Collections.sort(keys);
+        for (String key : keys) {
             AdhocColoring val = colorings.get(key);
             if (val != null) {
                 out.write(key.getBytes(UTF_8));
@@ -267,6 +271,9 @@ public class AdhocColorings implements DynamicColorings {
                 out.write(val.toLine().getBytes(UTF_8));
             }
         }
+        keys.clear();
+        keys.addAll(defunct.keySet());
+        Collections.sort(keys);
         out.write("\n# Deleted but preserved items\n".getBytes(UTF_8));
         if (!defunct.isEmpty()) {
             for (String key : defunct.keySet()) {

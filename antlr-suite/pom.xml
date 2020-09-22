@@ -58,13 +58,11 @@ limitations under the License.
         <enforcer.skip>true</enforcer.skip>
     </properties>
     <dependencies>
-        <!--
-                        <dependency>
+<!--                        <dependency>
                             <groupId>${project.groupId}</groupId>
                             <artifactId>debug-ui</artifactId>
                             <version>${project.version}</version>
-                        </dependency>
--->
+                        </dependency> -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>mastfrog-utils-wrapper</artifactId>

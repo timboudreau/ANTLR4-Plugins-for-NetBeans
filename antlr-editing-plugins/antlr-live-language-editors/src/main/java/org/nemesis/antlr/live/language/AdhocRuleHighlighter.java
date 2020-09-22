@@ -44,7 +44,7 @@ public final class AdhocRuleHighlighter extends AbstractAntlrHighlighter {
     }
 
     @Override
-    protected void refresh(HighlightingInfo info) {
+    public  void refresh(HighlightingInfo info) {
         LOG.log(Level.FINEST, "Refresh {0} with {1}", new Object[]{this, info});
         if (info.semantics.isUnparsed() || info.semantics.text() == null || info.semantics.text().length() == 0) {
             LOG.log(Level.INFO, "Unusable parse: {0}", new Object[]{info.semantics.loggingInfo()});

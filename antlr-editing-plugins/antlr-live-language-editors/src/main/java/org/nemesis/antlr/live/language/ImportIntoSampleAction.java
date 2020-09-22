@@ -17,6 +17,8 @@ package org.nemesis.antlr.live.language;
 
 import com.mastfrog.function.IntBiConsumer;
 import com.mastfrog.function.state.Bool;
+import java.awt.Cursor;
+import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.io.File;
 import java.io.IOException;
@@ -106,7 +108,7 @@ final class ImportIntoSampleAction extends AbstractAction implements ContextAwar
         }
     }
 
-    static int RECENT_LIST_SIZE = 7;
+    static int RECENT_LIST_SIZE = 14;
 
     static List<Path> recentPaths() {
         Preferences prefs = NbPreferences.forModule(ImportIntoSampleAction.class);
@@ -155,6 +157,8 @@ final class ImportIntoSampleAction extends AbstractAction implements ContextAwar
         @Override
         public void actionPerformed(ActionEvent e) {
             FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
+            Cursor oldCursor = target.getCursor();
+            target.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
             AdhocEditorKit.ADHOC_POPULATE_MENU_POOL.submit(() -> {
                 try {
                     String text = fo.asText();
@@ -170,12 +174,16 @@ final class ImportIntoSampleAction extends AbstractAction implements ContextAwar
                                 doc.remove(0, doc.getLength());
                                 doc.insertString(0, text, null);
                             });
-                    ParsingUtils.parse(doc);
                     allPaths.remove(path);
                     allPaths.add(0, path);
                     setRecentPaths(allPaths);
+                    ParsingUtils.parse(doc);
                 } catch (Exception ex) {
                     Exceptions.printStackTrace(ex);
+                } finally {
+                    EventQueue.invokeLater(() -> {
+                        target.setCursor(oldCursor);
+                    });
                 }
             });
         }

@@ -30,6 +30,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.swing.text.Document;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -188,9 +190,40 @@ public final class NbAntlrUtils {
 //                             "Not a registered ANTLR mime type: " + src.getMimeType() ) );
 //        }
 //    }
+    private static final Pattern PREVIEW_SYNTHETIC_MIME = Pattern.compile( "^test\\d+_(.*\\/(.*))$" );
+
+    /**
+     * The editor plumbing synthesizes its own weird mime type for the
+     * Tools | Options | Fonts and Colors - likely so it has a mime type to update and it
+     * can use the regular lexing plumbing to paint the preview without updating the
+     * actual settings for the mime type until the user confirms the changes.
+     * Our test of whether the type is parsable needs to elide the synthetic portion.
+     *
+     * @param src A source
+     *
+     * @return A munged mime type
+     */
+    private static String mimeTypeForSource( Source src ) {
+        // e.g. test1790594912_text/x-g4
+        String mime = src.getMimeType();
+        // faster test than the regex, since this method will be called all the time
+        return stripMimeType( mime );
+    }
+
+    static String stripMimeType( String mimeType ) {
+        if ( mimeType.length() > 5 && mimeType.startsWith( "test" ) && Character.isDigit( mimeType.charAt( 5 ) ) && mimeType
+                .lastIndexOf( '_' ) >= 0 ) {
+            Matcher m = PREVIEW_SYNTHETIC_MIME.matcher( mimeType );
+            if ( m.find() ) {
+                mimeType = m.group( 1 );
+            }
+        }
+        return mimeType;
+    }
+
     private static void parseImmediately( Source src,
             BiConsumer<Extraction, Exception> consumer ) {
-        String mime = src.getMimeType();
+        String mime = mimeTypeForSource( src );
         if ( mime == null || ParserManager.canBeParsed( mime ) ) {
             try {
                 onBeforeParse( src );
@@ -430,9 +463,9 @@ public final class NbAntlrUtils {
                         return null;
                     }
                 }, ref );
-                if ( prev == strongRef[ 0 ] && prev != null) {
+                if ( prev == strongRef[ 0 ] && prev != null ) {
                     break;
-                } else if (strongRef[0] == null) {
+                } else if ( strongRef[ 0 ] == null ) {
                     break;
                 }
 
@@ -455,13 +488,13 @@ public final class NbAntlrUtils {
         return r != null ? r : Extraction.empty( NbEditorUtilities.getMimeType( document ) );
     }
 
-    static String idForDoc(Document doc) {
-        Object o = doc.getProperty(StreamDescriptionProperty);
-        if (o instanceof DataObject) {
-            return ((DataObject) o).getName();
-        } else if (o instanceof FileObject) {
-            return ((FileObject) o).getName();
-        } else if (o != null) {
+    static String idForDoc( Document doc ) {
+        Object o = doc.getProperty( StreamDescriptionProperty );
+        if ( o instanceof DataObject ) {
+            return ( ( DataObject ) o ).getName();
+        } else if ( o instanceof FileObject ) {
+            return ( ( FileObject ) o ).getName();
+        } else if ( o != null ) {
             return o.toString();
         } else {
             return doc.toString();
@@ -473,7 +506,7 @@ public final class NbAntlrUtils {
                 .getProperty( "_coa" );
 
         if ( result == null ) {
-            result = new WorkCoalescer<>("extraction-cache-" + idForDoc(doc));
+            result = new WorkCoalescer<>( "extraction-cache-" + idForDoc( doc ) );
             doc.putProperty( "_coa", result );
         }
         return result;

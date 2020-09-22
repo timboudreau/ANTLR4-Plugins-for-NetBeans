@@ -36,7 +36,7 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
 
     private T result;
     private final Throwable thrown;
-    private final AntlrGenerationAndCompilationResult generationAndCompilationResult;
+    private AntlrGenerationAndCompilationResult generationAndCompilationResult;
     private GrammarRunResult<T> lastGood;
     private final long timestamp = System.currentTimeMillis();
     private static final AtomicLong ids = new AtomicLong();
@@ -79,6 +79,8 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
 
     void clearLastGood() {
         lastGood = null;
+        result = null;
+        generationAndCompilationResult = null;
     }
 
     public String grammarName() {

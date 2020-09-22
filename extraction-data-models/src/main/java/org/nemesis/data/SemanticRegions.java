@@ -16,9 +16,11 @@
 package org.nemesis.data;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.collections.IntSet;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -102,14 +104,19 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             return this;
         }
         LinkedList<T> stack = new LinkedList<>();
-        SemanticRegionsBuilder<T> bldr = new SemanticRegionsBuilder<>(keyType());
+//        SemanticRegionsBuilder<T> bldr = new SemanticRegionsBuilder<>(keyType());
         IntSet divisions = IntSet.create(size + size / 2);
+
         for (int i = 0; i < size; i++) {
             int start = starts[i];
             int end = ends[i];
             divisions.add(start);
             divisions.add(end);
         }
+        IntList newStarts = IntList.create(divisions.size() + 1);
+        IntList newEnds = IntList.create(divisions.size() + 1);
+        List<T> all = new ArrayList<>(divisions.size() + 1);
+
         for (int i = 0; i < divisions.size() - 1; i++) {
             int div = divisions.valueAt(i);
             SemanticRegion<T> reg = at(div);
@@ -126,10 +133,13 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
                 }
                 int next = divisions.valueAt(i + 1);
                 T key = hasParents ? coalescer.apply(stack) : reg.key();
-                bldr.add(key, div, next);
+                newStarts.add(div);
+                newEnds.add(next);
+                all.add(key);
             }
         }
-        return bldr.build();
+        Class<T> kt = keyType();
+        return create(kt, newStarts, newEnds, all, newStarts.size());
     }
 
     public SemanticRegions<T> withDeletion(int chars, int atPosition) {
@@ -145,6 +155,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         int[] newEnds = new int[size];
         T[] newKeys = (T[]) CollectionUtils.genericArray(keys.getClass().getComponentType(), newSize);
         int fiu = firstUnsortedEndsEntry;
+        // XXX clean this up...
         for (int i = 0, cursor = 0; i < size; i++, cursor++) {
             int start = starts[i];
             int end = ends[i];
@@ -365,6 +376,53 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         this.hasNesting = hasNesting;
     }
 
+    /**
+     * Create a SemanticRegions from a type and arrays.
+     *
+     * @param <T> The type
+     * @param keyType
+     * @param starts
+     * @param ends
+     * @param keys
+     * @param size
+     * @return
+     */
+    public static <T> SemanticRegions<T> create(Class<T> keyType, IntList starts, IntList ends, List<T> keys, int size) {
+        int sz = ends.size();
+        assert starts.size() == sz;
+        assert keys.size() == sz;
+        assert size <= sz;
+        int[] sts = starts.toIntArray();
+        int[] ens = ends.toIntArray();
+        T[] objs = (T[]) Array.newInstance(keyType, sz);
+        objs = keys.toArray(objs);
+        int firstUnsortedEndsEntry = -1;
+        boolean nesting = false;
+        for (int i = 1; i < size; i++) {
+            int start = sts[i];
+            int end = ens[i];
+            int prevStart = sts[i - 1];
+            int prevEnd = ens[i - 1];
+            nesting |= start <= prevStart || end <= prevEnd;
+            if (prevEnd >= ens[i]) {
+                firstUnsortedEndsEntry = i;
+                nesting = true;
+                break;
+            }
+            if (prevEnd > start && end > prevEnd) {
+                throw new IllegalStateException("Straddle encountered at " + i
+                        + " " + prevStart + ":" + prevEnd + " vs. "
+                        + start + ":" + end);
+            }
+            if (start < prevStart) {
+                throw new IllegalStateException("Starts array is not "
+                        + "sorted at " + i + ": " + start + " with prev start "
+                        + prevStart + " in " + Arrays.toString(sts));
+            }
+        }
+        return new SemanticRegions<>(sts, ens, objs, size, firstUnsortedEndsEntry, nesting);
+    }
+
     @SuppressWarnings("unchecked")
     private static SemanticRegions<?> EMPTY = new SemanticRegions(null);
 
@@ -535,20 +593,43 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
 
     public static class SemanticRegionsBuilder<T> {
 
-        private SemanticRegions<T> regions;
+        // Can get rid of the mutation methods on SemanticRegions - when building
+        // a large set, calling checkINvariants() once per item is way too slow.
+        private final Class<T> type;
+        private final IntList starts;
+        private final IntList ends;
+        private final List<T> objs;
 
         private SemanticRegionsBuilder(Class<T> type) {
-            regions = new SemanticRegions<>(type);
+            this(type, 256);
+        }
+
+        private SemanticRegionsBuilder(Class<T> type, int initialCapacity) {
+            this.type = type;
+            starts = IntList.create(initialCapacity);
+            ends = IntList.create(initialCapacity);
+            objs = new ArrayList<>(initialCapacity);
         }
 
         public int size() {
-            return regions.size();
+            return starts.size();
         }
 
         public SemanticRegionsBuilder<T> add(T key, int start, int end) {
-            assert key == null || regions.keys.getClass().getComponentType().isInstance(key) :
+            assert key == null || type.isInstance(key) :
                     "Bad key type: " + key + " (" + key.getClass() + ")";
-            regions.add(key, start, end);
+            if (!starts.isEmpty()) {
+                if (key == objs.get(objs.size()-1) && start == starts.last() && end == starts.last()) {
+                    System.out.println("append dup " + start + ":" + end + "  " + key);
+                    return this;
+                }
+            }
+//            System.out.println("ADD " + start + ":" + end + " " + key);
+            starts.add(start);
+            ends.add(end);
+            objs.add(key);
+            assert starts.size() == ends.size();
+            assert objs.size() == ends.size();
             return this;
         }
 
@@ -557,7 +638,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         }
 
         public SemanticRegions<T> build() {
-            return regions.copy();
+            return create(type, starts, ends, objs, ends.size());
         }
     }
 
@@ -615,7 +696,8 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
     }
 
     boolean checkInvariants() {
-        for (int i = 1; i < size; i++) {
+        int sz = size;
+        for (int i = 1; i < sz; i++) {
             int prevStart = starts[i - 1];
             int prevEnd = ends[i - 1];
             int start = starts[i];

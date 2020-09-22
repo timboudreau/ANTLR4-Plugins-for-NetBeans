@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.live.parsing;
+package org.nemesis.antlr.file;
 
 import java.util.function.BiConsumer;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
@@ -30,7 +30,7 @@ public class DebugLeaks implements TrackingRoots {
 
     @Override
     public void collect(BiConsumer<String, Object> nameAndObject) {
-        nameAndObject.accept("EmbeddedAntlrParsers singleton", EmbeddedAntlrParsers.instance());
-        nameAndObject.accept("Antlr Parser Class", Language.find(ANTLR_MIME_TYPE));
+        nameAndObject.accept("Antlr Language", Language.find(ANTLR_MIME_TYPE));
+        nameAndObject.accept("Antlr Parser Class", AntlrNbParser.class);
     }
 }

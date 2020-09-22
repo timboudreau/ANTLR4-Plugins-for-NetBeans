@@ -44,6 +44,7 @@ import static com.mastfrog.annotation.AnnotationUtils.AU_LOG;
 import static com.mastfrog.annotation.AnnotationUtils.simpleName;
 import com.mastfrog.annotation.processor.LayerGeneratingDelegate;
 import static org.nemesis.registration.NameAndMimeTypeUtils.cleanMimeType;
+import static org.nemesis.registration.typenames.KnownTypes.CHAR_STREAM;
 
 /**
  *
@@ -243,7 +244,7 @@ String mimeType, Class<StateEnum> enumType, Vocabulary vocab, String[] modeNames
         LexerProxy lexer = LexerProxy.create(lexerClass, type, utils());
 
         ClassBuilder<String> cb = ClassBuilder.forPackage(pkg).named(generatedClassName)
-                .importing(FORMATTER_TYPE, lexer.lexerClassFqn(), enumClass.toString(), "org.antlr.v4.runtime.CharStream",
+                .importing(FORMATTER_TYPE, lexer.lexerClassFqn(), enumClass.toString(), CHAR_STREAM.qname(),
                         REFORMAT_TASK_TYPE, "org.netbeans.modules.editor.indent.spi.Context",
                         MIME_REG_TYPE
                 ).withModifier(PUBLIC, FINAL)

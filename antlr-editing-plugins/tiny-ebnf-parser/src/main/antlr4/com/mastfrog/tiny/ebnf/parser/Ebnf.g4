@@ -18,7 +18,7 @@ grammar Ebnf;
 ebnf_sequence
     : ebnfitem+
     | ebnfitem+ OR ebnfitem+
-    ;
+     EOF;
 
 ebnfitem
     : pfx=nameprefix? (value=item ebnf=ebnfsuffix ) #ebnfItem

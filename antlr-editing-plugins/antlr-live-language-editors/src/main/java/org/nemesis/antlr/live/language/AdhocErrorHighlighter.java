@@ -191,7 +191,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         "ambiguityMatches=Ambiguity between: {0}",
         "parseError=Parse Tree Error Node"
     })
-    protected void refresh(HighlightingInfo info) {
+    public void refresh(HighlightingInfo info) {
         // We may get called multiple times with a flurry of
         // reparses - avoid doing extra work by delaying and
         // coalescing
@@ -484,7 +484,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
     }
 
     @Override
-    protected void onColoringsChanged() {
+    public void onColoringsChanged() {
         onHighlightItemsChanged();
     }
 
@@ -821,6 +821,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         + "come in a sequence that made sense to the parser."
     })
     static final class ToggleHighlightParserErrorsAction extends AbstractPrefsKeyToggleAction {
+
         private final Line2D.Float line = new Line2D.Float();
 
         ToggleHighlightParserErrorsAction(boolean icon) {

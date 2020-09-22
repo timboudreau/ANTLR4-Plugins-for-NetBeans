@@ -48,7 +48,7 @@ public final class AdhocRuleHighlighter2 extends AbstractAntlrHighlighter {
     }
 
     @Override
-    protected void refresh(HighlightingInfo info) {
+    public  void refresh(HighlightingInfo info) {
         LOG.log(Level.FINEST, "Refresh {0} with {1}", new Object[]{this, info});
         if (info.semantics.isUnparsed() || info.semantics.text() == null || info.semantics.text().length() == 0) {
             LOG.log(Level.INFO, "Unusable parse: {0}", new Object[]{info.semantics.loggingInfo()});
@@ -120,7 +120,7 @@ public final class AdhocRuleHighlighter2 extends AbstractAntlrHighlighter {
                 if (tok.getStartIndex() > length || tok.getStopIndex() > length) {
                     break;
                 }
-                String category = AdhocTokenId.categorize(type);
+                String category = type.category();
                 // If no category, look for a coloring for the token name
                 if ("default".equals(category)) {
                     if (type.symbolicName != null && colorings.contains(type.symbolicName)) {

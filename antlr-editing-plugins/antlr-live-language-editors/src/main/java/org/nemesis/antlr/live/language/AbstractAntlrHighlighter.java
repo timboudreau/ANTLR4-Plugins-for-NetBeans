@@ -28,7 +28,7 @@ import org.netbeans.spi.editor.highlighting.ZOrder;
  *
  * @author Tim Boudreau
  */
-public abstract class AbstractAntlrHighlighter {
+public abstract class AbstractAntlrHighlighter implements AdhocHighlighter {
 
     protected final Logger LOG = Logger.getLogger(getClass().getName());
     protected final AdhocHighlighterManager mgr;
@@ -39,23 +39,23 @@ public abstract class AbstractAntlrHighlighter {
         this.zorder = zorder;
     }
 
-    final ZOrder zorder() {
+    public final ZOrder zorder() {
         return zorder;
     }
 
-    protected void addNotify(JTextComponent comp) {
+    public  void addNotify(JTextComponent comp) {
 
     }
 
-    protected void removeNotify(JTextComponent comp) {
+    public void removeNotify(JTextComponent comp) {
 
     }
 
-    protected void onColoringsChanged() {
+    public void onColoringsChanged() {
 
     }
 
-    protected void onNewHighlightingInfo() {
+    public void onNewHighlightingInfo() {
 
     }
 
@@ -74,6 +74,6 @@ public abstract class AbstractAntlrHighlighter {
 
     public abstract HighlightsContainer getHighlightsBag();
 
-    protected abstract void refresh(HighlightingInfo info);
+    public abstract void refresh(HighlightingInfo info);
 
 }

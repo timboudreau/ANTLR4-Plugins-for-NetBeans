@@ -41,7 +41,7 @@ limitations under the License.
         <mastfrog.function.version>2.7.0.1</mastfrog.function.version>
         <mastfrog.subscriptions.version>2.7.0.2</mastfrog.subscriptions.version>
         <mastfrog.converters.version>2.7.0.1</mastfrog.converters.version>
-        <java.vogon.version>2.7.0.2</java.vogon.version>
+        <java.vogon.version>2.7.0.3</java.vogon.version>
         <antlr.message.format>gnu</antlr.message.format>
         <old.junit.version>4.12</old.junit.version>
         <new.junit.version>5.5.2</new.junit.version>

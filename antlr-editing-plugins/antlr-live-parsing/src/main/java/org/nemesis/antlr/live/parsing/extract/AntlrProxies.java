@@ -1244,6 +1244,66 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         public int compareTo(ProxyTokenType other) {
             return type > other.type ? 1 : type == other.type ? 0 : -1;
         }
+
+        private String category;
+        public String category() {
+            if (category == null) {
+                category = _categorize(this);
+            }
+            return category;
+        }
+    }
+
+    @SuppressWarnings("StringEquality")
+    private static String _categorize(ProxyTokenType type) {
+        if (AntlrProxies.ERRONEOUS_TOKEN_NAME == type.name()) {
+            return "errors";
+        }
+        if (type.isDelimiterLike()) {
+            return "delimiters";
+        }
+        if (type.isOperatorLike()) {
+            return "operators";
+        }
+        if (type.isPunctuation()) {
+            return "symbols";
+        }
+        if (type.isKeywordLike()) {
+            return "keywords";
+        }
+        if (type.isSingleCharacter()) {
+            return "symbols";
+        }
+        if (type.nameContains("ident")) {
+            return "identifier";
+        }
+        if (type.name() != null
+                && type.name().toLowerCase().startsWith("id")) {
+            return "identifier";
+        }
+        if (type.nameContains("literal")) {
+            return "literal";
+        }
+        if (type.nameContains("string")) {
+            return "string";
+        }
+        if (type.nameContains("number")
+                || type.nameContains("integer")
+                || type.nameContains("float")
+                || type.nameContains("int")
+                || type.nameContains("num")) {
+            return "numbers";
+        }
+        if (type.nameContains("field")) {
+            return "field";
+        }
+        if (type.nameContains("comment") || type.nameContains("cmt")) {
+            return "comment";
+        }
+        if (type.nameContains("white") || type.nameContains("ws")) {
+            return "whitespace";
+        }
+        return "default";
     }
 
     public static final class ProxyToken implements Comparable<ProxyToken>, Serializable {

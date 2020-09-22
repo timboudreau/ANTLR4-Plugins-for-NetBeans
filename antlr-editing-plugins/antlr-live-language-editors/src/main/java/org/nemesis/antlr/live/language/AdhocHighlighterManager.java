@@ -77,7 +77,7 @@ import org.openide.util.WeakListeners;
  */
 final class AdhocHighlighterManager {
 
-    protected static final RequestProcessor THREAD_POOL = new RequestProcessor("antlr-highlighting", 5, false);
+    protected static final RequestProcessor THREAD_POOL = new RequestProcessor("adhoc-highlighting", 1, false);
     private static final Logger LOG = Logger.getLogger(AdhocHighlighterManager.class.getName());
     protected final static int REPARSE_DELAY = 750;
     protected final static int REPAINT_DELAY = 75;
@@ -89,7 +89,7 @@ final class AdhocHighlighterManager {
     private final String mimeType;
     private final Context ctx;
     private final AdhocColorings colorings;
-    private final AbstractAntlrHighlighter[] highlighters;
+    private final AdhocHighlighter[] highlighters;
     // Need to hold a strong reference
     private final @SuppressWarnings("unused") ComponentListener cl;
     private volatile boolean showing;
@@ -106,15 +106,20 @@ final class AdhocHighlighterManager {
                 ComponentListener.class, compl, c));
         c.addPropertyChangeListener("ancestor",
                 WeakListeners.propertyChange(compl, c));
-        highlighters = new AbstractAntlrHighlighter[]{
+        highlighters = new AdhocHighlighter[]{
             new AdhocErrorHighlighter(this),
-            new AdhocRuleHighlighter(this)
+//            new AdhocRuleHighlighter(this)
+            new AdhocRuleHighlighter3(this)
         };
         if (c.isShowing()) {
             compl.setShowing(c, true);
         }
         LOG.log(Level.FINE, "Created an AdhocHighlighterManager for {0} "
                 + "currently showing? {1}", new Object[]{ctx.getDocument(), showing});
+    }
+
+    Context context() {
+        return ctx;
     }
 
     AdhocColorings colorings() {
@@ -148,20 +153,20 @@ final class AdhocHighlighterManager {
                 + "-" + (fo == null ? ctx.getDocument().toString() : fo.getNameExt());
     }
 
-    AbstractAntlrHighlighter[] highlighters() {
+    AdhocHighlighter[] highlighters() {
         return highlighters;
     }
 
     private void addNotify(JTextComponent comp) {
         LOG.log(Level.FINER, "{0} addNotify", this);
-        for (AbstractAntlrHighlighter hl : highlighters) {
+        for (AdhocHighlighter hl : highlighters) {
             hl.addNotify(comp);
         }
     }
 
     private void removeNotify(JTextComponent comp) {
         LOG.log(Level.FINER, "{0} removeNotify", this);
-        for (AbstractAntlrHighlighter hl : highlighters) {
+        for (AdhocHighlighter hl : highlighters) {
             hl.removeNotify(comp);
         }
     }
@@ -296,7 +301,7 @@ final class AdhocHighlighterManager {
 
     private void refresh(HighlightingInfo info) {
         LOG.log(Level.FINE, "Refresh {0} with {1}", new Object[]{this, info});
-        for (AbstractAntlrHighlighter hl : highlighters) {
+        for (AdhocHighlighter hl : highlighters) {
             hl.refresh(info);
         }
     }
