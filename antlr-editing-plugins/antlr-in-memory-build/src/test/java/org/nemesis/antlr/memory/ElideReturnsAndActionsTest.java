@@ -60,16 +60,19 @@ public class ElideReturnsAndActionsTest {
             assertTrue(parserResult.isUsable(), parserResult::toString);
             Set<String> jfsContents = new HashSet<>();
             Set<String> generatedFilesAccordingToParserResult = new HashSet<>();
-            parserResult.jfs.listAll((loc, file) -> {
+            JFS jfs = parserResult.originalJFS();
+            assertNotNull(jfs);
+            jfs.listAll((loc, file) -> {
                 System.out.println('"' + file.getName() + "\",");
                 jfsContents.add(file.getName());
             });
-            parserResult.inputFiles.forEach((nm )-> {
+            parserResult.inputFiles.forEach((nm) -> {
                 System.out.println(nm.path());
 //                assertFalse(nm.path().toString().endsWith(".g4"), nm.toString());
                 generatedFilesAccordingToParserResult.add(nm.path().toString());
             });
-            String parserCode = parserResult.jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("com/woogle/ReturnsTestParser.java")).getCharContent(false).toString();
+            String parserCode = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get("com/woogle/ReturnsTestParser.java"))
+                    .getCharContent(false).toString();
             assertFalse(parserCode.contains("parseInt"));
             System.out.println(parserCode);
 

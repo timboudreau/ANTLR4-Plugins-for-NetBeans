@@ -19,6 +19,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.extraction.key.SingletonKey;
@@ -35,6 +37,7 @@ public class ExtractorBuilder<T extends ParserRuleContext> {
     private final Set<NamesAndReferencesExtractionStrategy<?>> nameExtractors = new HashSet<>();
     private final Map<SingletonKey<?>, SingletonExtractionStrategies<?>> singles = new HashMap<>();
     private final String mimeType;
+    private Function<Supplier<Extraction>, Extraction> wrapExecution;
 
     ExtractorBuilder(Class<T> entryPoint, String mimeType) {
         this.documentRootType = entryPoint;
@@ -42,7 +45,58 @@ public class ExtractorBuilder<T extends ParserRuleContext> {
     }
 
     public Extractor<T> build() {
-        return new Extractor<>(documentRootType, nameExtractors, regionsInfo2, singles, mimeType);
+        return new Extractor<>(documentRootType, nameExtractors, regionsInfo2, singles, mimeType, wrapExecution);
+    }
+
+    /**
+     * Wrap every invocation of extraction for this mime type with some code
+     * which, for example, can set some state in a ThreadLocal for the
+     * extraction code to cache data, then clear it on completion. The function
+     * <i>MUST</i> call the passed supplier and return its result, regardless of
+     * its state.  Example usage:
+     * <pre>
+     *
+     * bldr.wrappingExecutionWith(runner -> {
+     *  someThreadLocal.set(new HeteroMap()); // a cache
+     *  try {
+     *     return runner.get();
+     *  } finally {
+     *     someThreadLocal.remove();
+     *  }
+     * }).extractionRegions(SOME_KEY).whenRuleType(SomeParserContext.class)
+     * .extractingRegionsWith(rule -> {
+     *    HeteroMap cache = someThreadLocal.get();
+     *    if (cache.contains(someKey)) {
+     *        ... don't recompute something
+     *    } else {
+     *         ... compute it
+     *    }
+     * }).finishRegionExtractor();
+     * </pre>
+     * Basically there are a few tasks in extraction, such as finding the indices
+     * of a node's siblings, where you will do a lot of extra work if each node
+     * walks up to its ancestor and traverses its siblings to compute a slightly
+     * different number than the last one did, and you're better off writing a
+     * visitor that does it once on first invocation, and then looks up the
+     * cached data for each matching node that's visited.
+     *
+     * @param wrapper A function which will call the supplier passed to it,
+     * synchronously, possibly aftter some pre- and post-work.
+     *
+     * @return this
+     */
+    public ExtractorBuilder<T> wrappingExtractionWith(Function<Supplier<Extraction>, Extraction> wrapper) {
+        if (wrapExecution != null) {
+            final Function<Supplier<Extraction>, Extraction> old = wrapExecution;
+            wrapExecution = supp -> {
+                return old.apply(() -> {
+                    return wrapper.apply(supp);
+                });
+            };
+        } else {
+            wrapExecution = wrapper;
+        }
+        return this;
     }
 
     /**

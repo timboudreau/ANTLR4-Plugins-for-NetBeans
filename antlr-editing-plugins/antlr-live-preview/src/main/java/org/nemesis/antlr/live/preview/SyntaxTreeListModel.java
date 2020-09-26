@@ -332,11 +332,28 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         private String modeName = null;
         private boolean erroneous;
         private int tokenIndex = -1;
+        private final String name;
+        private final String elName;
+        private final String tip;
 
         ModelEntry(AntlrProxies.ParseTreeElement el, int depth, ParseTreeProxy proxy) {
             this.el = el;
             this.depth = depth;
             tooltip = tooltip(proxy.tokens(), proxy.tokenTypes());
+            elName = el.name(proxy);
+            tip = el.stringify(proxy);
+            if (el instanceof AntlrProxies.RuleNodeTreeElement) {
+                RuleNodeTreeElement r = (RuleNodeTreeElement) el;
+                name = proxy.ruleNameFor(r);
+            } else if (el instanceof AntlrProxies.TerminalNodeTreeElement) {
+                TerminalNodeTreeElement t = (TerminalNodeTreeElement) el;
+                name = t.stringify(proxy);
+            } else if (el instanceof ErrorNodeTreeElement) {
+                ErrorNodeTreeElement e = (ErrorNodeTreeElement) el;
+                name = e.stringify(proxy);
+            } else {
+                name = el.toString();
+            }
             if (isTerminal()) {
                 List<ProxyToken> tokens = proxy.tokensForElement(el);
                 if (!tokens.isEmpty()) {
@@ -364,11 +381,11 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
         }
 
         public String name() {
-            return el.name();
+            return elName;
         }
 
         public boolean matches(String name) {
-            return name.equals(el.name());
+            return name.equals(elName);
         }
 
         public String lexerRuleName() {
@@ -440,23 +457,12 @@ final class SyntaxTreeListModel implements ListModel<ModelEntry> {
                 return types.get(type + 1).name() + " (" + tok.getStartIndex()
                         + ":" + tok.getEndIndex() + ")";
             }
-            return el.stringify();
+            return tip;
         }
 
         @Override
         public String toString() {
-            if (el instanceof AntlrProxies.RuleNodeTreeElement) {
-                RuleNodeTreeElement r = (RuleNodeTreeElement) el;
-                return r.name();
-            } else if (el instanceof AntlrProxies.TerminalNodeTreeElement) {
-                TerminalNodeTreeElement t = (TerminalNodeTreeElement) el;
-                return t.stringify();
-            } else if (el instanceof ErrorNodeTreeElement) {
-                ErrorNodeTreeElement e = (ErrorNodeTreeElement) el;
-                return e.stringify();
-            } else {
-                return el.toString();
-            }
+            return name;
         }
 
         @Override

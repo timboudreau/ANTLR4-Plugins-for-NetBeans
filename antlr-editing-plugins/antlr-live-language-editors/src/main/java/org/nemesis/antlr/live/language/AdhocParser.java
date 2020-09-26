@@ -36,7 +36,6 @@ import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.modules.parsing.spi.SourceModificationEvent;
 import org.openide.filesystems.FileObject;
 import org.openide.util.ChangeSupport;
-import org.openide.util.WeakSet;
 
 /**
  *
@@ -48,12 +47,13 @@ final class AdhocParser extends Parser {
     private static Map<Task, AdhocParserResult> RESULT_FOR_TASK
             = Collections.synchronizedMap(new WeakHashMap<>());
     private final ChangeSupport supp = new ChangeSupport(this);
-    static Set<AdhocParser> LIVE_PARSERS = new WeakSet<>();
+    static Set<AdhocParser> LIVE_PARSERS = com.mastfrog.util.collections.SetFactories.WEAK_HASH.newSet(7, true);
 
     AdhocParserResult last = null;
     private final String mimeType;
     private int parses;
 
+    @SuppressWarnings("LeakingThisInConstructor")
     AdhocParser(String mimeType) {
         this.mimeType = mimeType;
         LIVE_PARSERS.add(this);

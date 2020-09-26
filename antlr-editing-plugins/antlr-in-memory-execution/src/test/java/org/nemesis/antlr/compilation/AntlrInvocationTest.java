@@ -62,7 +62,9 @@ public class AntlrInvocationTest {
 
     @Test
     public void testInvocation() throws Throwable {
-        GrammarRunResult<Map<String, Object>> r = runner.run(this, AntlrInvocationTest::doit);
+        RunResults<Map<String, Object>> rrx = runner.run(this, AntlrInvocationTest::doit);
+        assertNotNull(rrx);
+        GrammarRunResult<Map<String,Object>> r = rrx.result();
         r.rethrow();
         assertNotNull(r);
         Map<String, Object> map = r.get();
@@ -82,7 +84,9 @@ public class AntlrInvocationTest {
 
     @Test
     public void testParseThatFails() throws Throwable {
-        GrammarRunResult<Map<String, Object>> r = runner.run(this, AntlrInvocationTest::doitBadly);
+        RunResults<Map<String,Object>> rrx = runner.run(this, AntlrInvocationTest::doitBadly);
+        assertNotNull(rrx);
+        GrammarRunResult<Map<String, Object>> r = rrx.result() ;
         r.rethrow();
         assertNotNull(r);
         Map<String, Object> map = r.get();
@@ -117,7 +121,9 @@ public class AntlrInvocationTest {
     }
 
     public void subTestLeaking() throws Throwable {
-        GrammarRunResult<Object> r = runner.run(this, AntlrInvocationTest::leaky);
+        RunResults<Object> rrx = runner.run(this, AntlrInvocationTest::leaky);
+        assertNotNull(rrx);
+        GrammarRunResult<Object> r = rrx.result();
         r.rethrow();
         assertTrue(r.isUsable(), r::toString);
         assertNotNull(strongRef);
@@ -146,7 +152,9 @@ public class AntlrInvocationTest {
 
     @Test
     public void testCrashing1() throws Throwable {
-        GrammarRunResult<Object> r = runner.run(this, AntlrInvocationTest::smashy);
+        RunResults<Object> rrx = runner.run(this, AntlrInvocationTest::smashy);
+        assertNotNull(rrx);
+        GrammarRunResult<Object> r = rrx.result();
         assertFalse(r.isUsable());
         assertTrue(r.thrown().isPresent());
         assertTrue(r.thrown().get() instanceof FooException);
@@ -154,7 +162,9 @@ public class AntlrInvocationTest {
 
     @Test
     public void testCrashing2() throws Throwable {
-        GrammarRunResult<Object> r = runner.run(this, AntlrInvocationTest::crashy);
+        RunResults<Object> rrx = runner.run(this, AntlrInvocationTest::crashy);
+        assertNotNull(rrx);
+        GrammarRunResult<Object> r = rrx.result();
         assertFalse(r.isUsable());
         assertTrue(r.thrown().isPresent());
         assertTrue(r.thrown().get() instanceof IllegalStateException);

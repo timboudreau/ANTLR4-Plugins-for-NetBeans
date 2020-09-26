@@ -177,7 +177,6 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
      * @param doc A document
      */
     boolean touched(FileObject fo, Document doc) {
-        assert !EventQueue.isDispatchThread();
         return mappingManager.touch();
     }
 

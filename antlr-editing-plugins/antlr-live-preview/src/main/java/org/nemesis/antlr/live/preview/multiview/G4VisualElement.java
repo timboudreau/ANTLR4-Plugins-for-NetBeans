@@ -36,12 +36,15 @@ import javax.swing.text.StyledDocument;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import static org.nemesis.antlr.common.AntlrConstants.ICON_PATH;
+import org.nemesis.antlr.live.language.AdhocLanguageHierarchy;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import org.nemesis.antlr.live.language.DiscardChangesCookie;
 import org.nemesis.antlr.live.language.DynamicLanguages;
 import org.nemesis.antlr.live.language.SampleFiles;
 import org.nemesis.antlr.live.language.UndoRedoProvider;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
+import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.preview.PreviewPanel;
 import org.nemesis.antlr.project.Folders;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
@@ -51,6 +54,7 @@ import org.netbeans.core.spi.multiview.CloseOperationState;
 import org.netbeans.core.spi.multiview.MultiViewElement;
 import org.netbeans.core.spi.multiview.MultiViewElementCallback;
 import org.netbeans.core.spi.multiview.MultiViewFactory;
+import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.openide.actions.SaveAction;
 import org.openide.awt.StatusDisplayer;
 import org.openide.awt.UndoRedo;
@@ -177,7 +181,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
             superLazy.status(Bundle.DETECTING_FOLDERS());
             // Editor cookie may be lazy initialized (because the entire DataObject is) - wait
             // for it
-            for (int i=0; i < 10 && obj.getLookup().lookup(EditorCookie.class) == null; i++) {
+            for (int i = 0; i < 10 && obj.getLookup().lookup(EditorCookie.class) == null; i++) {
                 try {
                     Thread.sleep(10);
                 } catch (InterruptedException ex) {
@@ -235,11 +239,17 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
 
                     try {
                         EditorCookie ck = sampleFileDataObject.getLookup().lookup(EditorCookie.class);
+                        Thread.yield();
                         // Open the document and set it on the editor pane
                         StyledDocument doc = ck.openDocument();
                         doc.putProperty("mimeType", mime);
                         doc.putProperty(StreamDescriptionProperty, sampleFileDataObject);
                         superLazy.status(Bundle.OPENING_EDITOR());
+                        EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mime);
+                        CharSequence text = DocumentUtilities.getText(doc);
+                        Thread.yield();
+                        EmbeddedAntlrParserResult result = parser.parse(text);
+                        Thread.yield();
                         EventQueue.invokeLater(() -> {
                             StatusDisplayer.getDefault()
                                     .setStatusText(
@@ -247,7 +257,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                             LOG.log(Level.FINEST,
                                     "Lazy load completed in {0} ms", new Object[]{
                                         System.currentTimeMillis() - then});
-                            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(), 
+                            PreviewPanel pnl = panel = new PreviewPanel(mime, obj.getLookup(),
                                     sampleFileDataObject, doc, colorings, kit, lkp);
                             UndoRedoProvider prov = pnl.getLookup().lookup(UndoRedoProvider.class);
                             if (prov != null) {
@@ -264,6 +274,7 @@ public final class G4VisualElement extends JPanel implements MultiViewElement, L
                             this.lkp.setAdditional(pnl.getLookup());
                             saveCookieResult = pnl.getLookup().lookupResult(SaveCookie.class);
                             saveCookieResult.addLookupListener(this);
+                            pnl.accept(doc, result);
                             onEqWhenDone.accept(pnl);
                         });
                     } catch (Exception ex) {

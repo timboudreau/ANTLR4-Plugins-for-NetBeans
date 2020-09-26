@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import org.nemesis.antlr.live.language.PriorityWakeup;
 import com.mastfrog.function.state.Int;
 import com.mastfrog.util.strings.Strings;
 import java.awt.BorderLayout;
@@ -583,11 +584,15 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         if (rule == null || rule.isError()) {
             return;
         }
+        ParseTreeProxy prx = currentProxy();
+        if (prx == null) {
+            return;
+        }
         ModelEntry curr = rule;
         Set<String> seen = new HashSet<>();
         JPopupMenu menu = new JPopupMenu();
         while (curr != null && curr.element() != null && !curr.element().isRoot() && menu.getComponentCount() < 7) {
-            String name = curr.element().name();
+            String name = curr.element().name(prx);
             if (!seen.contains(name) && !curr.isError()) {
                 seen.add(name);
                 JMenuItem item = new JMenuItem(Bundle.goTo(name));
@@ -836,7 +841,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                     case TERMINAL:
                         continue;
                 }
-                if (el.name().equals(rule)) {
+                if (el.name(ptp).equals(rule)) {
                     List<ProxyToken> toks = new ArrayList<>(20);
                     Collections.sort(toks);
                     allElements(el, toks, ptp);
@@ -1007,9 +1012,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         }
     }
 
+    private boolean docPropertySet;
     @Override
     public void accept(Document a, EmbeddedAntlrParserResult res) {
         ParseTreeProxy newProxy = res.proxy();
+        if (!docPropertySet && !newProxy.isUnparsed()) {
+            a.putProperty("isLexer", newProxy.isLexerGrammar());
+        }
         if (!newProxy.mimeType().equals(mimeType)) {
             LOG.log(Level.INFO, a.toString(), new Error("WTF? "
                     + newProxy.mimeType() + " but expecting " + mimeType));
@@ -1389,7 +1398,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 }
                 if (referenceChain.size() > 1) {
                     rule = referenceChain.get(referenceChain.size() - 2);
-                    String ruleName = rule.name();
+                    String ruleName = rule.name(prx);
                     for (int i = 0; i < rulesList.getModel().getSize(); i++) {
                         String el = rulesList.getModel().getElementAt(i);
                         boolean match = ruleName.equals(el) || el.contains(">" + ruleName + "<");

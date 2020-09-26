@@ -15,7 +15,6 @@
  */
 package org.nemesis.antlr.live.language;
 
-import com.mastfrog.function.IntBiConsumer;
 import com.mastfrog.function.state.Bool;
 import java.awt.Cursor;
 import java.awt.EventQueue;
@@ -29,7 +28,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.prefs.Preferences;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -40,7 +38,6 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.StyledDocument;
-import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.editor.ops.CaretInformation;
 import org.nemesis.editor.ops.CaretPositionCalculator;
 import org.nemesis.editor.ops.DocumentOperator;
@@ -100,7 +97,7 @@ final class ImportIntoSampleAction extends AbstractAction implements ContextAwar
             result.add(top);
             result.add(new JSeparator());
             for (Path p : recent) {
-                result.add(new OnePathAction(p, component, recent));
+                result.add(new RecentPathAction(p, component, recent));
             }
             return result;
         } else {
@@ -141,13 +138,13 @@ final class ImportIntoSampleAction extends AbstractAction implements ContextAwar
         }
     }
 
-    static final class OnePathAction extends AbstractAction {
+    private static final class RecentPathAction extends AbstractAction {
 
         private final Path path;
         private final JTextComponent target;
         private final List<Path> allPaths;
 
-        OnePathAction(Path path, JTextComponent comp, List<Path> allPaths) {
+        RecentPathAction(Path path, JTextComponent comp, List<Path> allPaths) {
             putValue(NAME, path.getFileName().toString());
             this.path = path;
             this.target = comp;
@@ -159,32 +156,19 @@ final class ImportIntoSampleAction extends AbstractAction implements ContextAwar
             FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
             Cursor oldCursor = target.getCursor();
             target.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-            AdhocEditorKit.ADHOC_POPULATE_MENU_POOL.submit(() -> {
-                try {
-                    String text = fo.asText();
-                    StyledDocument doc = (StyledDocument) target.getDocument();
-                    DocumentOperator.builder().acquireAWTTreeLock()
-                            .blockIntermediateRepaints()
-                            .disableTokenHierarchyUpdates()
-                            .lockAtomicAsUser()
-                            .writeLock()
-                            .restoringCaretPosition(cpc)
-                            .build().operateOn(doc)
-                            .runOp(() -> {
-                                doc.remove(0, doc.getLength());
-                                doc.insertString(0, text, null);
-                            });
-                    allPaths.remove(path);
-                    allPaths.add(0, path);
-                    setRecentPaths(allPaths);
-                    ParsingUtils.parse(doc);
-                } catch (Exception ex) {
-                    Exceptions.printStackTrace(ex);
-                } finally {
-                    EventQueue.invokeLater(() -> {
-                        target.setCursor(oldCursor);
-                    });
-                }
+            // Using a high pirority thread here helps keep other tasks
+            // out of our way that might otherwise try to start chewing on the
+            // document
+            PriorityWakeup.runImmediately(() -> {
+                System.out.println("PW START");
+                replaceDocumentContentsFromFile(path, fo, oldCursor, target, allPaths);
+                System.out.println("PW REPARSE");
+//                try {
+//                    NbAntlrUtils.parseImmediately(target.getDocument());
+//                } catch (Exception ex) {
+//                    Exceptions.printStackTrace(ex);
+//                }
+                System.out.println("PW DONE");
             });
         }
     }
@@ -211,50 +195,61 @@ final class ImportIntoSampleAction extends AbstractAction implements ContextAwar
             if (file != null && file.exists()) {
                 FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(file));
                 if (fo != null) {
-                    AdhocEditorKit.ADHOC_POPULATE_MENU_POOL.submit(() -> {
-                        try {
-                            String text = fo.asText();
-                            StyledDocument doc = (StyledDocument) target.getDocument();
-                            DocumentOperator.builder().acquireAWTTreeLock()
-                                    .blockIntermediateRepaints()
-                                    .disableTokenHierarchyUpdates()
-                                    .lockAtomicAsUser()
-                                    .writeLock()
-                                    .restoringCaretPosition(cpc)
-                                    .build().operateOn(doc)
-                                    .runOp(() -> {
-                                        doc.remove(0, doc.getLength());
-                                        doc.insertString(0, text, null);
-                                    });
-                            List<Path> allPaths = recentPaths();
-                            try {
-                                ParsingUtils.parse(doc);
-                            } catch (Exception ex) {
-                                Exceptions.printStackTrace(ex);
-                            }
-                            Path path = file.toPath();
-                            allPaths.remove(path);
-                            allPaths.add(0, path);
-                            setRecentPaths(allPaths);
-                        } catch (Exception ex) {
-                            Exceptions.printStackTrace(ex);
-                        }
+                    Cursor cursor = target.getCursor();
+                    target.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+                    // Using a high pirority thread here helps keep other tasks
+                    // out of our way that might otherwise try to start chewing on the
+                    // document
+                    PriorityWakeup.runImmediately(() -> {
+                        System.out.println("PW START");
+                        replaceDocumentContentsFromFile(file.toPath(), fo, cursor, target, recentPaths());
+                        System.out.println("PW REPARSE");
+//                        try {
+//                            NbAntlrUtils.parseImmediately(target.getDocument());
+//                        } catch (Exception ex) {
+//                            Exceptions.printStackTrace(ex);
+//                        }
+                        System.out.println("PW DONE");
                     });
                 }
             }
         }
-
     }
 
-    static final CaretPositionCalculator cpc = new CaretPositionCalculator() {
-        @Override
-        public Consumer<IntBiConsumer> createPostEditPositionFinder(CaretInformation caret, JTextComponent comp, Document doc) {
-            return bi -> {
+    static void replaceDocumentContentsFromFile(Path path, FileObject fo, Cursor oldCursor, JTextComponent on, List<Path> allPaths) {
+        try {
+            String text = fo.asText();
+            StyledDocument doc = (StyledDocument) on.getDocument();
+            DocumentOperator.builder().acquireAWTTreeLock()
+                    .blockIntermediateRepaints()
+                    .disableTokenHierarchyUpdates()
+                    .lockAtomicAsUser()
+                    .writeLock()
+                    .restoringCaretPosition(CARET_TO_ZERO)
+                    .build().operateOn(doc)
+                    .runOp(() -> {
+                        doc.remove(0, doc.getLength());
+                        doc.insertString(0, text, null);
+                    });
+            allPaths.remove(path);
+            allPaths.add(0, path);
+            setRecentPaths(allPaths);
+        } catch (Exception ex) {
+            Exceptions.printStackTrace(ex);
+        } finally {
+            EventQueue.invokeLater(() -> {
+                on.setCursor(oldCursor);
+            });
+        }
+    }
+
+    /**
+     * Resets the caret to the top of the file after replacing its contents.
+     */
+    private static final CaretPositionCalculator CARET_TO_ZERO
+            = (CaretInformation caret, JTextComponent comp, Document doc) -> bi -> {
                 bi.accept(0, 0);
             };
-        }
-
-    };
 
     static final class ForSampleFile extends AbstractAction {
 

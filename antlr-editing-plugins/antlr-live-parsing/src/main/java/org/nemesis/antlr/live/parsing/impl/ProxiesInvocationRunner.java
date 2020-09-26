@@ -26,11 +26,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Writer;
+import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -47,7 +49,9 @@ import org.antlr.v4.tool.Grammar;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
+import org.nemesis.antlr.common.cancel.Canceller;
 import org.nemesis.antlr.live.execution.InvocationRunner;
+import org.nemesis.antlr.live.parsing.EmbeddedParserFeatures;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.ExtractionCodeGenerationResult;
@@ -209,7 +213,6 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             AntlrGenerationResult res, Extraction extraction, JFS jfs, JFSCompileBuilder bldr,
             String grammarPackageName, Consumer<Supplier<ClassLoader>> csc,
             Consumer<UnixPath> singleSource) throws IOException {
-//        System.out.println("PIE ON BEFORE COMP " + extraction.source().name() + " ");
         GrammarKind kind = GrammarKind.forTree(tree);
         Path path = res.originalFilePath;
         try (PrintStream info = AntlrLoggers.getDefault().printStream(path, AntlrLoggers.STD_TASK_GENERATE_ANALYZER)) {
@@ -309,17 +312,17 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
      * @throws IOException
      */
     private synchronized ParseTreeProxy repairEnvironment(String logName, Throwable thrown, CharSequence text, GenerationResult res) throws IOException {
-        if (res.compiler == null) {
+        if (res.compiler == null || res.jfsSupplier() == null) {
             // Already attempted
             return AntlrProxies.forUnparsed(res.grammarPath, res.grammarName, text);
         }
         // Called on a ClassNotFoundException which indicates it is fairly likely
         // the the generated class file was deleted
-        return res.jfs.whileWriteLocked(() -> {
+        JFS jfs = res.jfsSupplier().get();
+        return jfs.whileWriteLocked(() -> {
             LOG.log(Level.WARNING, "Got ClassNotFoundException in {0} jfs/classloader.  Will try "
                     + "rebuilding the ENTIRE JFS contents for {1} and re-running.  This may not work.", new Object[]{logName, res.grammarName});
             try {
-                JFS jfs = res.generationResult.jfsSupplier.get();
                 Path path = res.generationResult.originalFilePath;
                 assert path != null : "Grammar path from generation result null: " + res.generationResult;
                 File file = res.grammarPath.toFile();
@@ -341,6 +344,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                                 ? findLexerGrammarName(res.generationResult) : lexerGrammar.name;
 
                         AntlrGenerationResult newGenResult = res.generationResult.rebuild();
+                        assert newGenResult.originalJFS() == jfs : "Wrong jfs";
 
                         LOG.finest(() -> "Rebuild regen result " + newGenResult);
 
@@ -362,7 +366,7 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
 //                        res.csc.accept(CLASSLOADER_FACTORY);
 
                         GenerationResult newG = new GenerationResult(genResult, res.packageName, path,
-                                newGenResult.grammarName, newGenResult.jfs, newGenResult,
+                                newGenResult.grammarName, jfs, newGenResult,
                                 res.compiler, res.csc, res.tree);
 
                         JFSClassLoader workingLoader = jfs.getClassLoader(StandardLocation.CLASS_OUTPUT,
@@ -390,7 +394,6 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                                     pie.onDiscard();
                                 }
                             } finally {
-                                System.out.println("CLOSE A JFS CLASS LOADER");
                                 workingLoader.close();
                                 if (success) {
                                     newG.discardLeakables();
@@ -422,7 +425,6 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         final String packageName;
         final Path grammarPath;
         final String grammarName;
-        private final JFS jfs;
         private JFSCompileBuilder compiler;
         private AntlrGenerationResult generationResult;
         private Consumer<Supplier<ClassLoader>> csc;
@@ -435,11 +437,21 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             this.packageName = packageName;
             this.grammarPath = grammarPath;
             this.grammarName = grammarName;
-            this.jfs = jfs;
             this.compiler = compiler;
             this.generationResult = res;
             this.csc = csc;
             this.tree = tree;
+        }
+
+        Reference<JFS> originalJFSReference() {
+            AntlrGenerationResult gr = generationResult;
+            Reference<JFS> jfsRef = gr == null ? null : gr.originalJFSReference();
+            return jfsRef;
+        }
+
+        Supplier<JFS> jfsSupplier() {
+            AntlrGenerationResult gr = generationResult;
+            return gr != null ? gr.jfsSupplier : null;
         }
 
         void discardLeakables() {
@@ -456,11 +468,25 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         }
 
         public boolean clean() {
-            return res != null && res.clean(jfs);
+            AntlrGenerationResult genRes = generationResult;
+            ExtractionCodeGenerationResult extRes = res;
+            if (genRes != null && extRes != null) {
+                JFS origJfs = genRes.originalJFS();
+                if (origJfs != null) {
+                    res.clean(origJfs);
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
         public String toString() {
+            String jfs = "-";
+            AntlrGenerationResult gr = generationResult;
+            if (gr != null) {
+                jfs = gr.jfsId;
+            }
             return "ProxiesInvocationRunner.GenerationResult("
                     + packageName + " " + grammarName + " on " + grammarPath + ": "
                     + res + " over " + jfs + ")";
@@ -519,16 +545,16 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         private final ThrowingTriFunction<String, Throwable, CharSequence, ParseTreeProxy> onEnvironmentCorrupted;
         private final String grammarName;
         private final Path grammarPath;
-        private final JFS jfs;
+        private final Reference<JFS> jfsRef;
         private volatile Runnable onFirst;
 
         private PreservedInvocationEnvironment(ClassLoader ldr, String pkgName, GenerationResult res,
                 ThrowingTriFunction<String, Throwable, CharSequence, ParseTreeProxy> onEnvironmentCorrupted) {
             ref = new EnvRef(this, ldr);
             typeName = pkgName + "." + res.res.generatedClassName();
-            this.jfs = notNull("res.jfs", res.jfs);
             this.grammarPath = notNull("res.grammarPath", res.grammarPath);
             this.grammarName = notNull("res.grammarName", res.grammarName);
+            this.jfsRef = res.originalJFSReference();
             this.genInfo = res.res.generationInfo();
             cleaner = res::clean;
             this.onEnvironmentCorrupted = onEnvironmentCorrupted;
@@ -585,7 +611,10 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                         .append("; will retry once, for ")
                         .append(logName).append(" - ").append(":");
                 if (LOG.isLoggable(Level.FINE)) {
-                    listJFS(this.jfs, sb);
+                    JFS jfs = jfsRef == null ? null : jfsRef.get();
+                    if (jfs != null) {
+                        listJFS(jfs, sb);
+                    }
                     LOG.log(Level.FINE, sb.toString(), ex);
                 }
                 String msg = sb.toString();
@@ -605,36 +634,37 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
             }
         }
 
+        private static final Class<?>[] INT_CS_BS = new Class<?>[]{int.class, CharSequence.class, BooleanSupplier.class};
+
         ParseTreeProxy doClRun(CharSequence body) throws Exception {
+            Canceller canceller = Canceller.getOrCreate();
+            int flags = EmbeddedParserFeatures.getInstance(grammarPath).currentFlags();
             return clRun(() -> {
-                ParseTreeProxy result = reflectively(typeName, new Class<?>[]{CharSequence.class}, body);
-//                Debug.message("" + result.grammarPath());
-//                if (result.isUnparsed()) {
-//                    Debug.failure("unparsed result", () -> {
-//                        return result.grammarName() + " = " + result.grammarPath();
-//                    });
-//                } else {
-//                    Debug.success("parsed", result.tokenCount() + " tokens");
-//                }
-                return result;
+                return reflectively(typeName, INT_CS_BS, flags, body, canceller);
             });
         }
 
+        private static final Class<?>[] INT_CS_INT_BS = new Class<?>[]{int.class, CharSequence.class, int.class, BooleanSupplier.class};
         @Override
         public AntlrProxies.ParseTreeProxy parse(String logName, CharSequence body, int ruleNo) throws Exception {
+            Canceller canceller = Canceller.getOrCreate();
             // XXX should have same retry logic; currently unused since there is no way to have
             // the starting parser rule not be the first one
+            int flags = EmbeddedParserFeatures.getInstance(grammarPath).currentFlags();
             return clRun(() -> {
-                return reflectively(typeName, new Class<?>[]{CharSequence.class, int.class}, body, ruleNo);
+                return reflectively(typeName, INT_CS_INT_BS,
+                        body, ruleNo, canceller);
             });
         }
 
         @Override
         public AntlrProxies.ParseTreeProxy parse(String logName, CharSequence body, String ruleName) throws Exception {
+            Canceller canceller = Canceller.getOrCreate();
             // XXX should have same retry logic; currently unused since there is no way to have
             // the starting parser rule not be the first one
+            int flags = EmbeddedParserFeatures.getInstance(grammarPath).currentFlags();
             return clRun(() -> {
-                return reflectively(typeName, new Class<?>[]{CharSequence.class, String.class}, body, ruleName);
+                return reflectively(typeName, new Class<?>[]{int.class, CharSequence.class, String.class, BooleanSupplier.class}, flags, body, ruleName, canceller);
             });
         }
 
@@ -645,8 +675,6 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                 InvocationTargetException {
             try {
                 assert params.length == args.length;
-//                ClassLoader ldr = Thread.currentThread().getContextClassLoader();
-//                Class<?> c = ldr.loadClass(cl);
                 Class<?> c = cachedClass(cl);
                 Method m = c.getMethod("extract", params);
                 return (AntlrProxies.ParseTreeProxy) m.invoke(null, args);
@@ -669,7 +697,6 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
         Map<ClassLoader, Class<?>> map = typeForNameAndLoader.get(name);
         Class<?> result = map.get(cl);
         if (result == null) {
-//            result = cl.loadClass(name);
             result = Class.forName(name, true, cl);
             map.put(cl, result);
         }

@@ -1,4 +1,6 @@
 
+Preview sometimes sets its preferred size to wider than the main window.
+
 Need a test if a grammar generation result is up to date with respect to a compilation result.
 
 Compile single works now. If using compile single, we need to differentiate the grammar compilation result and the extractor compilation result.  They currently clobber each other.

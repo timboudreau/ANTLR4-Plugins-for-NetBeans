@@ -21,6 +21,7 @@ import com.mastfrog.util.path.UnixPath;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.ref.Reference;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.tools.JavaFileManager.Location;
 import org.antlr.v4.tool.Grammar;
+import org.nemesis.antlr.common.TimedWeakReference;
 import org.nemesis.antlr.memory.AntlrGenerator.RerunInterceptor;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
@@ -49,8 +51,11 @@ import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileModifications.FileChanges;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.result.ProcessingResult;
+import org.netbeans.api.annotations.common.CheckForNull;
 
 /**
+ * Result of running MemoryTool to build Antlr sources from a grammar into a
+ * JFS.
  *
  * @author Tim Boudreau
  */
@@ -64,7 +69,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final List<ParsedAntlrError> errors;
     public final long grammarFileLastModified;
     public final Set<Grammar> allGrammars;
-    public final JFS jfs;
+    private final Reference<JFS> jfs;
+    public final String jfsId;
     public final Location grammarSourceLocation;
     public final Location javaSourceOutputLocation;
     public final String packageName;
@@ -72,7 +78,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final UnixPath sourceDir;
     public final UnixPath importDir;
     public final boolean generateAll;
-    public final Set<AntlrGenerationOption> options;
+    final Set<AntlrGenerationOption> options;
     public final Charset grammarEncoding;
     public final String tokensHash;
     public final Path originalFilePath;
@@ -85,9 +91,21 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final Map<JFSCoordinates, Set<JFSCoordinates>> dependencies;
     public final long timestamp;
     public final JFSPathHints hints;
+    /**
+     * Allows AntlrGenerationSubscriptionsForProject to obtain (or supply its own
+     * cached) generation results when generation is run directly using this
+     * instance, rather than through a reparse triggering a call into it.
+     * This saves us quite a few regeneration cycles, particularly when the
+     * original JFS has been killed.
+     */
     final RerunInterceptor interceptor;
     private final JFSFileModifications outputFileModifications;
     private final JFSFileModifications inputFileModifications;
+    /**
+     * Since the dependency graph is a little expensive to create, we do it
+     * once on demand and keep a copy.
+     */
+    private ObjectGraph<UnixPath> cachedDependencyGraph;
 
     @SuppressWarnings("LeakingThisInConstructor")
     AntlrGenerationResult(boolean success, int code, Throwable thrown,
@@ -119,7 +137,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.errors = Collections.unmodifiableList(errors);
         this.grammarFileLastModified = grammarFileLastModified;
         this.allGrammars = Collections.unmodifiableSet(allGrammars);
-        this.jfs = jfs;
+        this.jfsId = jfs.id();
+        this.jfs = TimedWeakReference.create(jfs, 30000);
         this.grammarSourceLocation = inputLocation;
         this.javaSourceOutputLocation = outputLocation;
         this.grammarFile = grammarFile;
@@ -127,7 +146,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.sourceDir = virtualSourceDir;
         this.importDir = virtualInputDir;
         this.generateAll = generateAll;
-        this.options = Collections.unmodifiableSet(EnumSet.copyOf(options));
+        this.options = EnumSet.copyOf(options);
         this.grammarEncoding = grammarEncoding;
         this.tokensHash = tokensHash;
         this.originalFilePath = notNull("originalFilePath", originalFilePath);
@@ -138,6 +157,23 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.hints = hints;
         this.interceptor = interceptor;
         Trackables.track(AntlrGenerationResult.class, this);
+    }
+
+    public Reference<JFS> originalJFSReference() {
+        return jfs;
+    }
+
+    /**
+     * Get the JFS that was used in creating this generation result; if this
+     * generation result is very old, it may have been closed by the idle
+     * checker and become unreferenced, in which case this method will return
+     * null.
+     *
+     * @return
+     */
+    @CheckForNull
+    public JFS originalJFS() {
+        return jfs.get();
     }
 
     /**
@@ -151,9 +187,9 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public AntlrGenerationResult recycle() {
         JFS newJFS = jfsSupplier.get();
         JFSFileModifications inModifications = inputFileModifications == null ? null
-                : inputFileModifications.overJFS(jfs).withUpdatedState();
+                : inputFileModifications.overJFS(newJFS).withUpdatedState();
         JFSFileModifications outModifications = outputFileModifications == null ? null
-                : outputFileModifications.overJFS(jfs).withUpdatedState();
+                : outputFileModifications.overJFS(newJFS).withUpdatedState();
         return new AntlrGenerationResult(success, code, thrown, grammarName, mainGrammar,
                 errors, grammarFile, grammarFileLastModified, allGrammars,
                 newJFS, grammarSourceLocation, javaSourceOutputLocation, packageName,
@@ -164,22 +200,47 @@ public final class AntlrGenerationResult implements ProcessingResult {
                 inModifications);
     }
 
+    /**
+     * Get a snapshot of the set of file changes to input files that have
+     * happened since this result was created, for checking up-to-dateness.
+     *
+     * @return The modifications for the input files
+     */
     public JFSFileModifications inputFileModifications() {
         return inputFileModifications == null ? JFSFileModifications.empty()
                 : inputFileModifications.snapshot();
     }
 
+    /**
+     * Get a snapshot of the set of file changes to <i>output</i> files that
+     * have happened since this result was created, for checking up-to-dateness
+     * - if another generation has been run since this result was created, there
+     * may be some.
+     *
+     * @return The modifications for the input files
+     */
     public JFSFileModifications outputFileModifications() {
         return inputFileModifications == null ? JFSFileModifications.empty()
                 : inputFileModifications.snapshot();
     }
 
+    /**
+     * Use sparingly - deletes output files created by the job that gave this
+     * result (even if something else has modified them).
+     *
+     * @return this
+     * @throws IOException If something goes wrong
+     */
     public AntlrGenerationResult cleanOldOutput() throws IOException {
-        if (!jfs.isEmpty()) {
-            jfs.whileWriteLocked(() -> {
+        JFS originalJFS = this.jfs.get();
+        if (originalJFS == null) {
+            return this;
+        }
+        if (!originalJFS.isEmpty()) {
+            originalJFS.whileWriteLocked(() -> {
                 Set<JFSFileObject> set = new HashSet<>();
                 for (JFSCoordinates f : outputFiles) {
-                    JFSFileObject ob = f.resolve(jfs);
+                    JFSFileObject ob = f.resolve(originalJFS);
                     if (ob != null) {
                         if (ob.storageKind().isMasqueraded()) {
                             continue;
@@ -268,6 +329,13 @@ public final class AntlrGenerationResult implements ProcessingResult {
                 outputFileModifications, inputFileModifications);
     }
 
+    /**
+     * Determine if the output files generated by processing the main grammar
+     * file are still up-to-date with respect to the grammar file - if the
+     * grammar file is older than them.
+     *
+     * @return true if they are up to date
+     */
     public boolean areOutputFilesUpToDate() {
         if (grammarFile == null) {
             return false;
@@ -275,14 +343,42 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return areOutputFilesUpToDate(grammarFile);
     }
 
+    /**
+     * Determine if the output files generated by processing the passed
+     * (grammar) file are still up-to-date with respect to that file - if the
+     * grammar file is older than them.
+     *
+     * @param of The JFS address (location + path) of the file
+     * @return true if they are up to date
+     */
     public boolean areOutputFilesUpToDate(JFSCoordinates of) {
         return areOutputFilesUpToDate(of, jfsSupplier.get());
     }
 
+    /**
+     * Determine if the output files generated by processing the passed
+     * (grammar) file are still up-to-date with respect to that file - if the
+     * file is older than them.
+     *
+     * @param of The path within the input location of the file
+     * @return true if they are up to date
+     */
     public boolean areOutputFilesUpToDate(UnixPath of) {
         return areOutputFilesUpToDate(of, jfsSupplier.get());
     }
 
+    /**
+     * Determine if the output files generated by processing the passed
+     * (grammar) file are still up-to-date with respect to that file - if the
+     * file is older than them.
+     *
+     * @param of The path within the input location of the JFS
+     * @param in The JFS to query, which may be a replacement for the original
+     * if it was closed due to idle time, and which may contain updated files if
+     * another thread already built the same grammar as this result came from
+     * the building of
+     * @return true if they are up to date
+     */
     public boolean areOutputFilesUpToDate(UnixPath of, JFS in) {
         JFSFileModifications.FileChanges changes = outputFileModifications.changes(in);
         JFSCoordinates coords = JFSCoordinates.forPath(of, inputFiles);
@@ -292,6 +388,18 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return areOutputFilesUpToDate(coords, in);
     }
 
+    /**
+     * Determine if the output files generated by processing the passed
+     * (grammar) file are still up-to-date with respect to that file - if the
+     * file is older than them.
+     *
+     * @param of The address of a file
+     * @param in The JFS to query, which may be a replacement for the original
+     * if it was closed due to idle time, and which may contain updated files if
+     * another thread already built the same grammar as this result came from
+     * the building of
+     * @return true if they are up to date
+     */
     public boolean areOutputFilesUpToDate(JFSCoordinates coords, JFS in) {
         JFSFileObject fo = coords.resolve(in);
         if (fo == null) {
@@ -322,10 +430,24 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return true;
     }
 
+    /**
+     * Determine if the input files are the same as they were for generation
+     * and the output files are newer than them.
+     *
+     * @return true if up to date
+     */
     public boolean isUpToDate() {
-        return isUpToDate(jfs);
+        JFS jfs = jfs();
+        return jfs != null && isUpToDate(jfs);
     }
 
+    /**
+     * Determine if the input files are the same as they were for generation
+     * and the output files are newer than them.
+     *
+     * @return true if up to date; false if either input files no longer exist
+     * or they are not up to date
+     */
     public boolean isUpToDate(JFS jfs) {
         if (grammarFile != null) {
             return areOutputFilesUpToDate(grammarFile, jfs);
@@ -343,18 +465,53 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return result;
     }
 
+    /**
+     * Determine if this generation result is suitable for reuse without
+     * running regeneration - this means that it:
+     * <ul>
+     * <li>Is usable (successful build, no attempt to exit with non-zero exit code)</li>
+     * <li>Is up-to-date - output files are newer than input files, input files
+     * are unmodified</li>
+     * <li>The JFS this result was created by generation into is still the
+     * JFS returned by its <code>jfsSupplier</code> (it was not closed and
+     * deleted due to idleness)</li>
+     * </ul>
+     *
+     * @return
+     */
     public boolean isReusable() {
-        return isUsable() && exitCode() == 0 && isSuccess() && isUpToDate();
+        return isUsable() && exitCode() == 0 && isSuccess() && isUpToDate()
+                && jfsId.equals(jfs().id());
     }
 
+    /**
+     * Convert this result into a new generator with the same parameters it was
+     * run with (potentially getting a different JFS from its supplier).
+     *
+     * @return A generator
+     */
     public AntlrGenerator toGenerator() {
         return new AntlrGenerator(toBuilder());
     }
 
+    /**
+     * Regenerate sources and return a new result; will return
+     * <code>this</i> if this result is currently reusable.
+     *
+     * @return A new result
+     */
     public AntlrGenerationResult rebuild() {
         return rebuild(false);
     }
 
+    /**
+     * Rebuild this JFS.
+     *
+     * @param force If true, run generation <i>even if <code>isReusable()</code></i>
+     * returns true
+     *
+     * @return A generation result
+     */
     public AntlrGenerationResult rebuild(boolean force) {
         if (!force && isReusable()) {
             return this;
@@ -372,6 +529,12 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return outputFileModifications == null ? FileChanges.forNoFiles() : outputFileModifications.changes();
     }
 
+    /**
+     * Create an AntlrGeneratorBuilder from this result, with its settings, which
+     * can be modified and built again.
+     *
+     * @return A builder
+     */
     public AntlrGeneratorBuilder<AntlrGenerationResult> toBuilder() {
         AntlrGeneratorBuilder<AntlrGenerationResult> result = new AntlrGeneratorBuilder<>(jfsSupplier,
                 new BuildConvert(sourceDir, importDir));
@@ -406,6 +569,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
             this.importDir = importDir;
         }
 
+        @Override
         public AntlrGenerationResult apply(AntlrGeneratorBuilder<AntlrGenerationResult> bldr) {
             return bldr.building(sourceDir, importDir);
         }
@@ -454,6 +618,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
     @Override
     public boolean isUsable() {
         return success
+                && exitCode() == 0
+                && thrown == null
                 && inputFiles != null && outputFiles != null
                 && !inputFiles.isEmpty() && !outputFiles.isEmpty();
     }
@@ -469,26 +635,42 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return UpToDateness.STALE;
     }
 
+    /**
+     * Get the current JFS from this result's <code>jfsSupplier</code>, which
+     * may or may not be the one it was built against (use <code>originalJFS()</code>
+     * to get the one this result was built against or null).
+     *
+     * @return A JFS
+     */
     public JFS jfs() {
         return jfsSupplier.get();
     }
 
+    @Override
     public Optional<Throwable> thrown() {
         return thrown == null ? Optional.empty() : Optional.of(thrown);
     }
 
+    @Override
     public void rethrow() throws Throwable {
         if (thrown != null) {
             throw thrown;
         }
     }
 
+    /**
+     * Find a Grammar object by name, from the main grammar (if present).
+     *
+     * @param name The grammar name
+     * @return An optional
+     */
     public Optional<Grammar> findGrammar(String name) {
-        if (mainGrammar != null && name.equals(mainGrammar.name)) {
-            return Optional.of(mainGrammar);
+        Grammar mg = mainGrammar;
+        if (mg != null && name.equals(mg.name)) {
+            return Optional.of(mg);
         }
         for (Grammar g : allGrammars) {
-            if (g == mainGrammar) {
+            if (g == mg) {
                 continue;
             }
             if (name.equals(g.name)) {
@@ -507,11 +689,15 @@ public final class AntlrGenerationResult implements ProcessingResult {
                 + ", outputFiles=" + outputFiles + '}';
     }
 
-    private ObjectGraph<UnixPath> depGraph;
-
+    /**
+     * Get a dependency graph of files that were built - so, input files have
+     * other input files read while building them, and output files as their children.
+     *
+     * @return A graph
+     */
     public ObjectGraph<UnixPath> dependencyGraph() {
-        if (depGraph != null) {
-            return depGraph;
+        if (cachedDependencyGraph != null) {
+            return cachedDependencyGraph;
         }
         Set<UnixPath> all = new HashSet<>();
         for (Map.Entry<String, UnixPath> e : toPathMapSingle(primaryFileForGrammarName).entrySet()) {
@@ -561,10 +747,18 @@ public final class AntlrGenerationResult implements ProcessingResult {
         }
         IntGraph ig = IntGraph.create(references, reverseReferences);
         ObjectGraph<UnixPath> og = ig.toObjectGraph(sorted);
-        return depGraph = og;
+        return cachedDependencyGraph = og;
     }
 
+    /**
+     * Given a grammar, find the JFS coordinates of the grammar file for it.
+     *
+     * @param grammarName
+     * @return
+     */
     public JFSCoordinates pathForGrammar(String grammarName) {
+        // XXX I don't think this will find the implicit lexer for a
+        // combined grammar
         for (Grammar g : allGrammars) {
             if (Objects.equals(g.name, grammarName)) {
                 JFSCoordinates result = primaryFileForGrammarName.get(g.name);
@@ -591,6 +785,8 @@ public final class AntlrGenerationResult implements ProcessingResult {
         return out;
     }
 
+    // Used by graph building;  probably the graph should be of JFSCoordinates,
+    // not UnixPath
     private static Map<UnixPath, Set<UnixPath>> toPathMap(Map<JFSCoordinates, Set<JFSCoordinates>> m) {
         if (m.isEmpty()) {
             return Collections.emptyMap();

@@ -83,7 +83,7 @@ public abstract class AbstractHighlighter {
     private static final Map<Class<?>, RequestProcessor> rpByType = new HashMap<>();
     protected final HighlightsLayerFactory.Context ctx;
     private final CompL compl = new CompL();
-    private final AlternateBag theBag;
+    private final AlternateBag bag;
 
     protected AbstractHighlighter( HighlightsLayerFactory.Context ctx ) {
         this( ctx, true );
@@ -99,8 +99,8 @@ public abstract class AbstractHighlighter {
         // Listen for component events
         theEditor.addComponentListener( WeakListeners.create(
                 ComponentListener.class, compl, theEditor ) );
-        theBag = new AlternateBag( Strings.lazy( this ) );
-        theEditor.addPropertyChangeListener(WeakListeners.propertyChange( compl, theEditor));
+        bag = new AlternateBag( Strings.lazy( this ) );
+        theEditor.addPropertyChangeListener( WeakListeners.propertyChange( compl, theEditor ) );
         LOG.log( Level.FINE, "Create {0} for {1}", new Object[]{ getClass().getName(), doc } );
         // Ensure we are initialized, and don't assume we are constructed in the
         // event thread; calling isShowing() in any other thread is unsafe
@@ -136,10 +136,6 @@ public abstract class AbstractHighlighter {
     private void onAfterDeactivated() {
     }
 
-    private AlternateBag bag() {
-        return theBag;
-    }
-
     private String identifier() {
         Object o = ctx.getDocument().getProperty( StreamDescriptionProperty );
         String fileName;
@@ -165,28 +161,9 @@ public abstract class AbstractHighlighter {
      *                          added any highlights to it, false if not.
      */
     protected final void updateHighlights( Predicate<HighlightConsumer> highlightsUpdater ) {
-        AlternateBag bag = bag();
-        if ( bag == null ) {
-            return;
-        }
-        boolean hasHighlights;
-        try {
-            hasHighlights = highlightsUpdater.test( bag );
-            if ( !hasHighlights ) {
-                bag.clear();
-            }
-        } finally {
-            commit();
-        }
-    }
-
-    /**
-     * After a series of calls to update the bag in updateHighlights,
-     * this method actually commits the changes, causing it to be updated
-     * and potentially fire changes.
-     */
-    protected void commit() {
-        theBag.commit();
+        bag.update( () -> {
+            return highlightsUpdater.test( bag );
+        } );
     }
 
     /**
@@ -236,17 +213,9 @@ public abstract class AbstractHighlighter {
 
     @SuppressWarnings( "DoubleCheckedLocking" )
     private static final RequestProcessor threadPool( Class<?> type ) {
-        RequestProcessor result = rpByType.get( type );
-        if ( result == null ) {
-            synchronized ( rpByType ) {
-                result = rpByType.get( type );
-                if ( result == null ) {
-                    result = new RequestProcessor( type.getName() + "-subscribe", 1, false );
-                    rpByType.put( type, result );
-                }
-            }
-        }
-        return result;
+        return rpByType.computeIfAbsent( type, cl -> {
+                                     return new RequestProcessor( cl.getName() + "-subscribe", 1, false );
+                                 } );
     }
 
     /**
@@ -283,7 +252,7 @@ public abstract class AbstractHighlighter {
     }
 
     public final HighlightsContainer getHighlightsBag() {
-        return theBag;
+        return bag;
     }
 
     /**
@@ -317,7 +286,13 @@ public abstract class AbstractHighlighter {
                     return EMPTY;
                 }
             }
-            AbstractHighlighter highlighter = highlighterCreator.apply( ctx );
+            JTextComponent comp = ctx.getComponent();
+            String cp = layerTypeId + "-hl";
+
+            AbstractHighlighter highlighter = ( AbstractHighlighter ) comp.getClientProperty( cp );
+            if ( highlighter == null ) {
+                highlighter = highlighterCreator.apply( ctx );
+            }
             return new HighlightsLayer[]{
                 HighlightsLayer.create( layerTypeId, zOrder,
                                         true, highlighter.getHighlightsBag() )
@@ -351,8 +326,8 @@ public abstract class AbstractHighlighter {
 
         @Override
         public void propertyChange( PropertyChangeEvent evt ) {
-            if ("ancestor".equals(evt.getPropertyName())) {
-                
+            if ( "ancestor".equals( evt.getPropertyName() ) ) {
+
             }
         }
 
@@ -372,13 +347,15 @@ public abstract class AbstractHighlighter {
         }
 
         void deactivate() {
+            System.out.println( "DEACTIVATE " + identifier() );
             Document doc = ctx.getDocument();
             FileObject fo = NbEditorUtilities.getFileObject( doc );
             try {
                 synchronized ( this ) {
                     LOG.log( Level.FINE, "Activating against {0}", fo );
                     try {
-                        DocumentUtilities.removePriorityDocumentListener( doc, this, DocumentListenerPriority.AFTER_CARET_UPDATE);
+                        DocumentUtilities.removePriorityDocumentListener( doc, this,
+                                                                          DocumentListenerPriority.AFTER_CARET_UPDATE );
 //                        doc.removeDocumentListener( this );
                         deactivated( fo, doc );
                     } finally {
@@ -392,6 +369,7 @@ public abstract class AbstractHighlighter {
         }
 
         void activate() {
+            System.out.println( "ACTIVATE " + identifier() );
             Document doc = ctx.getDocument();
             FileObject fo = NbEditorUtilities.getFileObject( doc );
             if ( active ) {
@@ -399,7 +377,8 @@ public abstract class AbstractHighlighter {
                     synchronized ( this ) {
                         LOG.log( Level.FINE, "Activating against {0}", fo );
                         activated( fo, doc );
-                        DocumentUtilities.addPriorityDocumentListener( doc, this, DocumentListenerPriority.AFTER_CARET_UPDATE);
+                        DocumentUtilities.addPriorityDocumentListener( doc, this,
+                                                                       DocumentListenerPriority.AFTER_CARET_UPDATE );
 //                        doc.addDocumentListener( this );
                     }
                 } catch ( Exception ex ) {
@@ -421,12 +400,12 @@ public abstract class AbstractHighlighter {
 
         @Override
         public void insertUpdate( DocumentEvent e ) {
-            theBag.onInsertion( e.getLength(), e.getOffset() );
+            bag.onInsertion( e.getLength(), e.getOffset() );
         }
 
         @Override
         public void removeUpdate( DocumentEvent e ) {
-            theBag.onDeletion( e.getLength(), e.getOffset() );
+            bag.onDeletion( e.getLength(), e.getOffset() );
         }
 
         @Override

@@ -60,6 +60,7 @@ limitations under the License.
                     <publicPackages>
                         <publicPackage>org.nemesis.antlr.common</publicPackage>
                         <publicPackage>org.nemesis.antlr.common.extractiontypes</publicPackage>
+                        <publicPackage>org.nemesis.antlr.common.cancel</publicPackage>
                         <publicPackage>org.nemesis.antlr.projectupdatenotificaton</publicPackage>
                         <publicPackage>org.nemesis.antlr.common.cachefile</publicPackage>
                         <publicPackage>org.nemesis.antlr.subscription</publicPackage>

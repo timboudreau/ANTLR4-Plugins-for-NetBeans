@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language;
 
+import com.mastfrog.function.state.Obj;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import java.awt.event.ComponentAdapter;
@@ -39,7 +40,9 @@ import javax.swing.text.Document;
 import static javax.swing.text.Document.StreamDescriptionProperty;
 import javax.swing.text.JTextComponent;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
+import org.nemesis.antlr.common.cancel.Canceller;
 import org.nemesis.antlr.compilation.GrammarRunResult;
+import org.nemesis.antlr.file.api.Ambiguities;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
@@ -49,6 +52,7 @@ import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.debug.api.Debug;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.extraction.ExtractionParserResult;
+import org.nemesis.misc.utils.concurrent.WorkCoalescer;
 import org.netbeans.lib.editor.util.swing.DocumentListenerPriority;
 import org.netbeans.lib.editor.util.swing.DocumentUtilities;
 import org.netbeans.modules.editor.NbEditorUtilities;
@@ -91,7 +95,8 @@ final class AdhocHighlighterManager {
     private final AdhocColorings colorings;
     private final AdhocHighlighter[] highlighters;
     // Need to hold a strong reference
-    private final @SuppressWarnings("unused") ComponentListener cl;
+    private final @SuppressWarnings("unused")
+    ComponentListener cl;
     private volatile boolean showing;
 
     AdhocHighlighterManager(String mimeType, Context ctx) {
@@ -107,9 +112,8 @@ final class AdhocHighlighterManager {
         c.addPropertyChangeListener("ancestor",
                 WeakListeners.propertyChange(compl, c));
         highlighters = new AdhocHighlighter[]{
-            new AdhocErrorHighlighter(this),
-//            new AdhocRuleHighlighter(this)
-            new AdhocRuleHighlighter3(this)
+            new AdhocRuleHighlighter3(this),
+            new AdhocErrorHighlighter(this)
         };
         if (c.isShowing()) {
             compl.setShowing(c, true);
@@ -126,7 +130,7 @@ final class AdhocHighlighterManager {
         return colorings;
     }
 
-    boolean showing() {
+    boolean isActive() {
         return showing;
     }
 
@@ -299,11 +303,20 @@ final class AdhocHighlighterManager {
         }
     }
 
+    private volatile long lastRefreshId;
+
     private void refresh(HighlightingInfo info) {
         LOG.log(Level.FINE, "Refresh {0} with {1}", new Object[]{this, info});
+        long last = lastRefreshId;
+        long curr = info.semId();
+        if (curr == last) {
+            return;
+        }
+        lastRefreshId = curr;
         for (AdhocHighlighter hl : highlighters) {
             hl.refresh(info);
         }
+        ctx.getComponent().repaint();
     }
 
     static final Consumer<FileObject> INVALIDATOR
@@ -317,7 +330,7 @@ final class AdhocHighlighterManager {
                 if (f != null) {
                     FileObject fo = FileUtil.toFileObject(f);
                     if (fo != null) {
-                        if (reparseOrFindExtraction(fo)) {
+                        if (reparseOrFindExtraction(fo, false)) {
                             scheduleSampleTextReparse();
                         }
                     }
@@ -326,8 +339,22 @@ final class AdhocHighlighterManager {
         });
     }
 
-    private boolean reparseOrFindExtraction(FileObject grammar) {
-        Extraction ext = NbAntlrUtils.extractionFor(grammar);
+    void forceGrammarReparse(FileObject grammarFile) {
+        reparseOrFindExtraction(grammarFile, true);
+    }
+
+    private boolean reparseOrFindExtraction(FileObject grammar, boolean force) {
+        Extraction ext;
+        if (force) {
+            try {
+                ext = NbAntlrUtils.parseImmediately(grammar);
+            } catch (Exception ex) {
+                Exceptions.printStackTrace(ex);
+                ext = NbAntlrUtils.extractionFor(grammar);
+            }
+        } else {
+            ext = NbAntlrUtils.extractionFor(grammar);
+        }
         if (ext == null || ext.isPlaceholder() || ext.isDisposed()) {
             return false;
         }
@@ -351,29 +378,57 @@ final class AdhocHighlighterManager {
         return ext != null;
     }
 
+    private final WorkCoalescer<HighlightingInfo> coa = new WorkCoalescer<>("adhoc-hl-mgr");
+
+    private HighlightingInfo coalescedReparse() {
+        HighlightingInfo old = lastParseInfo.get();
+        Obj<HighlightingInfo> nue = Obj.of(old);
+        Canceller.runInCurrentThread(cancelled -> {
+            Document d = ctx.getDocument();
+            EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
+            CharSequence text = DocumentUtilities.getText(d);
+            try {
+                EmbeddedAntlrParserResult result = parser.parse(text);
+                AntlrProxies.ParseTreeProxy prox = result.proxy();
+                if (!cancelled.getAsBoolean()) {
+                    if (!prox.isUnparsed()) {
+                        Path grammarPath = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
+
+                        Ambiguities.reportAmbiguities(grammarPath, ac -> {
+                            for (AntlrProxies.Ambiguity amb : prox.ambiguities()) {
+                                int start = amb.start();
+                                int stop = amb.stop();
+                                if (start >= 0 && start < prox.tokenCount()
+                                        && stop >= 0 && stop < prox.tokenCount()) {
+                                    AntlrProxies.ProxyToken a = prox.tokens().get(start);
+                                    AntlrProxies.ProxyToken b = prox.tokens().get(stop);
+                                    String ruleName = prox.ruleNameFor(amb);
+                                    ac.reportAmbiguity(ruleName, amb.conflictingAlternatives(), text,
+                                            a.getStartIndex(), b.getEndIndex());
+                                }
+                            }
+                        });
+                    }
+                    scheduleRepaint();
+                    nue.set(new HighlightingInfo(d, prox));
+                }
+            } catch (Exception ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        });
+        return nue.get();
+    }
+
     void documentReparse() {
         inReparse = true;
         try {
-            Document d = ctx.getDocument();
-            Debug.run(this, "adhoc-hlmgr-doc-reparse", this::documentName, () -> {
-                EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
-                CharSequence text = DocumentUtilities.getText(d);
-                try {
-//                    synchronized (this) {
-                        EmbeddedAntlrParserResult result = parser.parse(text);
-                        AntlrProxies.ParseTreeProxy prox = result.proxy();
-                        if (prox.isUnparsed()) {
-                            Debug.failure("Got unparsed proxy", prox::loggingInfo);
-                        } else {
-                            Debug.success("Got parsed proxy", prox::loggingInfo);
-                        }
-                        lastParseInfo.set(new HighlightingInfo(d, prox));
-//                    }
-                    scheduleRepaint();
-                } catch (Exception ex) {
-                    Exceptions.printStackTrace(ex);
-                }
-            });
+            HighlightingInfo old = lastParseInfo.get();
+            HighlightingInfo info = coa.coalesceComputation(this::coalescedReparse, lastParseInfo);
+            if (info == null && info != old) {
+                lastParseInfo.set(old);
+            }
+        } catch (InterruptedException | WorkCoalescer.ComputationFailedException ex) {
+            Exceptions.printStackTrace(ex);
         } finally {
             inReparse = false;
         }
@@ -462,6 +517,10 @@ final class AdhocHighlighterManager {
         public HighlightingInfo(Document doc, AntlrProxies.ParseTreeProxy semantics) {
             this.doc = doc;
             this.semantics = semantics;
+        }
+
+        long semId() {
+            return semantics == null ? -1 : semantics.id();
         }
 
         public String toString() {

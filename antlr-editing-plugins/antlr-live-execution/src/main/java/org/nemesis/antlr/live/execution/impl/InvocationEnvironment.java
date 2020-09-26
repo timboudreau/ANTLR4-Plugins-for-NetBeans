@@ -216,7 +216,7 @@ final class InvocationEnvironment<T, R> {
             }
             // JFS was unused for a long time and was replaced - may not
             // contain anything at all yet
-            if (!jfs.id().equals(lastGenerationResult.jfs.id())) {
+            if (!jfs.id().equals(lastGenerationResult.jfsId)) {
                 return false;
             }
             // Grammar files were really modified (uses JFSModifications which hashes the contents)

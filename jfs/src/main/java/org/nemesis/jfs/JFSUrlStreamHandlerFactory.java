@@ -110,7 +110,7 @@ public final class JFSUrlStreamHandlerFactory implements URLStreamHandlerFactory
             Method lookup = defaultLookup.getClass().getMethod("lookup", Class.class);
             return (T) lookup.invoke(defaultLookup, type);
         } catch (ClassNotFoundException | NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            Logger.getLogger(JFSUrlStreamHandlerFactory.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(JFSUrlStreamHandlerFactory.class.getName()).log(Level.FINE, null, ex);
         }
         return null;
     }

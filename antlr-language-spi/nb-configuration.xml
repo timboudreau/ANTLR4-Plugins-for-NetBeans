@@ -89,5 +89,6 @@
         <org-netbeans-modules-editor-indent.text.x-java.CodeStyle.project.absoluteLabelIndent>true</org-netbeans-modules-editor-indent.text.x-java.CodeStyle.project.absoluteLabelIndent>
         <org-netbeans-modules-editor-indent.text.x-java.CodeStyle.project.spaceWithinMethodDeclParens>true</org-netbeans-modules-editor-indent.text.x-java.CodeStyle.project.spaceWithinMethodDeclParens>
         <org-netbeans-modules-editor-indent.text.x-java.CodeStyle.project.spaceWithinBraces>true</org-netbeans-modules-editor-indent.text.x-java.CodeStyle.project.spaceWithinBraces>
+        <netbeans.compile.on.save>none</netbeans.compile.on.save>
     </properties>
 </project-shared-configuration>

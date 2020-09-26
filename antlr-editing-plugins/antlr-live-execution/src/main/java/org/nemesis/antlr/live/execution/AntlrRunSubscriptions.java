@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.execution;
 
+import com.mastfrog.function.TriConsumer;
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.function.state.Obj;
 import com.mastfrog.util.collections.CollectionUtils;
@@ -44,7 +45,6 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -60,6 +60,7 @@ import org.nemesis.antlr.compilation.AntlrGeneratorAndCompiler;
 import org.nemesis.antlr.compilation.AntlrRunBuilder;
 import org.nemesis.antlr.compilation.GrammarProcessingOptions;
 import org.nemesis.antlr.compilation.GrammarRunResult;
+import org.nemesis.antlr.compilation.RunResults;
 import org.nemesis.antlr.compilation.WithGrammarRunner;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.Subscriber;
@@ -108,7 +109,7 @@ public class AntlrRunSubscriptions {
     }
 
     @SuppressWarnings("unchecked")
-    <T> Runnable _subscribe(FileObject fo, Class<T> type, BiConsumer<Extraction, GrammarRunResult<T>> c) {
+    <T> Runnable _subscribe(FileObject fo, Class<T> type, TriConsumer<Extraction, GrammarRunResult<T>, T> c) {
         Entry<T, ?> e;
         synchronized (this) {
             e = (Entry<T, ?>) subscriptionsByType.get(type);
@@ -202,10 +203,10 @@ public class AntlrRunSubscriptions {
 
         public Entry(InvocationRunner<T, A> runner,
                 FileObject fo,
-                BiConsumer<Extraction, GrammarRunResult<T>> res,
+                TriConsumer<Extraction, GrammarRunResult<T>, T> res,
                 Consumer<Entry<?, ?>> onEmpty) {
             this.runner = runner;
-            coa  = new WorkCoalescer<>("antlr-run-subscriptions-builds-" + fo.getNameExt());
+            coa = new WorkCoalescer<>("antlr-run-subscriptions-builds-" + fo.getNameExt());
             refs.get(fo).add(new ConsumerReference(res));
             this.onEmpty = onEmpty;
             this.fo = fo;
@@ -241,7 +242,7 @@ public class AntlrRunSubscriptions {
             }
         }
 
-        boolean unsubscribe(FileObject fo, BiConsumer<Extraction, GrammarRunResult<T>> res) {
+        boolean unsubscribe(FileObject fo, TriConsumer<Extraction, GrammarRunResult<T>, T> res) {
             ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
             boolean found = false;
             try {
@@ -250,7 +251,7 @@ public class AntlrRunSubscriptions {
                 if (this.refs.containsKey(fo)) {
                     Set<ConsumerReference> set = refs.get(fo);
                     for (ConsumerReference ref : set) {
-                        BiConsumer<Extraction, GrammarRunResult<T>> bc = ref.get();
+                        TriConsumer<Extraction, GrammarRunResult<T>, T> bc = ref.get();
                         if (bc == res) {
                             found = true;
                         }
@@ -276,7 +277,7 @@ public class AntlrRunSubscriptions {
             return found;
         }
 
-        boolean subscribe(FileObject fo, BiConsumer<Extraction, GrammarRunResult<T>> res) {
+        boolean subscribe(FileObject fo, TriConsumer<Extraction, GrammarRunResult<T>, T> res) {
             ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
             try {
                 writeLock.lock();
@@ -293,7 +294,7 @@ public class AntlrRunSubscriptions {
             return true;
         }
 
-        void run(Extraction ex, GrammarRunResult<T> res) {
+        void run(Extraction ex, GrammarRunResult<T> res, T obj) {
             Optional<FileObject> ofo = ex.source().lookup(FileObject.class);
             if (!ofo.isPresent()) {
                 Debug.failure("No file object in extraction source lookup", ex.logString());
@@ -308,13 +309,13 @@ public class AntlrRunSubscriptions {
                 if (refs.containsKey(fo)) {
                     for (Iterator<ConsumerReference> it = refs.get(fo).iterator(); it.hasNext();) {
                         ConsumerReference ref = it.next();
-                        BiConsumer<Extraction, GrammarRunResult<T>> toInvoke = ref.get();
+                        TriConsumer<Extraction, GrammarRunResult<T>, T> toInvoke = ref.get();
                         if (toInvoke == null) {
                             toRemove.add(ref);
                         } else {
                             try {
                                 LOG.log(Level.FINEST, "Notify {0}", toInvoke);
-                                toInvoke.accept(ex, res);
+                                toInvoke.accept(ex, res, obj);
                             } catch (Exception e) {
                                 LOG.log(Level.SEVERE, "Exception running " + toInvoke, ex);
                             }
@@ -553,7 +554,6 @@ public class AntlrRunSubscriptions {
                     } else {
                         cr = jfs.whileWriteLocked(() -> bldr.compileSingle(singleSource.get()));
                     }
-//                                    writer.write("Compile took " + cr.elapsedMillis() + "ms");
 
                     if (!cr.isUsable()) {
                         writer.write(cr.compileFailed() ? "Compile failed.\n"
@@ -642,16 +642,16 @@ public class AntlrRunSubscriptions {
                 opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
             }
             LOG.log(Level.FINE, "Run in classloader with {0}", opts);
-            GrammarRunResult<T> rr = rb.run(arg, runner,
-                    opts);
+            RunResults<T> rrx = rb.run(arg, runner, opts);
+            GrammarRunResult<T> rr = rrx.result();
             result.set(rr);
-
             if (rr.isUsable()) {
+                T env = rr.get();
                 if (created) {
                     cache.update(cr, rb, arg,
                             extraction.tokensHash());
                 }
-                run(extraction, rr);
+                run(extraction, rr, env);
                 if (!created) {
                     cache.lastRunner.resetFileModificationStatusForReuse();
                 }
@@ -703,19 +703,22 @@ public class AntlrRunSubscriptions {
                     sb.append(new String(baos.toByteArray(), UTF_8));
                 }
                 if (hasFatal) {
-                    for (Path pth : crFinal.sources()) {
-                        JFSFileObject jfo = res.jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get(pth));
-                        if (jfo == null) {
-                            jfo = res.jfs.get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(pth));
-                        }
-                        if (jfo == null) {
-                            jfo = res.jfs.get(StandardLocation.CLASS_OUTPUT, UnixPath.get(pth));
-                        }
-                        if (jfo != null && jfo.getName().endsWith("Extractor.java")) {
-                            try {
-                                sb.append(jfo.getCharContent(true));
-                            } catch (IOException ex) {
-                                Exceptions.printStackTrace(ex);
+                    JFS jfs = res.originalJFS();
+                    if (jfs != null) { // should not be, but theoretically possible
+                        for (Path pth : crFinal.sources()) {
+                            JFSFileObject jfo = jfs.get(StandardLocation.SOURCE_PATH, UnixPath.get(pth));
+                            if (jfo == null) {
+                                jfo = jfs.get(StandardLocation.SOURCE_OUTPUT, UnixPath.get(pth));
+                            }
+                            if (jfo == null) {
+                                jfo = jfs.get(StandardLocation.CLASS_OUTPUT, UnixPath.get(pth));
+                            }
+                            if (jfo != null && jfo.getName().endsWith("Extractor.java")) {
+                                try {
+                                    sb.append(jfo.getCharContent(true));
+                                } catch (IOException ex) {
+                                    Exceptions.printStackTrace(ex);
+                                }
                             }
                         }
                     }
@@ -736,7 +739,7 @@ public class AntlrRunSubscriptions {
                 pw.accept("SOURCE OUT LOC: " + res.javaSourceOutputLocation);
                 pw.accept("ORIG FILE: " + res.originalFilePath);
                 pw.accept("FULL JFS LISTING:");
-                res.jfs.listAll((loc, fo) -> {
+                res.jfs().listAll((loc, fo) -> {
                     pw.accept(" * " + loc + "\t" + fo);
                 });
             }
@@ -755,8 +758,8 @@ public class AntlrRunSubscriptions {
                             + "generated code, regenerating and recompiling: {0}", cr.diagnostics());
                 }
                 JFS jfs = res.jfsSupplier.get();
-                if (!jfs.id().equals(res.jfs.id())) {
-                    LOG.log(Level.FINE, "JFS {0} has been replaced with new JFS {1}", new Object[]{res.jfs.id(), jfs.id()});
+                if (!jfs.id().equals(res.jfsId)) {
+                    LOG.log(Level.FINE, "JFS {0} has been replaced with new JFS {1}", new Object[]{res.jfsId, jfs.id()});
                 }
                 bldr.setOptions(bldr.options().rebuildAllSources());
 
@@ -791,10 +794,10 @@ public class AntlrRunSubscriptions {
             }
         }
 
-        final class ConsumerReference extends WeakReference<BiConsumer<Extraction, GrammarRunResult<T>>>
+        final class ConsumerReference extends WeakReference<TriConsumer<Extraction, GrammarRunResult<T>, T>>
                 implements Runnable {
 
-            ConsumerReference(BiConsumer<Extraction, GrammarRunResult<T>> c) {
+            ConsumerReference(TriConsumer<Extraction, GrammarRunResult<T>, T> c) {
                 super(c, Utilities.activeReferenceQueue());
             }
 

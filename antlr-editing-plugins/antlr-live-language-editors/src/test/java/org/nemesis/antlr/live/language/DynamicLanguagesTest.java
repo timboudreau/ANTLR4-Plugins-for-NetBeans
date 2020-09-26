@@ -210,6 +210,7 @@ public class DynamicLanguagesTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void testFullGenerateCompileModifyRegenerateCycle() throws InvalidMimeTypeRegistrationException, DataObjectNotFoundException, InterruptedException, IOException, ParseException, BadLocationException {
         AdhocLanguageFactory factory = AdhocLanguageFactory.get();
 

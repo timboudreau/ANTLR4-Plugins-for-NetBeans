@@ -6,6 +6,7 @@
 package org.nemesis.misc.utils.concurrent;
 
 import com.mastfrog.util.collections.AtomicLinkedQueue;
+import java.text.DecimalFormat;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
@@ -31,6 +32,7 @@ public final class WorkCoalescer<T> {
     private volatile long lastUse = System.currentTimeMillis();
     private volatile int calls;
     private volatile int coalesces;
+    private static final DecimalFormat FMT = new DecimalFormat("##0.##");
 
     public WorkCoalescer(String name) {
         this(name, 20, 5);
@@ -42,18 +44,23 @@ public final class WorkCoalescer<T> {
         mutricia = new Mutrix(name);
     }
 
+    public String toString() {
+        return "coa(" + mutricia.name
+                + " coalescence " + FMT.format(coalescence()) + "% " + " idle "
+                + idleMillis() + "ms)";
+    }
+
     /**
-     * Get a fraction representing the total number of calls divided by
-     * the number of calls which did not lock but used a result being concurrently
+     * Get a fraction representing the total number of calls divided by the
+     * number of calls which did not lock but used a result being concurrently
      * computed by another thread.
      *
      * @return A fraction, or -1 if this instance has never been used
      */
     public float coalescence() {
         float c = calls;
-        return c == 0 ? -1 : (float) coalesces /  c;
+        return c == 0 ? -1 : (float) coalesces / c;
     }
-
 
     /**
      * Get the number of milliseconds this coalescer has been idle;
@@ -70,11 +77,12 @@ public final class WorkCoalescer<T> {
      *
      * @param resultComputation The computation to run
      * @param ref A reference which will receive the result of the computation,
-     * either because it was already concurrently being computed on another thread
-     * when this one entered, or by computing it here
+     * either because it was already concurrently being computed on another
+     * thread when this one entered, or by computing it here
      * @return The result
      * @throws InterruptedException
-     * @throws org.nemesis.misc.utils.concurrent.WorkCoalescer.ComputationFailedException
+     * @throws
+     * org.nemesis.misc.utils.concurrent.WorkCoalescer.ComputationFailedException
      */
     @SuppressWarnings("CallToThreadYield")
     public T coalesceComputation(Supplier<T> resultComputation, AtomicReference<T> ref) throws InterruptedException, ComputationFailedException {
@@ -82,36 +90,41 @@ public final class WorkCoalescer<T> {
     }
 
     /**
-     * Enter the computation, passing a supplier that will produce it, an optional consumer that
-     * will consume it, and an AtomicReference to store it in.  The caller must ensure that the
-     * same AtomicReference is passed to every call - only the caller can know when it is safe
-     * to <i>clear</i> the reference, and this object is intended to be long-lived - so the only
-     * choice this class would have would be to leak the reference to the last result until
-     * a new call that creates another one;  since this is intended for use with parse trees
-     * and wrappers for them, which can be quite large, that is a bad idea.
+     * Enter the computation, passing a supplier that will produce it, an
+     * optional consumer that will consume it, and an AtomicReference to store
+     * it in. The caller must ensure that the same AtomicReference is passed to
+     * every call - only the caller can know when it is safe to <i>clear</i> the
+     * reference, and this object is intended to be long-lived - so the only
+     * choice this class would have would be to leak the reference to the last
+     * result until a new call that creates another one; since this is intended
+     * for use with parse trees and wrappers for them, which can be quite large,
+     * that is a bad idea.
      *
-     * @param resultComputation  A thing which computes the result
+     * @param resultComputation A thing which computes the result
      * @param c An optional consumer
-     * @param ref A reference that is used to share the result with other threads
+     * @param ref A reference that is used to share the result with other
+     * threads
      * @return The result
      * @throws InterruptedException If the thread is interrupted
-     * @throws org.nemesis.misc.utils.concurrent.WorkCoalescer.ComputationFailedException
-     * if the work threw an exception; use <code>isOriginatingThread()</code> to know if the
-     * failure occurred on the current thread
+     * @throws
+     * org.nemesis.misc.utils.concurrent.WorkCoalescer.ComputationFailedException
+     * if the work threw an exception; use <code>isOriginatingThread()</code> to
+     * know if the failure occurred on the current thread
      */
+    @SuppressWarnings("CallToThreadYield")
     public T coalesceComputation(Supplier<T> resultComputation, Consumer<T> c, AtomicReference<T> ref) throws InterruptedException, ComputationFailedException {
         lastUse = System.currentTimeMillis();
-        // I know, I know, thread yield, don't rely on the thread scheduler for correctness,
-        // yadda yadda.  The POINT here is to allow as many threads as are getting ready to
-        // do the work to queue up here, so the work is done once and all get the
-        // result
-        Thread.yield();
         boolean locked = false;
         calls++;
         try {
             // Mmm, mutricious1
             locked = mutricia.lock();
             if (locked) {
+                // I know, I know, thread yield, don't rely on the thread scheduler for correctness,
+                // yadda yadda.  The POINT here is to allow as many threads as are getting ready to
+                // do the work to queue up here, so the work is done once and all get the
+                // result
+                Thread.yield();
                 return mutricia.run(resultComputation, c, ref);
             } else {
                 coalesces++;

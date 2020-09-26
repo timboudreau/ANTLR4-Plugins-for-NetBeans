@@ -20,6 +20,7 @@ import com.mastfrog.util.path.UnixPath;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 
@@ -34,8 +35,8 @@ class RecyclingPrintStream extends PrintStream {
     private final int index;
     private final Path originalPath;
 
-    public RecyclingPrintStream(UnixPath path, FileIndices indices, int index, OutputStream out, boolean autoFlush, Charset charset, Path originalPath) {
-        super(out, autoFlush, charset);
+    public RecyclingPrintStream(UnixPath path, FileIndices indices, int index, OutputStream out, boolean autoFlush, Charset charset, Path originalPath) throws UnsupportedEncodingException {
+        super(out, autoFlush, charset.name());
         this.path = path;
         this.indices = indices;
         this.index = index;

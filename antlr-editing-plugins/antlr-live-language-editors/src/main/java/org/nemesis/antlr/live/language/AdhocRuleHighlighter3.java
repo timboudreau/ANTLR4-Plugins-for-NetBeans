@@ -17,7 +17,6 @@ package org.nemesis.antlr.live.language;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
@@ -44,7 +43,7 @@ final class AdhocRuleHighlighter3 extends AbstractHighlighter implements AdhocHi
     }
 
     public ZOrder zorder() {
-        return ZOrder.SYNTAX_RACK.forPosition(2000);
+        return ZOrder.SYNTAX_RACK.forPosition(1);
     }
 
     @Override
@@ -54,17 +53,6 @@ final class AdhocRuleHighlighter3 extends AbstractHighlighter implements AdhocHi
 
     @Override
     public void refresh(HighlightingInfo info) {
-        LOG.log(Level.FINEST, "Refresh {0} with {1}", new Object[]{this, info});
-//        if (info.semantics.isUnparsed() || info.semantics.text() == null || info.semantics.text().length() == 0) {
-//            LOG.log(Level.INFO, "Unusable parse: {0}", new Object[]{info.semantics.loggingInfo()});
-//            List<AntlrProxies.ProxySyntaxError> errs = info.semantics.syntaxErrors();
-//            if (errs != null) {
-//                for (AntlrProxies.ProxySyntaxError err : errs) {
-//                    LOG.log(Level.INFO, "Error: {0}", err);
-//                }
-//            }
-//            return;
-//        }
         mgr.threadPool().submit(() -> {
             HighlightingInfo ifo = mgr.lastInfo();
             update(mgr.colorings(), ifo.semantics, ifo.semantics.text().length());
@@ -83,7 +71,7 @@ final class AdhocRuleHighlighter3 extends AbstractHighlighter implements AdhocHi
             for (AntlrProxies.ParseTreeElement el : ruleElements) {
                 if (el.kind() == AntlrProxies.ParseTreeElementKind.RULE) {
                     AntlrProxies.RuleNodeTreeElement rn = (AntlrProxies.RuleNodeTreeElement) el;
-                    AdhocColoring a = colorings.get(rn.name());
+                    AdhocColoring a = colorings.get(rn.name(semantics));
                     // Ignore rules with no coloring, or rules which do not have
                     // highlighting activated
                     if (a != null && a.isActive() && !a.isEmpty()) {

@@ -77,7 +77,7 @@ public final class AdhocRuleHighlighter2 extends AbstractAntlrHighlighter {
         for (AntlrProxies.ParseTreeElement el : ruleElements) {
             if (el.kind() == AntlrProxies.ParseTreeElementKind.RULE) {
                 AntlrProxies.RuleNodeTreeElement rn = (AntlrProxies.RuleNodeTreeElement) el;
-                AdhocColoring a = colorings.get(rn.name());
+                AdhocColoring a = colorings.get(rn.name(semantics));
                 // Ignore rules with no coloring, or rules which do not have
                 // highlighting activated
                 if (a != null && a.isActive() && !a.isEmpty()) {

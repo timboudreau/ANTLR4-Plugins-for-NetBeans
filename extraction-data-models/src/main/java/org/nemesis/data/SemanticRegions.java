@@ -15,9 +15,13 @@
  */
 package org.nemesis.data;
 
+import com.mastfrog.range.IntRange;
+import com.mastfrog.range.Range;
+import com.mastfrog.range.RangePositionRelation;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.collections.IntSet;
+import com.mastfrog.util.strings.Escaper;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
@@ -121,13 +125,15 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             int div = divisions.valueAt(i);
             SemanticRegion<T> reg = at(div);
             if (reg != null) {
+                // XXX could use the raw arrays and skip instantiating
+                // region instances to do this
                 SemanticRegion<T> par = reg.parent();
                 boolean hasParents = par != null;
                 if (hasParents) {
                     stack.clear();
                     stack.add(reg.key());
                     while (par != null) {
-                        stack.add(0, par.key());
+                        stack.add(par.key());
                         par = par.parent();
                     }
                 }
@@ -139,7 +145,8 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             }
         }
         Class<T> kt = keyType();
-        return create(kt, newStarts, newEnds, all, newStarts.size());
+        SemanticRegions<T> result = create(kt, newStarts, newEnds, all, newStarts.size());
+        return result.trim();
     }
 
     public SemanticRegions<T> withDeletion(int chars, int atPosition) {
@@ -298,10 +305,39 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             // we are guaranteed that the last is the smallest that
             // can possibly match
             return forIndex(size - 1);
+        } else if (position <= starts[0]) {
+            return forIndex(0);
+        }
+
+        int searchStart = 0;
+        if (!hasNesting) {
+            int ix = Arrays.binarySearch(starts, 0, size, position);
+            if (ix < 0) {
+                searchStart = -ix;
+            } else {
+                searchStart = ix;
+            }
+        } else if (firstUnsortedEndsEntry > 0) {
+            // We can't use the JDK's binary search on arrays with duplicates -
+            // worked with JDK 7, fails horribly on later JDKs.  But if the
+            // item is present in the array before the first unsorted entry,
+            // we can search the head of the array, and may find our result
+            int ix = Arrays.binarySearch(starts, 0, firstUnsortedEndsEntry, position);
+            if (ix >= 0) {
+                // Scan forward to the deepest entry at this position
+                for (int i = ix; i < size; i++) {
+                    if (starts[i] == position) {
+                        ix++;
+                    } else {
+                        break;
+                    }
+                }
+                return forIndex(ix);
+            }
         }
         int bestOffset = Integer.MAX_VALUE;
         int bestIndex = -1;
-        for (int i = 0; i < size; i++) {
+        for (int i = searchStart; i < size; i++) {
             int start = starts[i];
             int end = ends[i];
             int diffStart = Math.abs(position - start);
@@ -452,11 +488,34 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         return new SemanticRegions<>(newStarts, newEnds, newKeys, size, firstUnsortedEndsEntry, hasNesting);
     }
 
+    /**
+     * Get the index of a SemanticRegion in this SemanticRegions; *if* it is one
+     * created by this, simply returns its index property, and otherwise scans
+     * for the first entry where the offsets and key are equal. Can also be
+     * passed a key value, and will return the first index where that key equals
+     * the one in this regions.
+     *
+     * @param o An object
+     * @return An index or -1 if not present
+     */
     @SuppressWarnings("unchecked")
     @Override
     public int indexOf(Object o) {
         if (o != null && o.getClass() == SemanticRegionImpl.class && ((SemanticRegionImpl) o).owner() == this) {
             return ((SemanticRegion<?>) o).index();
+        } else if (o instanceof SemanticRegion<?>) {
+            SemanticRegion<?> sem = (SemanticRegion<?>) o;
+            for (int i = 0; i < size; i++) {
+                if (starts[i] == sem.start() && ends[i] == sem.end() && Objects.equals(sem.key(), keys[i])) {
+                    return i;
+                }
+            }
+        } else if (keys != null && keyType().isInstance(o)) {
+            for (int i = 0; i < size; i++) {
+                if (o.equals(keys[i])) {
+                    return i;
+                }
+            }
         }
         return -1;
     }
@@ -469,6 +528,9 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
      * @return A list of regions
      */
     public List<? extends SemanticRegion<T>> collect(Predicate<T> pred) {
+        if (keys == null) {
+            return Collections.emptyList();
+        }
         List<SemanticRegion<T>> result = new LinkedList<>();
         for (SemanticRegion<T> s : this) {
             if (pred.test(s.key())) {
@@ -476,6 +538,179 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             }
         }
         return result;
+    }
+
+    /**
+     * Get the outer bounds of this SemanticRegions.
+     *
+     * @return The bounds - if empty, will be 0:0
+     */
+    public IntRange<? extends IntRange<?>> bounds() {
+        if (size == 0) {
+            return Range.of(0, 0);
+        }
+        return Range.of(starts[0], ends[size - 1]);
+    }
+
+    /**
+     * Look up a start position by index.
+     *
+     * @param ix An index
+     * @return A start position
+     * @throws IndexOutOfBoundsException if out of range
+     */
+    public int startAt(int ix) {
+        if (ix < 0 || ix >= size) {
+            throw new IndexOutOfBoundsException(ix + " is outside " + bounds());
+        }
+        return starts[ix];
+    }
+
+    /**
+     * Look up an end position by index.
+     *
+     * @param ix An index
+     * @return An end position
+     * @throws IndexOutOfBoundsException if out of range
+     */
+    public int endAt(int ix) {
+        if (ix < 0 || ix >= size) {
+            throw new IndexOutOfBoundsException(ix + " is outside " + bounds());
+        }
+        return ends[ix];
+    }
+
+    /**
+     * Look up a key by index.
+     *
+     * @param ix An index
+     * @return A key
+     * @throws IndexOutOfBoundsException if out of range
+     */
+    public T keyAt(int ix) {
+        if (ix < 0 || ix >= size) {
+            throw new IndexOutOfBoundsException(ix + " is outside " + bounds());
+        }
+        return keys[ix];
+    }
+
+    /**
+     * Collect regions matched by the passed predicate only if they occur with
+     * the specified range.
+     *
+     * @param start The start of the range
+     * @param end The end of the range
+     * @param pred A test for the keys in this range
+     * @return A list or ranges; note the depth will be set to 0
+     */
+    public List<? extends SemanticRegion<T>> collectBetween(int start, int end, Predicate<T> pred) {
+        assert end >= start;
+        if (end == start || size == 0 || keys == null) {
+            return Collections.emptyList();
+        }
+        if (true) {
+            List<SemanticRegion<T>> result = null;
+            for (int i = 0; i < size; i++) {
+                int st = starts[i];
+                int en = ends[i];
+                if (st >= start && en <= end) {
+                    if (pred.test(keys[i])) {
+                        if (result == null) {
+                            result = new ArrayList<>();
+                        }
+                        result.add(forIndex(i));
+                    }
+                }
+            }
+            return result == null ? Collections.emptyList() : result;
+        }
+
+        List<SemanticRegion<T>> result = null;
+        int startPoint = indexAndDepthAt(start)[0];
+        if (startPoint < 0) {
+            IntRange<? extends IntRange> bounds = bounds();
+            RangePositionRelation startRelation = bounds.relationTo(start);
+            switch (startRelation) {
+                case BEFORE:
+                    // The start is before our start, so start at 0
+                    startPoint = 0;
+                    break;
+                case AFTER:
+                    // The start is after the last element - nothing to do
+                    return Collections.emptyList();
+                default:
+                    if (!hasNesting) {
+                        // If we do not have nesting, simple binary search
+                        // will work just fine
+                        int index = Arrays.binarySearch(starts, 0, size, start);
+                        if (index < 0) {
+                            startPoint = (-index) + 1;
+                        } else {
+                            startPoint = index;
+                        }
+                    } else {
+                        // XXX once ArrayUtil.duplicatTolerantBinarySearch is
+                        // solid, use that here
+                        // For now, brute-force scan
+                        for (int i = 0; i < size; i++) {
+                            if (starts[i] >= start) {
+                                startPoint = Math.max(0, i);
+                                break;
+                            }
+                        }
+                    }
+                    if (startPoint < 0 || startPoint >= size) {
+                        // Didn't find anything, we're done
+                        return Collections.emptyList();
+                    }
+            }
+        } else if (startPoint > 0) {
+            // indexAndDepthAt gets us the deepest index,
+            // so we need to back up to the first element containing the
+            // start position
+            while (startPoint > 0) {
+                if (starts[startPoint - 1] >= start) {
+                    if (ends[startPoint - 1] > end) {
+                        break;
+                    }
+                    startPoint--;
+                } else {
+                    break;
+                }
+            }
+        }
+        // Scan forward from our statring point
+        for (int i = startPoint; i < size; i++) {
+            int st = starts[i];
+            if (st >= end) {
+                // The first element whose start comes after the requested start
+                // position indicates we're done - the starts array is always
+                // sorted
+                break;
+            }
+            if (ends[i] > end) {
+                // If an item's end is passed the requested end, ignore it,
+                // but it may still contain smaller elements that are within the
+                // requested range
+                if (!hasNesting) {
+                    // If there is no nesting, then we need look no further,
+                    // because the next element will start after
+                    break;
+                }
+                // Continue in case of other matches
+                continue;
+            }
+            if (pred.test(keys[i])) {
+                // XXX get the depth right (and change the note in the javadoc)
+                SemanticRegion<T> reg = new SemanticRegionImpl(i, 0);
+                if (result == null) {
+                    // Only create a list if we have something to put in it
+                    result = new LinkedList<>();
+                }
+                result.add(reg);
+            }
+        }
+        return result == null ? Collections.emptyList() : result;
     }
 
     /**
@@ -492,6 +727,11 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
     @SuppressWarnings("unchecked")
     public static <T> SemanticRegionsBuilder<T> builder(Class<? super T> type) {
         return new SemanticRegionsBuilder<>((Class<T>) type);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> SemanticRegionsBuilder<T> builder(Class<? super T> type, int targetCapacity) {
+        return new SemanticRegionsBuilder<>((Class<T>) type, targetCapacity);
     }
 
     public static SemanticRegionsBuilder<Void> builder() {
@@ -619,7 +859,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
             assert key == null || type.isInstance(key) :
                     "Bad key type: " + key + " (" + key.getClass() + ")";
             if (!starts.isEmpty()) {
-                if (key == objs.get(objs.size()-1) && start == starts.last() && end == starts.last()) {
+                if (key == objs.get(objs.size() - 1) && start == starts.last() && end == starts.last()) {
                     System.out.println("append dup " + start + ":" + end + "  " + key);
                     return this;
                 }
@@ -1329,5 +1569,76 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         public int size() {
             return size;
         }
+    }
+
+    /**
+     * For bug reproduction purposes and test generation, convert this
+     * SemanticRegions into Java code that will recreate it; uses
+     * <code>toString()</code> on keys and generates a
+     * <code>SemanticRegions&lt;String&gt;</code>; use the method that takes a
+     * function to generate proper constructor code for your keys.
+     *
+     * <code>Escaper.CONTROL_CHARACTERS.escape(CharSequence seq)</code>)
+     *
+     * @return Code to reconstruct some simulacrum of this regions, using
+     * toString() on keys
+     */
+    public CharSequence toCode() {
+        return toCode(new DefaultStringifier());
+    }
+
+    private static final class DefaultStringifier implements Function<Object, String> {
+
+        @Override
+        public String apply(Object key) {
+            if (key == null) {
+                return "null";
+            } else {
+                return '"' + Escaper.CONTROL_CHARACTERS.escape(key.toString()) + '"';
+            }
+        }
+    }
+
+    /**
+     * For bug reproduction purposes and test generation, convert this
+     * SemanticRegions into Java code that will recreate it identically.
+     *
+     * @param keyStringifier A Function which converts a key into a constructor
+     * call or similar; remember to handle nulls and escape characters in
+     * strings (hint: use
+     * <code>Escaper.CONTROL_CHARACTERS.escape(CharSequence seq)</code>)
+     * @return Code to reconstruct some simulacrum of this regions, using
+     * toString() on keys
+     */
+    public CharSequence toCode(Function<? super T, String> keyStringifier) {
+        String type = keyStringifier instanceof DefaultStringifier ? "String"
+                : keyType().getSimpleName();
+        StringBuilder sb = new StringBuilder(
+                "        SemanticRegionsBuilder<").append(type)
+                .append("> bldr = SemanticRegions.builder(")
+                .append(type).append(".class, ")
+                .append(size).append(");\n");
+        if (size == 0) {
+            sb.append(";\n        SemanticRegions<").append(type).append("> regions = bldr.build();\n");
+            return sb;
+        }
+        sb.append("        bldr");
+        for (int i = 0; i < size; i++) {
+            T key = keys[i];
+            if ((i + 1) % 50 == 0) {
+                sb.append(";");
+                if (i == 49) {
+                    sb.append("\n\n        // We do not generate a single chain of calls because");
+                    sb.append("\n        // with several hundred, javac will throw a StackOverflowException");
+                }
+                sb.append("\n        bldr");
+            }
+            sb.append("\n            .add(").append(keyStringifier.apply(key)).append(", ")
+                    .append(starts[i]).append(", ").append(ends[i]).append(")");
+            if (i == size - 1) {
+                sb.append(";\n        SemanticRegions<").append(type).append("> regions = bldr.build();\n");
+            }
+        }
+        return sb;
     }
 }

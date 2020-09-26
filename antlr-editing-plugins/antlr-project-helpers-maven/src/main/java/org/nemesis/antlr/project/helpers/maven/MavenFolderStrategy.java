@@ -63,7 +63,6 @@ final class MavenFolderStrategy implements FolderLookupStrategyImplementation {
             if (prj != null) {
                 LOG.log(Level.INFO, "Drop cached info for {0}", path);
                 PROJECT_INFO.remove(path);
-                new Exception("Drop info for " + path).printStackTrace();
             }
         } catch (IOException ioe) {
             Logger.getLogger(MavenFolderStrategy.class.getName()).log(Level.SEVERE,

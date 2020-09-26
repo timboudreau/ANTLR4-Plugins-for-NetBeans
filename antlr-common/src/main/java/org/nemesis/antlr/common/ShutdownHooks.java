@@ -19,6 +19,7 @@ import com.mastfrog.function.throwing.ThrowingRunnable;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.nemesis.antlr.common.cancel.Canceller;
 
 /**
  * Allows for adding shutdown hooks to be run on normal VM exit.S
@@ -31,6 +32,7 @@ public final class ShutdownHooks {
     private static volatile boolean shuttingDown;
     private static final ThrowingRunnable onShutdown = ThrowingRunnable.oneShot(true).andAlwaysFirst(() -> {
         shuttingDown = true;
+        Canceller.cancelAll();
     });
 
     public static void addWeakRunnable(Runnable run) {

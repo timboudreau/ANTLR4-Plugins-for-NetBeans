@@ -23,11 +23,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.function.BooleanSupplier;
 import org.antlr.v4.runtime.ANTLRErrorListener;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.IntStream;
 import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
@@ -68,7 +70,7 @@ import org.antlr.v4.runtime.tree.TerminalNode;
  *
  * @author Tim Boudreau
  */
-public class ParserExtractor {
+public final class ParserExtractor {
 
     // These field values are replaced during code generation
     private static final String GRAMMAR_NAME = "DummyLanguage";
@@ -76,23 +78,38 @@ public class ParserExtractor {
     private static final String GRAMMAR_TOKENS_HASH = "--tokensHash--";
 
     public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy //parser
-            extract(String text, String ruleName) { //parser
+            extract(CharSequence text, String ruleName, BooleanSupplier cancelled) { //parser
+        return extract(1, text, ruleName, cancelled); //parser
+    } //parser
+
+    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy //parser
+            extract(int flags, CharSequence text, String ruleName, BooleanSupplier cancelled) { //parser
         int index = Arrays.asList(DummyLanguageParser.ruleNames).indexOf(ruleName); //parser
         if (index < 0) { //parser
             throw new IllegalArgumentException("No such rule: " + ruleName); //parser
         } //parser
-        return extract(text, index); //parser
+        return extract(text, index, cancelled); //parser
     } //parser
 
-    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(CharSequence text) {
-        return extract(text, 0);
+    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(CharSequence text, BooleanSupplier cancelled) {
+        return extract(1, text, cancelled);
+    }
+
+    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(int flags, CharSequence text, BooleanSupplier cancelled) {
+        return extract(flags, text, 0, cancelled);
+    }
+
+    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(CharSequence text, int ruleIndex, BooleanSupplier cancelled) {
+        return extract(1, text, ruleIndex, cancelled);
     }
 
     @SuppressWarnings("deprecation")
-    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(CharSequence text, int ruleIndex) {
+    public static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy extract(int flags, CharSequence text, int ruleIndex, BooleanSupplier cancelled) {
         org.nemesis.antlr.live.parsing.extract.AntlrProxies proxies
                 = new org.nemesis.antlr.live.parsing.extract.AntlrProxies(GRAMMAR_NAME, GRAMMAR_PATH, text);
         proxies.setGrammarTokensHash(GRAMMAR_TOKENS_HASH);
+        proxies.setLexerGrammar(true); //lexerOnly
+        proxies.setLexerGrammar(false); //parser
         try {
             int max = checksumTokenAndRuleNamesAndAddErrorToken(proxies);
             collectChannelNames(proxies);
@@ -104,6 +121,7 @@ public class ParserExtractor {
             proxies.setModeInfo(defaultMode, modeNames);
             int[] lineEnds = null;
             int lineCount = -1;
+            boolean wasCancelled = false;
             // We may have been called just to build a lexer vocabulary w/o text
             // to parse
             if (text != null) {
@@ -114,7 +132,7 @@ public class ParserExtractor {
                 DummyLanguageLexer lex = new DummyLanguageLexer(charStream);
                 lex.removeErrorListeners();
                 // Collect all of the tokens
-                ErrL errorListener = new ErrL(proxies, charStream);
+                ErrL errorListener = new ErrL(proxies, charStream, flags == 2);
                 lex.addErrorListener(errorListener);
                 Token tok;
                 int tokenIndex = 0;
@@ -128,6 +146,19 @@ public class ParserExtractor {
                     int type = tok.getType();
                     int start = tok.getStartIndex();
                     int stop = tok.getStopIndex();
+                    if ((tok.getTokenIndex() + 1) % 11 == 0) {
+                        wasCancelled = cancelled.getAsBoolean();
+                        if (wasCancelled) {
+                            // Cancelled = just stretch the current token to the
+                            // end of the text so we return the right span
+                            stop = text.length() - 1;
+                            proxies.onToken(type,
+                                    tok.getLine(), tok.getCharPositionInLine(),
+                                    tok.getChannel(), tokenIndex++,
+                                    start, stop, 0, lex._mode);
+                            break;
+                        }
+                    }
                     // If there are syntax errors, there will be gaps in the text
                     // that's tokenized.  NetBeans lexers REALLY don't like that.
                     // While we have some magic in AdhocLexer to deal with this,
@@ -196,27 +227,29 @@ public class ParserExtractor {
                             tok.getChannel(), tokenIndex++,
                             start, stop, trim, lex._mode);
                     if (type != DummyLanguageLexer.EOF) { //lexerOnly
-                        lexerTreeBuilder.addTerminalNode(tokenIndex - 1, tok.getText(), 1); //lexerOnly
+                        lexerTreeBuilder.addTerminalNode(tokenIndex - 1, 1); //lexerOnly
                     } //lexerOnly
                 } while (tok.getType() != DummyLanguageLexer.EOF);
                 lexerTreeBuilder.build(); //lexerOnly
-                lex.reset(); //parser
-                errorListener.updateTokenIndex(0, -1);
-                // Now lex again to run the parser
-                CommonTokenStream cts = new CommonTokenStream(lex, 0); // parser
-                errorListener.cts = cts;
-                DummyLanguageParser parser = new DummyLanguageParser(cts); //parser
-                parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION); //parser
-                parser.removeErrorListeners(); //parser
-                parser.addErrorListener(errorListener); //parser
-                org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder //parser
-                        bldr = proxies.treeBuilder(); //parser
-                RuleTreeVisitor v = new RuleTreeVisitor(bldr); //parser
-                String startRuleMethodName = DummyLanguageParser.ruleNames[ruleIndex].replace("-", "_"); //parser
-                Method method = DummyLanguageParser.class.getMethod(startRuleMethodName); //parser
-                ParseTree pt = (ParseTree) method.invoke(parser); //parser
-                pt.accept(v); //parser
-                bldr.build(); //parser
+                if (!wasCancelled) { // parser
+                    lex.reset(); //parser
+                    errorListener.updateTokenIndex(0, -1); //parser
+                    // Now lex again to run the parser
+                    CommonTokenStream cts = new CommonTokenStream(lex, 0); // parser
+                    errorListener.cts = cts; // parser
+                    DummyLanguageParser parser = new DummyLanguageParser(cts); //parser
+                    parser.getInterpreter().setPredictionMode(predictionModeForFlags(flags)); //parser
+                    parser.removeErrorListeners(); //parser
+                    parser.addErrorListener(errorListener); //parser
+                    org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder //parser
+                            bldr = proxies.treeBuilder(); //parser
+                    RuleTreeVisitor v = new RuleTreeVisitor(bldr, cancelled); //parser
+                    String startRuleMethodName = DummyLanguageParser.ruleNames[ruleIndex].replace("-", "_"); //parser
+                    Method method = DummyLanguageParser.class.getMethod(startRuleMethodName); //parser
+                    ParseTree pt = (ParseTree) method.invoke(parser); //parser
+                    pt.accept(v); //parser
+                    bldr.build(); //parser
+                } // parser
             }
         } catch (Exception | Error ex) {
             ex.printStackTrace();
@@ -224,6 +257,33 @@ public class ParserExtractor {
         }
         return proxies.result();
     }
+
+    public static int flagsforPredictionMode(PredictionMode mode) { //parser
+        // default to LL, but don't rely on PredictionMode.ordinal() or //parser
+        // the set being complete when this code was written //parser
+        switch (mode) { //parser
+            case LL_EXACT_AMBIG_DETECTION: //parser
+                return 2; //parser
+            case SLL: //parser
+                return 0; //parser
+            case LL: //parser
+            default: //parser
+                return 1; //parser
+        } //parser
+    } //parser
+
+    public static PredictionMode predictionModeForFlags(int val) { //parser
+        // We may include other features in flags later, so mask it for future proofing //parser
+        switch (val) { //parser
+            case 0: //parser
+                return PredictionMode.SLL; //parser
+            case 2: //parser
+                return PredictionMode.LL_EXACT_AMBIG_DETECTION; //parser
+            case 1: //parser
+            default: //parser
+                return PredictionMode.LL; //parser
+        } //parser
+    } //parser
 
     static void collectChannelNames(AntlrProxies proxies) {
         // The channel names are simply a string array - safe enough
@@ -267,13 +327,16 @@ public class ParserExtractor {
 
         private final org.nemesis.antlr.live.parsing.extract.AntlrProxies proxies;
         private final CharSequenceCharStream stream;
+        private final boolean collectAmbiguities;
         private int tokenIndex = 0;
         private int lastTokenType = -1;
         private CommonTokenStream cts;
 
-        ErrL(org.nemesis.antlr.live.parsing.extract.AntlrProxies proxies, CharSequenceCharStream stream) {
+        ErrL(org.nemesis.antlr.live.parsing.extract.AntlrProxies proxies,
+                CharSequenceCharStream stream, boolean collectAmbiguities) {
             this.proxies = proxies;
             this.stream = stream;
+            this.collectAmbiguities = collectAmbiguities;
         }
 
         void reset() {
@@ -314,7 +377,6 @@ public class ParserExtractor {
                 boolean atEnd = stream.index() >= stream.size() - 1;
                 int start = atEnd ? stream.size() - 1 : stream.index();
                 int end = start + 1;
-//                proxies.onSyntaxError(message, line, charPositionInLine, stream.index());
                 proxies.onSyntaxError(message, line, charPositionInLine, tokenIndex, lastTokenType, start, end);
             }
         }
@@ -322,48 +384,34 @@ public class ParserExtractor {
         @Override
         public void reportAmbiguity(Parser parser, DFA dfa, int startIndex, int stopIndex,
                 boolean exact, BitSet conflictingAlternatives, ATNConfigSet atncs) {
-            int decision = dfa.decision;
-            int ruleIndex = dfa.atnStartState.ruleIndex;
-            String[] ruleNames = parser.getRuleNames();
-            String ruleName = null;
-            if (ruleIndex < 0 || ruleIndex >= ruleNames.length) {
-                ruleName = String.valueOf(decision);
-            } else {
-                ruleName = ruleNames[ruleIndex];
-                if (ruleName == null || ruleName.isEmpty()) {
-                    ruleName = String.valueOf(decision);
-                }
-            }
-            if (conflictingAlternatives == null) {
-                conflictingAlternatives = atncs.getAlts();
-            }
-            org.nemesis.antlr.live.parsing.extract.AntlrProxies.Ambiguity ambig
-                    = new org.nemesis.antlr.live.parsing.extract.AntlrProxies.Ambiguity(
-                            decision, ruleIndex, ruleName, conflictingAlternatives,
-                            startIndex, stopIndex);
-            proxies.onAmbiguity(ambig);
+            if (!collectAmbiguities) { //parser
+                return; //parser
+            } //parser
+            ParserRuleContext ruleContext = parser.getContext(); //parser
+            int alt = -1; //parser
+            if (ruleContext != null) { //parser
+                alt = ruleContext.getAltNumber(); //parser
+            } //parser
+            int decision = dfa.decision; //parser
+            int ruleIndex = dfa.atnStartState.ruleIndex; //parser
+            if (conflictingAlternatives == null) { //parser
+                conflictingAlternatives = atncs.getAlts(); //parser
+            } //parser
+            org.nemesis.antlr.live.parsing.extract.AntlrProxies.Ambiguity ambig //parser
+                    = new org.nemesis.antlr.live.parsing.extract.AntlrProxies.Ambiguity( //parser
+                            decision, ruleIndex, conflictingAlternatives, //parser
+                            startIndex, stopIndex, alt); //parser
+            proxies.onAmbiguity(ambig); //parser
         }
 
         @Override
-        public void reportAttemptingFullContext(Parser parser, DFA dfa, int i, int i1, BitSet bitset, ATNConfigSet atncs) {
+        public void reportAttemptingFullContext(Parser parser, DFA dfa, int startIndex, int stopIndex,
+                BitSet conflictingAlternatives, ATNConfigSet configs) {
         }
 
         @Override
-        public void reportContextSensitivity(Parser parser, DFA dfa, int i, int i1, int i2, ATNConfigSet atncs) {
-        }
-
-        protected String getDecisionDescription(Parser recognizer, DFA dfa) {
-            int decision = dfa.decision;
-            int ruleIndex = dfa.atnStartState.ruleIndex;
-            String[] ruleNames = recognizer.getRuleNames();
-            if (ruleIndex < 0 || ruleIndex >= ruleNames.length) {
-                return String.valueOf(decision);
-            }
-            String ruleName = ruleNames[ruleIndex];
-            if (ruleName == null || ruleName.isEmpty()) {
-                return String.valueOf(decision);
-            }
-            return String.format("rule '%s' (%d)", ruleName, decision);
+        public void reportContextSensitivity(Parser parser, DFA dfa, int startIndex,
+                int stopIndex, int prediction, ATNConfigSet atncs) {
         }
     }
 
@@ -371,29 +419,48 @@ public class ParserExtractor {
 
         private final org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder builder; //parser
         private int currentDepth; //parser
+        private final BooleanSupplier cancelled; //parser
+        private boolean wasCancelled; //parser
+        private int tick; //parser
 
-        public RuleTreeVisitor(org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder builder) { //parser
+        public RuleTreeVisitor(org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder builder, BooleanSupplier cancelled) { //parser
             this.builder = builder; //parser
+            this.cancelled = cancelled; //parser
         } //parser
 
         @Override //parser
         public Void visit(ParseTree tree) { //parser
+            if (wasCancelled) { //parser
+                return null; //parser
+            } //parser
             tree.accept(this); //parser
             return null; //parser
         } //parser
 
+        private boolean checkCancelled() { //parser
+            if (!wasCancelled && ++tick % 11 == 0) { //parser
+                wasCancelled = cancelled.getAsBoolean(); //parser
+            } //parser
+            return wasCancelled; //parser
+        } //parser
+
         @Override //parser
         public Void visitChildren(RuleNode node) { //parser
-            String ruleName = DummyLanguageParser.ruleNames[node.getRuleContext().getRuleIndex()]; //parser
             int alt = node.getRuleContext().getAltNumber(); //parser
             Interval ival = node.getSourceInterval(); //parser
-            builder.addRuleNode(ruleName, alt, ival.a, ival.b, currentDepth, () -> { //parser
+            builder.addRuleNode(node.getRuleContext().getRuleIndex(), alt, ival.a, ival.b, currentDepth, () -> { //parser
+                if (checkCancelled()) { //parser
+                    return; //parser
+                } //parser
                 int n = node.getChildCount(); //parser
                 for (int i = 0; i < n; i++) { //parser
                     ParseTree c = node.getChild(i); //parser
                     currentDepth++; //parser
                     c.accept(this); //parser
                     currentDepth--; //parser
+                    if (checkCancelled()) { //parser
+                        return; //parser
+                    } //parser
                 } //parser
             }); //parser
             return null; //parser
@@ -401,7 +468,7 @@ public class ParserExtractor {
 
         @Override //parser
         public Void visitTerminal(TerminalNode node) { //parser
-            builder.addTerminalNode(node.getSymbol().getTokenIndex(), node.getText(), currentDepth + 1); //parser
+            builder.addTerminalNode(node.getSymbol().getTokenIndex(), currentDepth + 1); //parser
             return null; //parser
         } //parser
 
@@ -415,7 +482,7 @@ public class ParserExtractor {
 
     public static final class CharSequenceCharStream implements CharStream {
 
-        private CharSequence data;
+        private final CharSequence data;
         private int n;
         private int p;
 

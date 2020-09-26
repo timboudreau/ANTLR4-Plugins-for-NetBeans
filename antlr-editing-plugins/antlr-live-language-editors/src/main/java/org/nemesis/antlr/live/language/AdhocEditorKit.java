@@ -16,10 +16,13 @@
 package org.nemesis.antlr.live.language;
 
 import com.mastfrog.util.collections.AtomicLinkedQueue;
+import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import java.awt.Container;
+import java.awt.Cursor;
 import java.awt.EventQueue;
 import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
@@ -27,6 +30,7 @@ import java.awt.event.ItemListener;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Dictionary;
 import java.util.HashSet;
 import java.util.List;
@@ -55,13 +59,17 @@ import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
+import static org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElementKind.ROOT;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyTokenType;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TokenAssociated;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.editor.doc.EnhEditorDocument;
+import org.nemesis.editor.ops.DocumentOperator;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.Extraction;
 import org.nemesis.localizers.api.Localizers;
@@ -142,6 +150,176 @@ public class AdhocEditorKit extends ExtKit {
     static final RequestProcessor ADHOC_POPULATE_MENU_POOL
             = new RequestProcessor("populate-adhoc-popup", 1, true);
 
+    @Messages({"copySyntaxTree=Copy Syntax Tree Path",
+        "copyTokenDetails=Copy Token Sequence Details",
+        "parsing=Reparsing for syntax tree path",
+        "copiedToClipboard=Copied to clipboard"})
+    static final class CopySyntaxTreePathAction extends AbstractAction {
+
+        private final JTextComponent component;
+        private StatusDisplayer.Message message;
+
+        public CopySyntaxTreePathAction(JTextComponent component) {
+            // set by PreviewPanel
+            boolean isLexer = Boolean.TRUE.equals(component.getDocument().getProperty("isLexer"));
+            putValue(NAME, isLexer ? Bundle.copyTokenDetails() : Bundle.copySyntaxTree());
+            this.component = component;
+        }
+
+        private void failureMessage(String msg) {
+            this.message = StatusDisplayer.getDefault().setStatusText(msg, StatusDisplayer.IMPORTANCE_FIND_OR_REPLACE);
+        }
+
+        @Messages({
+            "errDocTooShort=Document too short",
+            "# {0} - caretPosition",
+            "errNoToken=No token at caret position {0}",
+            "errNothingToCopy=Nothing to copy (at start?)",
+            "# {0} - caretPosition",
+            "noTreeElement=No parse tree at caret position {0} (routed to another channel?)"
+        })
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            int caret = component.getCaret().getDot();
+            Document doc = component.getDocument();
+            String mime = NbEditorUtilities.getMimeType(doc);
+            Cursor oldCursor = component.getCursor();
+            component.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+            ADHOC_POPULATE_MENU_POOL.submit(() -> {
+                try {
+                    EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mime);
+                    Segment seg = DocumentOperator.render(doc, () -> {
+                        Segment s = new Segment();
+                        doc.getText(0, doc.getLength(), s);
+                        return s;
+                    });
+                    if (seg.length() < 3) {
+                        failureMessage(Bundle.errDocTooShort());
+                        return;
+                    }
+                    EmbeddedAntlrParserResult res = parser.parse(seg);
+                    ParseTreeProxy proxy = res.proxy();
+                    ProxyToken tok = proxy.tokenAtPosition(caret);
+                    if (tok == null) {
+                        failureMessage(Bundle.errNoToken(caret));
+                        return;
+                    }
+                    if (proxy != null && !proxy.isUnparsed()) {
+                        StringBuilder content = new StringBuilder();
+                        if (proxy.isLexerGrammar()) {
+                            List<String> infos = new ArrayList<>();
+                            List<CharSequence> texts = new ArrayList<>();
+                            List<ProxyToken> tokens = proxy.tokens();
+                            for (ProxyToken pt : tokens) {
+                                CharSequence text = Escaper.CONTROL_CHARACTERS.escape(proxy.textOf(tok));
+                                if (tok.isWhitespace()) {
+                                    text = '\'' + text.toString() + '\'';
+                                }
+
+                                StringBuilder info = new StringBuilder();
+                                ProxyTokenType type = proxy.tokenTypeForInt(pt.getType());
+
+                                info.append(type.name()).append('(').append(pt.getType())
+                                        .append(") ").append(pt.getStartIndex()).append('-')
+                                        .append(pt.getEndIndex()).append('=').append(pt.length());
+                                infos.add(info.toString());
+                                texts.add(text.toString());
+                                if (pt.equals(tok)) {
+                                    break;
+                                }
+                            }
+                            if (!infos.isEmpty()) {
+                                StringBuilder textLine = new StringBuilder();
+                                StringBuilder infoLine = new StringBuilder();
+                                int maxLine = 120;
+                                for (int i = 0; i < infos.size(); i++) {
+                                    CharSequence text = texts.get(i);
+                                    String info = infos.get(i);
+                                    textLine.append(text);
+                                    infoLine.append(info);
+                                    int maxLength = Math.max(text.length(), info.length());
+                                    if (textLine.length() + maxLength > maxLine) {
+                                        content.append('\n').append(textLine);
+                                        content.append('\n').append(infoLine);
+                                        textLine.setLength(0);
+                                        infoLine.setLength(0);
+                                    }
+                                    if (text.length() > info.length()) {
+                                        char[] pad = new char[text.length() - info.length()];
+                                        Arrays.fill(pad, ' ');
+                                        infoLine.append(pad);
+                                    } else if (text.length() < info.length()) {
+                                        char[] pad = new char[text.length() - info.length()];
+                                        Arrays.fill(pad, ' ');
+                                        textLine.append(pad);
+                                    }
+                                    if (textLine.length() + 3 > maxLine) {
+                                        content.append('\n').append(textLine);
+                                        content.append('\n').append(infoLine);
+                                        textLine.setLength(0);
+                                        infoLine.setLength(0);
+                                    } else if (i != infos.size() - 1) {
+                                        textLine.append(" / ");
+                                        infoLine.append(" / ");
+                                    }
+                                }
+                                if (textLine.length() > 0) {
+                                    content.append('\n').append(textLine);
+                                    content.append('\n').append(infoLine);
+                                }
+                            } else {
+                                return;
+                            }
+                        } else {
+                            int tix = tok.getTokenIndex();
+                            int bestDepth = Integer.MIN_VALUE;
+                            ParseTreeElement bestElement = null;
+                            for (ParseTreeElement el : proxy.allTreeElements()) {
+                                if (el instanceof TokenAssociated) {
+                                    TokenAssociated ta = (TokenAssociated) el;
+                                    if (ta.startTokenIndex() >= tix && ta.stopTokenIndex() <= tix) {
+                                        if (el.depth() > bestDepth) {
+                                            bestDepth = el.depth();
+                                            bestElement = el;
+                                        }
+                                    }
+                                }
+                            }
+                            if (bestElement != null) {
+                                ParseTreeElement el = bestElement;
+                                while (el.kind() != ROOT) {
+                                    char[] pad = new char[el.depth() * 4];
+                                    Arrays.fill(pad, ' ');
+                                    String txt = new String(pad) + el.stringify(proxy) + "\n";
+                                    content.insert(0, txt);
+                                    el = el.parent();
+                                }
+                            } else {
+                                failureMessage(Bundle.noTreeElement(caret));
+                                return;
+                            }
+                        }
+                        if (content.length() > 0) {
+                            Clipboard clip = Toolkit.getDefaultToolkit().getSystemClipboard();
+                            StringSelection string = new StringSelection(content.toString());
+                            clip.setContents(string, string);
+                            StatusDisplayer.getDefault().setStatusText(Bundle.copiedToClipboard());
+                        } else {
+                            failureMessage(Bundle.errNothingToCopy());
+                        }
+                    }
+                } catch (Exception ex) {
+                    Exceptions.printStackTrace(ex);
+                } finally {
+                    EventQueue.invokeLater(() -> {
+                        component.setCursor(oldCursor);
+                    });
+                }
+            });
+        }
+
+    }
+
     private class PopupBuilder extends AbstractAction {
 
         PopupBuilder() {
@@ -160,8 +338,8 @@ public class AdhocEditorKit extends ExtKit {
             JPopupMenu menu = new JPopupMenu();
             try {
                 menu.add(ImportIntoSampleAction.submenu(target));
-                Action copyTokenSequenceAction = new CopyTokenSequenceAction(target);
-                menu.add(copyTokenSequenceAction);
+                menu.add(new CopySyntaxTreePathAction(target));
+                menu.add(new CopyTokenSequenceAction(target));
                 menu.add(new JSeparator());
                 JMenuItem cutItem = new JMenuItem(getActionByName(cutAction));
                 Mnemonics.setLocalizedText(cutItem, Bundle.cut());
@@ -176,6 +354,7 @@ public class AdhocEditorKit extends ExtKit {
                 menu.add(AdhocErrorHighlighter.toggleHighlightParserErrorsAction(false).getPopupPresenter());
                 menu.add(AdhocErrorHighlighter.toggleHighlightLexerErrorsAction(false).getPopupPresenter());
                 menu.add(AdhocErrorHighlighter.toggleHighlightAmbiguitiesAction(false).getPopupPresenter());
+                menu.add(SetPredictionModeAction.createMenuItem());
                 menu.add(new JSeparator());
                 menu.add(createLazyGotoSubmenu(target));
             } catch (Exception ex) {
@@ -285,7 +464,7 @@ public class AdhocEditorKit extends ExtKit {
                                                         if (Thread.interrupted()) {
                                                             return;
                                                         }
-                                                        if (seen.contains(pte.name())) {
+                                                        if (seen.contains(pte.name(prox))) {
                                                             continue;
                                                         }
                                                         List<ProxyToken> toks = prox.tokensForElement(pte);
@@ -295,7 +474,7 @@ public class AdhocEditorKit extends ExtKit {
                                                             int start = first.getStartIndex();
                                                             int end = last.getEndIndex();
                                                             if (caret >= start && caret <= end) {
-                                                                String name = pte.name();
+                                                                String name = pte.name(prox);
                                                                 seen.add(name);
                                                                 Action act = createActionFor(name, ext);
                                                                 if (act != null) {
@@ -452,6 +631,7 @@ public class AdhocEditorKit extends ExtKit {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public void actionPerformed(ActionEvent e) {
             StyledDocument doc = (StyledDocument) comp.getDocument();
             StringBuilder tokens = new StringBuilder();
@@ -665,6 +845,7 @@ public class AdhocEditorKit extends ExtKit {
         }
 
         static final class LangPropertyEvaluator implements PropertyEvaluator {
+
             // Looking up the language during Document creation can deadlock
             // by reentering LanguageHierarchy.language(), so initialize that
             // on demand

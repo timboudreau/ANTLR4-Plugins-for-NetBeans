@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.spi.language;
 
+import org.nemesis.antlr.common.TimedWeakReference;
+import com.mastfrog.function.state.Obj;
 import com.mastfrog.function.throwing.ThrowingSupplier;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.MapFactories;
@@ -57,6 +59,7 @@ import org.netbeans.spi.lexer.LexerRestartInfo;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
+import org.openide.loaders.DataObjectNotFoundException;
 import org.openide.util.Exceptions;
 
 import static com.mastfrog.util.preconditions.Checks.notNull;
@@ -122,34 +125,55 @@ public final class NbAntlrUtils {
                   } );
     }
 
+    private static Document documentForFile( FileObject fo ) {
+        try {
+            DataObject dob = DataObject.find( fo );
+            EditorCookie ck = dob.getLookup().lookup( EditorCookie.class );
+            if ( ck != null ) {
+                return ck.getDocument();
+            }
+            return null;
+        } catch ( DataObjectNotFoundException ex ) {
+            Exceptions.printStackTrace( ex );
+            return null;
+        }
+    }
+
     public static void parseImmediately( FileObject file, BiConsumer<Extraction, Exception> consumer ) {
+        Document doc = documentForFile( file );
+        if ( doc != null ) {
+            parseImmediately( doc, consumer );
+            return;
+        }
         parseImmediately( Source.create( file ), consumer );
     }
 
+    @SuppressWarnings( "ThrowableResultIgnored" )
     public static Extraction parseImmediately( Document doc ) throws Exception {
-        Extraction[] ext = new Extraction[ 1 ];
-        Exception[] ex = new Exception[ 1 ];
+        Obj<Extraction> ext = Obj.create();
+        Obj<Exception> exc = Obj.create();
         parseImmediately( doc, ( res, thrown ) -> {
-                      ex[ 0 ] = thrown;
-                      ext[ 0 ] = res;
+                      exc.set( thrown );
+                      ext.set( res );
                   } );
-        if ( ex[ 0 ] != null ) {
-            throw ex[ 0 ];
+        if ( exc.isSet() ) {
+            throw exc.get();
         }
-        return ext[ 0 ];
+        return ext.get();
     }
 
+    @SuppressWarnings( "ThrowableResultIgnored" )
     public static Extraction parseImmediately( FileObject file ) throws Exception {
-        Extraction[] ext = new Extraction[ 1 ];
-        Exception[] ex = new Exception[ 1 ];
+        Obj<Extraction> ext = Obj.create();
+        Obj<Exception> exc = Obj.create();
         parseImmediately( file, ( res, thrown ) -> {
-                      ex[ 0 ] = thrown;
-                      ext[ 0 ] = res;
+                      exc.set( thrown );
+                      ext.set( res );
                   } );
-        if ( ex[ 0 ] != null ) {
-            throw ex[ 0 ];
+        if ( exc.isSet() ) {
+            throw exc.get();
         }
-        return ext[ 0 ];
+        return ext.get();
     }
 
 //    private static void parseImmediatelyBypassingParserManager( Source src, BiConsumer<Extraction, Exception> consumer ) {
@@ -368,7 +392,7 @@ public final class NbAntlrUtils {
             AtomicReference<TimedWeakReference<Extraction>> ref = extractionReference( doc );
             TimedWeakReference<Extraction> old = ref.get();
 //            WeakReference<Extraction> old = ref.get();
-            TimedWeakReference<Extraction> nue = new TimedWeakReference<>( ext );
+            TimedWeakReference<Extraction> nue = TimedWeakReference.create( ext );
             ref.set( nue );
             if ( old != null ) {
                 old.discard();
@@ -398,7 +422,7 @@ public final class NbAntlrUtils {
 
     private static final Map<FileObject, Extraction> foCache
             = Collections.synchronizedMap( CollectionUtils.weakValueMap( MapFactories.EQUALITY_CONCURRENT, 36,
-                                                                         TimedWeakReference::new ) );
+                                                                         TimedWeakReference::create ) );
 
     public static Extraction extractionFor( FileObject fo ) {
         DataObject dob;
@@ -442,49 +466,64 @@ public final class NbAntlrUtils {
             ref = extractionReference( document );
             weak = ref.get();
             if ( weak != null ) {
-                Extraction result = weak.get();
-                if ( result != null && !result.isSourceProbablyModifiedSinceCreation() ) {
+
+                Extraction result = weak.getIf( ext -> {
+                    return !ext.isSourceProbablyModifiedSinceCreation();
+                } );
+                if ( result != null ) {
                     return result;
                 }
             }
         }
-        TimedWeakReference<Extraction> result = null;
+        TimedWeakReference<Extraction> newRef = null;
         Extraction r;
-        Extraction[] strongRef = new Extraction[ 1 ];
+        // There is the theoretical possibility (and real, if the application is running
+        // out of memory) that the Extraction can be garbage collected before we have a
+        // chance to return it if we return the value of newRef.get(), so keep a strong
+        // reference and use that as the return value
+        Obj<Extraction> temporaryStrongRef = Obj.create();
         try {
+            WorkCoalescer<TimedWeakReference<Extraction>> coa = coa( document );
             do {
-                Extraction prev = strongRef[ 0 ];
-                result = coa( document ).coalesceComputation( () -> {
+                Extraction prev = temporaryStrongRef.get();
+                newRef = coa.coalesceComputation( () -> {
                     try {
-                        strongRef[ 0 ] = parseImmediately( document );
-                        return new TimedWeakReference<>( strongRef[ 0 ] );
+                        Extraction ext = parseImmediately( document );
+                        if ( ext != null ) {
+                            temporaryStrongRef.set( ext );
+                            return TimedWeakReference.create( ext );
+                        }
+                        return null;
                     } catch ( Exception ex ) {
                         Exceptions.printStackTrace( ex );
                         return null;
                     }
                 }, ref );
-                if ( prev == strongRef[ 0 ] && prev != null ) {
+                if ( prev == temporaryStrongRef.get() && prev != null ) {
                     break;
-                } else if ( strongRef[ 0 ] == null ) {
+                } else if ( temporaryStrongRef.get() == null ) {
                     break;
                 }
+            } while ( temporaryStrongRef.get() == null || temporaryStrongRef.get()
+                    .isSourceProbablyModifiedSinceCreation() );
 
-            } while ( result.get() == null || result.get().isSourceProbablyModifiedSinceCreation() );
+            System.out.println( "Extraction coalescence: " + coa );
         } catch ( InterruptedException ex ) {
             Exceptions.printStackTrace( ex );
         } catch ( WorkCoalescer.ComputationFailedException ex ) {
             Exceptions.printStackTrace( ex );
         }
-        r = result == null ? null : result.get();
-//                                                                    // do nothing
-//                                                         }, ref );
-//        if ( ref != null && result != null && !result.isPlaceholder() ) {
-//            ref.set( new TimedWeakReference<>( result ) );
-//            if ( weak != null ) {
-//                weak.discard();
-//            }
-//        }
-
+        r = temporaryStrongRef.get();
+        if ( weak != null && r != null ) {
+            Extraction oldExt = weak.getIf( oe -> {
+                return oe != r;
+            } );
+            if ( oldExt != null ) {
+                // hasten collection
+                oldExt = null;
+                weak.discard();
+            }
+        }
         return r != null ? r : Extraction.empty( NbEditorUtilities.getMimeType( document ) );
     }
 

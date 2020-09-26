@@ -15,7 +15,7 @@
  */
 package org.nemesis.antlr.live.execution;
 
-import java.util.function.BiConsumer;
+import com.mastfrog.function.TriConsumer;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.extraction.Extraction;
 import org.openide.filesystems.FileObject;
@@ -32,7 +32,7 @@ public final class InvocationSubscriptions<T> {
         this.type = type;
     }
 
-    public Runnable subscribe(FileObject file, BiConsumer<Extraction, GrammarRunResult<T>> subscriber) {
+    public Runnable subscribe(FileObject file, TriConsumer<Extraction, GrammarRunResult<T>, T> subscriber) {
         return AntlrRunSubscriptions.instance()._subscribe(file, type, subscriber);
     }
 }

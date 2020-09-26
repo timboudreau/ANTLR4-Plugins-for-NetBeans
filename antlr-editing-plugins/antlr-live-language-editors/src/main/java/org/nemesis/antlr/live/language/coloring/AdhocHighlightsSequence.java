@@ -27,7 +27,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.AttributeSet;
 import org.antlr.v4.runtime.Lexer;
-import org.nemesis.antlr.live.language.AdhocTokenId;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
@@ -91,6 +90,7 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
         return result;
     }
 
+    @SuppressWarnings("unchecked")
     static List<DataIntRange<AdhocAttributeSet, ? extends DataIntRange<AdhocAttributeSet, ?>>> computeRanges(AdhocColorings colorings, ParseTreeProxy semantics, int length) {
         // Okay, how this all works:
         // The range library has generic support for creating ranges with data associated
@@ -121,7 +121,7 @@ public class AdhocHighlightsSequence implements HighlightsSequence {
         for (AntlrProxies.ParseTreeElement el : ruleElements) {
             if (el.kind() == AntlrProxies.ParseTreeElementKind.RULE) {
                 AntlrProxies.RuleNodeTreeElement rn = (AntlrProxies.RuleNodeTreeElement) el;
-                AdhocColoring a = colorings.get(rn.name());
+                AdhocColoring a = colorings.get(rn.name(semantics));
                 allRuleCount++;
                 // Ignore rules with no coloring, or rules which do not have
                 // highlighting activated

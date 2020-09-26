@@ -65,9 +65,10 @@ public class CharSequenceCharStreamTest {
         CharStream str = new CharSequenceCharStream(txt);
         DummyLanguageLexer lex = new DummyLanguageLexer(str);
         List<ProxyToken> l = new ArrayList<>(30);
-        for (;;) {
+        for (int i = 0;; i++) {
             Token t = lex.nextToken();
-            ProxyToken pt = new ProxyToken(t.getType(), t.getLine(), t.getCharPositionInLine(), t.getChannel(), t.getTokenIndex(), t.getStartIndex(), t.getStopIndex(), 0);
+            ProxyToken pt = new ProxyToken(t.getType(), t.getLine(), t.getCharPositionInLine(),
+                    t.getChannel(), i, t.getStartIndex(), t.getStopIndex(), 0);
             l.add(pt);
             if (t.getType() == -1) {
                 break;
@@ -76,17 +77,40 @@ public class CharSequenceCharStreamTest {
         str = new org.antlr.v4.runtime.ANTLRInputStream(txt);
         lex = new DummyLanguageLexer(str);
         List<ProxyToken> l2 = new ArrayList<>(30);
-        for (;;) {
+        for (int i = 0;; i++) {
             Token t = lex.nextToken();
-            ProxyToken pt = new ProxyToken(t.getType(), t.getLine(), t.getCharPositionInLine(), t.getChannel(), t.getTokenIndex(), t.getStartIndex(), t.getStopIndex(), 0);
+            ProxyToken pt = new ProxyToken(t.getType(), t.getLine(), t.getCharPositionInLine(),
+                    t.getChannel(), i, t.getStartIndex(), t.getStopIndex(), 0);
             l2.add(pt);
+            System.out.println(pt.hashCode() + " - " + pt);
             if (t.getType() == -1) {
                 break;
             }
         }
         assertEquals(l, l2);
-        AntlrProxies.ParseTreeProxy extracted = ParserExtractor.extract(txt);
-        assertEquals(l, extracted.tokens());
+        AntlrProxies.ParseTreeProxy extracted = ParserExtractor.extract(txt, () -> false);
+        assertTokensEquals(l, extracted.tokens());
+    }
+
+    private void assertTokensEquals(List<ProxyToken> expect, List<ProxyToken> got) {
+        int max = Math.min(expect.size(), got.size());
+        for (int i = 0; i < max; i++) {
+            ProxyToken e = expect.get(i);
+            ProxyToken g = got.get(i);
+            assertTokensEquals("Token mismatch at " + i, e, g);
+        }
+        assertEquals(expect.size(), got.size());
+    }
+
+    private void assertTokensEquals(String msg, ProxyToken a, ProxyToken b) {
+        String m = msg + ": Tokens do not match:\n" + a + "\n" + b;
+        assertEquals(a.getType(), b.getType(), () -> "type mismatch; " + m);
+        assertEquals(a.getStartIndex(), b.getStartIndex(), () -> "start mismatch; " + m);
+        assertEquals(a.getStopIndex(), b.getStopIndex(), () -> "stop mismatch; " + m);
+        assertEquals(a.length(), b.length(), () -> "length mismatch; " + m);
+        assertEquals(a.getLine(), b.getLine(), () -> "line mismatch; " + m);
+        assertEquals(a.getCharPositionInLine(), b.getCharPositionInLine(), () -> "position in line mismatch; " + m);
+        assertEquals(a.mode(), b.mode(), () -> "mode mismatch; " + m);
     }
 
     private static final String txt = "//Copyright 2015 The Rust Project Developers. See the COPYRIGHT\n"

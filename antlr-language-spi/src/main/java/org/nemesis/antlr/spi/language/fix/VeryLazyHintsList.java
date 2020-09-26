@@ -72,8 +72,8 @@ final class VeryLazyHintsList implements LazyFixList, Runnable {
 
     @Override
     public boolean probablyContainsFixes() {
-        return !extraction.isSourceProbablyModifiedSinceCreation();
-//        return true;
+//        return !extraction.isSourceProbablyModifiedSinceCreation();
+        return true;
         //            List<Fix> all = ref.get();
         //            return all == null || !computed ? true : !all.isEmpty();
     }

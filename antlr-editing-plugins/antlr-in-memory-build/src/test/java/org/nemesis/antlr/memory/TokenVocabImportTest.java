@@ -106,7 +106,10 @@ public class TokenVocabImportTest {
 
             assertNotNull(parserResult);
             assertTrue(parserResult.isSuccess(), parserResult::toString);
-            JFSFileObject tokensFile = parserResult.jfs.get(StandardLocation.SOURCE_PATH,
+            JFS jfs = parserResult.originalJFS();
+            assertNotNull(jfs);
+            assertFalse(jfs.isEmpty());
+            JFSFileObject tokensFile = jfs.get(StandardLocation.SOURCE_PATH,
                     UnixPath.get("com/poozle/MarkdownLexer.tokens"));
             assertNotNull(tokensFile);
             assertEquals(2, parserResult.allGrammars.size(), parserResult.allGrammars::toString);
@@ -115,10 +118,12 @@ public class TokenVocabImportTest {
             assertTrue(parserResult.inputFiles.contains(tokensFile.toCoordinates()), parserResult.inputFiles::toString);
             assertFalse(parserResult.outputFiles.isEmpty(), "Output files are empty: " + parserResult);
             assertTrue(parserResult.errors.isEmpty(), parserResult.errors::toString);
-            assertTrue(parserResult.isUsable(), () -> {return "Not usable? " + parserResult.toString();});
+            assertTrue(parserResult.isUsable(), () -> {
+                return "Not usable? " + parserResult.toString();
+            });
             Set<String> jfsContents = new HashSet<>();
             Set<String> generatedFilesAccordingToParserResult = new HashSet<>();
-            parserResult.jfs.listAll((loc, file) -> {
+            jfs.listAll((loc, file) -> {
                 jfsContents.add(file.getName());
                 System.out.println("JFS: " + file.getName());
             });
@@ -149,13 +154,13 @@ public class TokenVocabImportTest {
             assertTrue(parserResult.areOutputFilesUpToDate(UnixPath.get("com/poozle/MarkdownParser.g4")));
 
             assertTrue(result2.inputChanges().isUpToDate());
-            lexerDoc.insertString(lexerDoc.getLength()-1, " ", null);
+            lexerDoc.insertString(lexerDoc.getLength() - 1, " ", null);
             assertFalse(result2.inputChanges().isUpToDate());
-            lexerDoc.remove(lexerDoc.getLength()-2, 1);
+            lexerDoc.remove(lexerDoc.getLength() - 2, 1);
             assertTrue(result2.inputChanges().isUpToDate(), "Hashing should result in no "
                     + "modifications if a string is inserted then removed from a mapped document");
 
-            lexerDoc.insertString(lexerDoc.getLength()-1, "fragment WURB='blee';\n", null);
+            lexerDoc.insertString(lexerDoc.getLength() - 1, "fragment WURB='blee';\n", null);
             System.out.println("CHANGES NOW " + result2.inputChanges());
             assertFalse(result2.inputChanges().isUpToDate());
             assertTrue(result2.inputChanges().modified().contains(LEXER_PATH));
@@ -168,6 +173,7 @@ public class TokenVocabImportTest {
 
     Document lexerDoc;
     Document parserDoc;
+
     @BeforeEach
     public void setup() throws IOException, BadLocationException, InterruptedException {
         JFS jfs = JFS.builder().build();

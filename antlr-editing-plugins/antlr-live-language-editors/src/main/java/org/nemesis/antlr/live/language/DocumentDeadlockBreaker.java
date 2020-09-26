@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.nemesis.antlr.common.cancel.CancelledState;
+import org.nemesis.antlr.common.cancel.Canceller;
 
 /**
  *
@@ -34,7 +36,8 @@ import java.util.logging.Logger;
  */
 final class DocumentDeadlockBreaker {
 
-    private static final long DELAY = 20000;
+    private static final long DELAY = 30000;
+    private static final long POST_CANCEL_DELAY = 5000;
 
     private static final DelayQueue<Entry> DQ = new DelayQueue<>();
     private static final Logger LOG = Logger.getLogger(DocumentDeadlockBreaker.class.getName());
@@ -76,7 +79,7 @@ final class DocumentDeadlockBreaker {
     private static final class Entry implements Delayed, Runnable {
 
         private final AtomicBoolean done = new AtomicBoolean();
-        private final long expires = System.currentTimeMillis() + DELAY;
+        private long expires = System.currentTimeMillis() + DELAY;
         private final Thread thread;
 
         Entry() {
@@ -88,8 +91,20 @@ final class DocumentDeadlockBreaker {
         }
 
         boolean kill() {
+            if (!thread.isAlive()) {
+                return false;
+            }
             if (setDone()) {
                 try {
+                    CancelledState cancelResult = Canceller.cancelActivityOn(thread);
+                    if (cancelResult == CancelledState.CANCELLED) {
+                        LOG.log(Level.INFO, "Attempted to cancel activity on {0}.", thread);
+                        done.set(false);
+                        expires = System.currentTimeMillis() + POST_CANCEL_DELAY;
+                        DQ.offer(this);
+                        return false;
+                    }
+
                     StringBuilder stacks = null;
                     try {
                         stacks = collectStackTraces();
@@ -99,13 +114,15 @@ final class DocumentDeadlockBreaker {
                     thread.interrupt();
                     Thread.yield();
                     if (stacks != null) {
-                        LOG.log(Level.INFO, "Attempted to break deadlock on {0}. Contention info: {1}", stacks);
+                        LOG.log(Level.INFO, "Attempted to break deadlock by interrupting "
+                                + "{0}, after cancel activity returned{1}. Contention info: {2}",
+                                new Object[]{thread.getName(), stacks, cancelResult});
                     }
                     if (thread.getState() == Thread.State.BLOCKED) {
                         LOG.log(Level.WARNING, "Attempted "
-                                        + "to break deadlock in {0} "
-                                        + "but it still appears to be blocked.\n{1}",
-                                        new Object[]{thread, collectStackTraces()});
+                                + "to break deadlock in {0} "
+                                + "but it still appears to be blocked.\n{1}",
+                                new Object[]{thread, collectStackTraces()});
                         thread.interrupt();
                     }
                     return true;
@@ -118,7 +135,7 @@ final class DocumentDeadlockBreaker {
         }
 
         private static boolean skipThread(String name) {
-            switch(name) {
+            switch (name) {
                 // skip some irrelevant threads that could not be participating
                 case "JGit-Workqueue":
                 case "AWT-Shutdown":
@@ -127,7 +144,7 @@ final class DocumentDeadlockBreaker {
                 case "Finalizer":
                 case "Framework Event Dispatcher":
                 case "Bundle File Closer":
-                case "Batik Cleaner Thread":
+                case "Batik CleanerThread":
                 case "Common-Cleaner":
                 case "VM Thread":
                 case "VM Periodic Task Thread":
@@ -142,9 +159,15 @@ final class DocumentDeadlockBreaker {
                 case "Signal Dispatcher":
                 case "Service Thread":
                 case "Reference Handler":
+                case "State Data Manager":
+                case "Spellchecker":
+                case "TimerQueue":
+                case "Worker-JM":
+                case "JGit-WorkQueue":
                     return true;
             }
-            if (name.startsWith("GC") || name.startsWith("G1") || name.startsWith("C1") || name.startsWith("C2")) {
+            if (name.startsWith("GC") || name.startsWith("G1") || name.startsWith("C1") || name.startsWith("C2")
+                    || name.startsWith("Inactive RequestProcessor thread")) {
                 return true;
             }
             return false;
@@ -156,7 +179,7 @@ final class DocumentDeadlockBreaker {
             Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
             for (Map.Entry<Thread, StackTraceElement[]> e : allStackTraces.entrySet()) {
                 Thread t = e.getKey();
-                if (t == Thread.currentThread() || skipThread(t.getName())) {
+                if (t == Thread.currentThread() || skipThread(t.getName()) || e.getValue().length < 5) {
                     continue;
                 }
                 Thread.State state = t.getState();
@@ -164,7 +187,7 @@ final class DocumentDeadlockBreaker {
                     case BLOCKED:
                     case TIMED_WAITING:
                     case WAITING:
-                    case RUNNABLE :
+                    case RUNNABLE:
                         Object blocker = LockSupport.getBlocker(t);
                         StackTraceElement[] els = e.getValue();
                         if (blocker != null) {

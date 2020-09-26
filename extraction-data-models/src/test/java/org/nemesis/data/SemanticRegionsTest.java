@@ -15,6 +15,13 @@
  */
 package org.nemesis.data;
 
+import com.mastfrog.abstractions.list.IndexedResolvable;
+import com.mastfrog.util.path.UnixPath;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.lang.reflect.Method;
+import static java.nio.charset.StandardCharsets.UTF_16;
 import org.nemesis.data.impl.ArrayUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,6 +30,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Predicate;
+import static javax.tools.StandardLocation.CLASS_OUTPUT;
+import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -30,6 +40,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
+import org.nemesis.data.SemanticRegions.SemanticRegionsBuilder;
+import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSClassLoader;
+import org.nemesis.jfs.JFSCoordinates;
+import org.nemesis.jfs.javac.CompileResult;
+import org.nemesis.jfs.javac.JFSCompileBuilder;
+import org.nemesis.jfs.javac.JavacOptions;
 
 /**
  *
@@ -37,6 +54,127 @@ import org.junit.Test;
  */
 public class SemanticRegionsTest {
 
+    private static SemanticRegions<String> collectBetweenRegions() {
+        SemanticRegions.SemanticRegionsBuilder<String> bldr = SemanticRegions.builder(String.class);
+        for (int i = 0; i < 10; i++) {
+            if (i % 2 == 0) {
+                int start = i * 10;
+                if (i == 4) {
+                    bldr.add("40:100", 40, 100);
+                }
+                bldr.add(start + ":" + (start + 12), start, start + 12);
+                for (int j = start; j < start + 10; j++) {
+                    String val = Integer.toString(j);
+                    if (j == start + 5) {
+                        bldr.add(j + ":" + (j + 5), j, j + 5);
+                    }
+                    bldr.add(val, j, j + 1);
+                }
+            }
+        }
+        return bldr.build();
+    }
+
+    @Test
+    public void testCodeGeneration() throws IOException, Throwable {
+        // Unusual to generate code, compile it and run it in memory
+        // in a test, but since we can, why not?
+        JFS jfs = JFS.builder().build();
+        SemanticRegions<String> ranges = collectBetweenRegions();
+        StringBuilder source = new StringBuilder("package foo.bar;\n\n")
+                .append("import ").append(SemanticRegions.class.getName()).append(";\n")
+                .append("import ").append(SemanticRegionsBuilder.class.getName().replace('$', '.')).append(";\n\n")
+                .append("public class Stuff {\n    public static SemanticRegions<String> generate() {\n");
+        source.append(ranges.toCode());
+        source.append("        return regions;\n    }\n}\n");
+        System.out.println("SOURCE:\n" + source);
+        jfs.create(UnixPath.get("foo", "bar", "Stuff.java"), SOURCE_PATH, source.toString());
+        CompileResult result;
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            PrintWriter writer = new PrintWriter(out, true, UTF_16);
+            result = new JFSCompileBuilder(jfs).addSourceLocation(SOURCE_PATH)
+                    .sourceLevel(8).targetLevel(8).compilerOutput(writer)
+                    .addOwningLibraryToClasspath(SemanticRegions.class)
+                    .addOwningLibraryToClasspath(IndexedResolvable.class)
+                    .setOptions(JavacOptions.verboseDefaults())
+                    .compile();
+            System.out.println(new String(out.toByteArray(), UTF_16));
+        }
+        assertTrue(result.toString(), result.ok());
+        result.rethrow();
+        UnixPath classFile = UnixPath.get("foo/bar/Stuff.class");
+        JFSCoordinates coords = JFSCoordinates.forPath(classFile, result.outputFiles());
+        assertNotNull("Class file not present: " + classFile, coords);
+        SemanticRegions<String> generated;
+        try (JFSClassLoader ldr = jfs.getClassLoader(CLASS_OUTPUT)) {
+            Class<?> type = Class.forName("foo.bar.Stuff", true, ldr);
+            Method method = type.getMethod("generate");
+            generated = (SemanticRegions<String>) method.invoke(null);
+        }
+        assertTrue("Regions do not match:\n" + ranges + "\n\nand\n\n" + generated,
+                generated.equalTo(ranges));
+    }
+
+    @Test
+    public void testCollectBetween() {
+        SemanticRegions<String> ranges = collectBetweenRegions();
+        Set<String> fortyToFifty = new TreeSet<>();
+        for (int i = 40; i < 50; i++) {
+            fortyToFifty.add(Integer.toString(i));
+        }
+        Set<String> tested40_60 = new TreeSet<>();
+
+        List<? extends SemanticRegion<String>> forties = ranges.collectBetween(40, 60, str -> {
+            tested40_60.add(str);
+            return str.indexOf(':') < 0;
+        });
+        assertTrue(tested40_60.contains("45:50"));
+        assertTested(tested40_60, 40, 50);
+        assertFalse(forties.isEmpty());
+        Set<String> keys = keys(forties);
+        assertEquals(fortyToFifty, keys);
+
+        Set<String> tested38_51 = new TreeSet<>();
+        tested40_60.remove("40:52");
+        Set<String> keys38_51 = keysFor(38, 51, ranges, tested38_51, str -> str.indexOf(':') < 0);
+        assertEquals(tested40_60, tested38_51);
+        tested40_60.add("40:52");
+
+        Set<String> tested38_55 = new TreeSet<>();
+        Set<String> keys38_55 = keysFor(38, 55, ranges, tested38_55, str -> str.indexOf(':') < 0);
+        tested38_51.add("40:52");
+        assertEquals(keys38_51, keys38_55);
+
+        assertTrue(keysFor(200, 250, ranges, new HashSet<>(), str -> str.indexOf(':') < 0).isEmpty());
+    }
+
+    private void assertTested(Set<String> tested, int includeStart, int includeEnd) {
+        for (int i = 0; i < 100; i++) {
+            String s = Integer.toString(i);
+            if (i >= includeStart && i < includeEnd) {
+                assertTrue("Should have found " + s + " in " + tested, tested.contains(s));
+            } else {
+                assertFalse("Should NOT have found " + s + " in " + tested, tested.contains(s));
+            }
+        }
+    }
+
+    private <T extends Comparable<T>> Set<T> keysFor(int start, int end, SemanticRegions<T> regions, Set<T> tested, Predicate<T> test) {
+        Set<T> ks = new TreeSet<>();
+        List<? extends SemanticRegion<T>> forties = regions.collectBetween(start, end, str -> {
+            tested.add(str);
+            return test.test(str);
+        });
+        return keys(forties);
+    }
+
+    private static <T extends Comparable<T>> Set<T> keys(Iterable<? extends SemanticRegion<T>> regs) {
+        Set<T> result = new TreeSet<>();
+        for (SemanticRegion<T> reg : regs) {
+            result.add(reg.key());
+        }
+        return result;
+    }
 
     @Test
     public void testCombineWith() {
@@ -47,7 +185,7 @@ public class SemanticRegionsTest {
                 .add("g", 120, 140).add("g1", 122, 137)
                 .add("i", 160, 180)
                 .build();
-        
+
         SemanticRegions<String> b = SemanticRegions.builder(String.class)
                 .add("b", 20, 40).add("b1", 22, 27).add("b11", 23, 25)
                 .add("d", 60, 80)
@@ -103,7 +241,7 @@ public class SemanticRegionsTest {
                 .add("b", 22, 40)
                 .add("c1", 42, 50).build();
 
-        SemanticRegions<String> insertExpected= SemanticRegions.builder(String.class)
+        SemanticRegions<String> insertExpected = SemanticRegions.builder(String.class)
                 .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5).add("a12", 15, 17)
                 .add("b", 22, 40)
                 .add("c", 40, 60)
@@ -115,7 +253,7 @@ public class SemanticRegionsTest {
         assertTrue("Not equal - expected " + insertExpected + "\n got " + insertCombo, insertCombo.equalTo(insertExpected));
     }
 
-    @Test(expected=IllegalStateException.class)
+    @Test(expected = IllegalStateException.class)
     public void testCombineMustBeConsistent() {
         SemanticRegions<String> a = SemanticRegions.builder(String.class)
                 .add("a", 0, 20).add("a1", 0, 10).add("a11", 1, 5)
@@ -193,7 +331,7 @@ public class SemanticRegionsTest {
             }
             assertEquals("Added keys differ", new TreeSet<>(Arrays.asList(addedKeys)), foundAddedKeys);
         });
-        assertTrue("Method did not return true but presumably found differences",hadDifferences);
+        assertTrue("Method did not return true but presumably found differences", hadDifferences);
     }
 
     private void assertNoDifferences(SemanticRegions<String> a, SemanticRegions<String> b) {
@@ -201,7 +339,7 @@ public class SemanticRegionsTest {
             assertTrue(removed.isEmpty());
             assertTrue(added.isEmpty());
         });
-        assertFalse("No differences, but method returned true as if there were",hadDifferences);
+        assertFalse("No differences, but method returned true as if there were", hadDifferences);
     }
 
     @Test

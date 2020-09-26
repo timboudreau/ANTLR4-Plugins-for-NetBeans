@@ -28,6 +28,10 @@ import javax.swing.UIManager;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeElementKind;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.RuleNodeTreeElement;
+import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TerminalNodeTreeElement;
 import org.nemesis.swing.cell.TextCell;
 import org.nemesis.swing.cell.TextCellLabel;
 
@@ -61,7 +65,7 @@ public class RulePathStringifierImpl implements RulePathStringifier {
     private int maxDist = 1;
 
     @Override
-    public void configureTextCell(TextCellLabel lbl, AntlrProxies.ParseTreeProxy prx, AntlrProxies.ProxyToken tok, JComponent colorSource) {
+    public void configureTextCell(TextCellLabel lbl, ParseTreeProxy prx, ProxyToken tok, JComponent colorSource) {
         AntlrProxies.ProxyTokenType type = prx.tokenTypeForInt(tok.getType());
         int count = prx.referencesCount(tok) - 1;
         if (count <= 0) {
@@ -95,10 +99,11 @@ public class RulePathStringifierImpl implements RulePathStringifier {
                 });
             }
             if (el instanceof AntlrProxies.RuleNodeTreeElement) {
+                String ruleName = prx.ruleNameFor(((AntlrProxies.RuleNodeTreeElement) el));
                 boolean sameSpan = ((AntlrProxies.RuleNodeTreeElement) el).isSameSpanAsParent();
                 boolean isFirstRule = !ruleElementSeen;
                 ruleElementSeen = true;
-                cell.append(el.name(), ch -> {
+                cell.append(el.name(prx), ch -> {
                     if (sameSpan) {
                         ch.withForeground(dimmedForegroundColor(colorSource)).italic();
                         if (useShape) {
@@ -119,13 +124,13 @@ public class RulePathStringifierImpl implements RulePathStringifier {
                     }
 
                 });
-                distances.put(el.name(), i);
+                distances.put(ruleName, i);
             } else if (el instanceof AntlrProxies.TerminalNodeTreeElement) {
-                cell.append(truncateText(el), ch -> {
+                cell.append(truncateText(prx, el), ch -> {
                     ch.withForeground(terminalForegroundColor(colorSource));
                 });
             } else { // error node
-                cell.append(el.name(), ch -> {
+                cell.append(el.name(prx), ch -> {
                     Color c = UIManager.getColor("nb.errorForeground");
                     if (c == null) {
                         c = Color.RED;
@@ -141,8 +146,8 @@ public class RulePathStringifierImpl implements RulePathStringifier {
         lbl.repaint();
     }
 
-    private String truncateText(AntlrProxies.ParseTreeElement el) {
-        String text = Escaper.CONTROL_CHARACTERS.escape(el.name());
+    private String truncateText(ParseTreeProxy prx, ParseTreeElement el) {
+        String text = Escaper.CONTROL_CHARACTERS.escape(el.name(prx));
         if (text.length() > 16) {
             text = text.substring(0, 16) + "\u2026";
         }
@@ -150,7 +155,7 @@ public class RulePathStringifierImpl implements RulePathStringifier {
     }
 
     @Override
-    public void tokenRulePathString(AntlrProxies.ParseTreeProxy prx, AntlrProxies.ProxyToken tok, StringBuilder into, boolean html, JComponent colorSource) {
+    public void tokenRulePathString(ParseTreeProxy prx, ProxyToken tok, StringBuilder into, boolean html, JComponent colorSource) {
         AntlrProxies.ProxyTokenType type = prx.tokenTypeForInt(tok.getType());
         if (type != null) {
             if (html) {
@@ -170,8 +175,8 @@ public class RulePathStringifierImpl implements RulePathStringifier {
         distances.clear();
         List<ParseTreeElement> els = prx.referencedBy(tok);
         for (int i = count; i >= 0; i--) { // zeroth will be the token
-            AntlrProxies.ParseTreeElement el = els.get(i);
-            if (el instanceof AntlrProxies.RuleNodeTreeElement) {
+            ParseTreeElement el = els.get(i);
+            if (el instanceof RuleNodeTreeElement) {
                 boolean sameSpan = ((AntlrProxies.RuleNodeTreeElement) el).isSameSpanAsParent();
                 if (i != count) {
                     into.append(html ? DELIM : " > ");
@@ -181,22 +186,22 @@ public class RulePathStringifierImpl implements RulePathStringifier {
                         appendDimmedForeground(colorSource, into);
                         into.append("<i>");
                     }
-                    into.append(el.name());
+                    into.append(el.name(prx));
                     if (html) {
                         into.append("</i></font>");
                     }
                 } else {
-                    into.append(el.name());
+                    into.append(el.name(prx));
                 }
-                distances.put(el.name(), i);
-            } else if (el instanceof AntlrProxies.TerminalNodeTreeElement) {
+                distances.put(el.name(prx), i);
+            } else if (el instanceof TerminalNodeTreeElement) {
                 if (i != count) {
                     into.append(html ? DELIM : " > ");
                 }
                 if (html) {
                     appendAttentionForeground(colorSource, into);
                 }
-                into.append(el.name());
+                into.append(el.name(prx));
                 if (html) {
                     into.append("'</b></font>");
                 }
@@ -205,11 +210,11 @@ public class RulePathStringifierImpl implements RulePathStringifier {
                     into.append(html ? DELIM : " > ");
                 }
                 if (html) {
-                    String nm = el.name().replaceAll("<", "&lt;")
+                    String nm = el.name(prx).replaceAll("<", "&lt;")
                             .replaceAll(">", "&gt;");
                     into.append(nm);
                 } else {
-                    into.append(el.name());
+                    into.append(el.name(prx));
                 }
             }
         }

@@ -1774,7 +1774,6 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 block.trying().declare("result").initializedByInvoking("parse")
                                         .withArgument("snapshotSource").withArgument("cancelled::get").on(nbParserName).as(parserResultType)
                                         .ifNotNull("result")
-                                        //                                        .invoke("remove").withArgumentFromInvoking("getSource").on("snapshot").on("CANCELLATION_FOR_SOURCE")
                                         .invoke("put").withArgument("task").withArgument("result").on("RESULT_FOR_TASK")
                                         .synchronizeOn("this")
                                         .assign("lastResult").toExpression("result")
@@ -1783,20 +1782,11 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                         .logException(Level.SEVERE, "thrown")
                                         //                                        .invoke("printStackTrace").withArgument("thrown")
                                         //                                        .on(UTIL_EXCEPTIONS.simpleName())
-                                        .fynalli().synchronizeOn("CANCELLATION_FOR_SOURCE")
+                                        .fynalli()
                                         .lineComment("Another thread can enter and replace the canceller before this "
                                                 + "method completes; it will likely be stalled ")
                                         .lineComment("on the parser lock, but we do not want to clobber its canceller")
-                                        .declare("canceller").initializedByInvoking("get")
-                                        .withArgument("src").on("CANCELLATION_FOR_SOURCE")
-                                        .as(ATOMIC_BOOLEAN.simpleName())
-                                        .iff(ifb -> {
-                                            ifb.variable("cancelled").isEquals("canceller")
-                                                    .invoke("remove").withArgument("src")
-                                                    .on("CANCELLATION_FOR_SOURCE").endIf();
-                                        })
-                                        .endBlock()
-                                        //                                        .statement("Exceptions.printStackTrace(thrown)")
+                                        .invoke("remove").withArgument("src").withArgument("cancelled").on("CANCELLATION_FOR_SOURCE")
                                         .endBlock();
                             });
                 })

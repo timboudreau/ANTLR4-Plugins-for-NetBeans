@@ -340,7 +340,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
 
         @Override
         public String id(String obj) {
-            return "highlights-" + obj;
+            return "highlights-errors" + obj;
         }
 
         @Override

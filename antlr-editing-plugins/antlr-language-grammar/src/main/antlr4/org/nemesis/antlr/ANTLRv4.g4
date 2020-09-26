@@ -55,7 +55,9 @@
 grammar ANTLRv4;
 
  options
-   { tokenVocab = ANTLRv4Lexer; }
+   { tokenVocab = ANTLRv4Lexer; 
+     contextSuperClass=org.antlr.v4.runtime.RuleContextWithAltNum;
+   }
 
 
 // The main entry point for parsing a v4 grammar.

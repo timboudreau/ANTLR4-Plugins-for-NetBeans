@@ -74,6 +74,7 @@ import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
 import org.nemesis.antlr.memory.spi.AntlrOutput;
+import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.jfs.JFS;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.jfs.javac.JavacDiagnostic;
@@ -275,6 +276,8 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                         }
                     }
                 }
+                // XXX if the run result has been replaced and clearLastGood() called,
+                // this data will be gone - leak-proofing
                 AntlrGenerationAndCompilationResult g = rr.genResult();
                 if (g != null) {
                     AntlrGenerationResult gen = g.generationResult();
@@ -284,9 +287,9 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                             ioPrintErrors(gen.errors(), io);
                         }
                     }
-                }
-                if (g.thrown().isPresent()) {
-                    ioPrint(io, Strings.toString(g.thrown().get()), OutputType.ERROR);
+                    if (g.thrown().isPresent()) {
+                        ioPrint(io, Strings.toString(g.thrown().get()), OutputType.ERROR);
+                    }
                 }
                 if (!foldsDisplayed) {
                     printOutputSectionsFolded(info, io, folds);
@@ -508,7 +511,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
             } else {
                 LineDocument ld = LineDocumentUtils.as(editorPane.getDocument(), LineDocument.class);
                 int len = ld.getLength();
-                int lineStart = Math.min(len-1,LineDocumentUtils.getLineStart(ld, e.line())
+                int lineStart = Math.min(len - 1, LineDocumentUtils.getLineStart(ld, e.line())
                         + e.charPositionInLine());
                 editorPane.setSelectionStart(lineStart);
                 editorPane.setSelectionEnd(lineStart);
@@ -636,10 +639,10 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                 // Invalidate and start from scratch on EVERYTHING
                 Path grammarSource = AdhocMimeTypes.grammarFilePathForMimeType(editorPane.getContentType());
                 FileObject grammarFileObject = FileUtil.toFileObject(grammarSource.toFile());
-                INV.accept(grammarFileObject);
+                NbAntlrUtils.invalidateSource(grammarFileObject);
                 AdhocMimeDataProvider.getDefault().gooseLanguage(editorPane.getContentType());
                 FileObject sampleFile = NbEditorUtilities.getFileObject(editorPane.getDocument());
-                INV.accept(sampleFile);
+                NbAntlrUtils.invalidateSource(sampleFile);
                 DataObject grammarDob = DataObject.find(grammarFileObject);
                 EditorCookie ck = grammarDob.getLookup().lookup(EditorCookie.class);
                 ParsingUtils.parse(ck.openDocument(), res -> {
@@ -652,6 +655,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                         EmbeddedAntlrParserResult newParserResult = pp.internalLookup().lookup(EmbeddedAntlrParserResult.class);
                         if (newParserResult != null) {
                             info.set(newParserResult);
+                            updateErrorsInOutputWindow(newParserResult);
                         }
                     }
                     return null;

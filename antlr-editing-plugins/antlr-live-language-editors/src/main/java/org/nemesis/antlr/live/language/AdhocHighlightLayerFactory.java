@@ -21,7 +21,6 @@ import javax.swing.text.Document;
 import static javax.swing.text.Document.StreamDescriptionProperty;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
-import org.openide.util.RequestProcessor;
 
 /**
  *
@@ -35,13 +34,13 @@ public class AdhocHighlightLayerFactory implements HighlightsLayerFactory {
 
     public AdhocHighlightLayerFactory(String mimeType) {
         this.mimeType = mimeType;
-        LOG.log(Level.FINE, "Create highlight layer factory for {0}", mimeType);
+        LOG.log(Level.FINE, "Create highlight layer factory for {0}",
+                mimeType);
     }
 
     public static final class Trigger implements Runnable {
 
         private final AdhocHighlighterManager mgr;
-        private final RequestProcessor.Task task = RequestProcessor.getDefault().create(this);
 
         public Trigger(AdhocHighlighterManager mgr) {
             this.mgr = mgr;

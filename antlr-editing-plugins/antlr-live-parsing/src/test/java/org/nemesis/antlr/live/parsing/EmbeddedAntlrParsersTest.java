@@ -21,11 +21,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import java.util.function.BiConsumer;
+import org.antlr.v4.runtime.atn.PredictionMode;
 import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -161,10 +163,35 @@ public class EmbeddedAntlrParsersTest {
 
         boolean seen = false;
         for (AntlrProxies.ParseTreeElement e : ptp2.allTreeElements()) {
-            seen |= "poozleHoozle".equals(e.name());
+            seen |= "poozleHoozle".equals(e.name(ptp2));
         }
         assertTrue(seen, "Did not see a renamed tree element after altering "
                 + "the grammar");
+    }
+
+    @Test
+    public void testFlags() {
+        for (PredictionMode pd : PredictionMode.values()) {
+            int fl = ParserExtractor.flagsforPredictionMode(pd);
+            PredictionMode got = ParserExtractor.predictionModeForFlags(fl);
+            assertSame(pd, got, "Wrong result for flags " + fl + " should be " 
+                    + pd + " but was " + got);
+        }
+    }
+
+    @Test
+    public void testFeatures() {
+        EmbeddedParserFeatures fe = new EmbeddedParserFeatures();
+        int defFlags = fe.currentFlags();
+        assertNotSame(EmbeddedParserFeatures.getInstance(null), fe);
+        PredictionMode defaultMode = fe.currentPredictionMode();
+        assertSame(PredictionMode.LL, defaultMode);
+        fe.setPredictionMode(PredictionMode.SLL);
+        assertSame(PredictionMode.SLL, fe.currentPredictionMode());
+        assertNotSame(defFlags, fe.currentFlags());
+        assertEquals(0, fe.currentFlags());
+        fe.setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
+        assertSame(PredictionMode.LL_EXACT_AMBIG_DETECTION, fe.currentPredictionMode());
     }
 
     @BeforeAll

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language;
 
+import com.mastfrog.function.state.Obj;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import java.nio.file.Paths;
@@ -26,6 +27,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.text.Document;
 import org.nemesis.adhoc.mime.types.AdhocMimeTypes;
+import org.nemesis.antlr.common.cancel.Canceller;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParser;
 import org.nemesis.antlr.live.parsing.EmbeddedAntlrParserResult;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -105,36 +107,42 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
         }
         CharSequence text = in.readText();
         in.backup(count);
-        try {
-            return Debug.runObjectThrowing("Lex " + AdhocMimeTypes.loggableMimeType(mimeType) + " "
-                    + currentLexedName(), "", () -> {
-                        return ActivityPriority.REALTIME.wrapThrowing(() -> {
-                            EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
-                            EmbeddedAntlrParserResult pres = parser.parse(text);
-                            ParseTreeProxy result = pres.proxy();
-                            LOG.log(Level.FINE, "Lexer gets new mime {0} parser "
-                                    + "result tokens hash {1} hier tokens hash {2}",
-                                    new Object[]{result.loggingInfo(), pres.grammarTokensHash(),
-                                        AdhocLanguageHierarchy.hierarchyInfo(mimeType).grammarTokensHash()});
+        Obj<ParseTreeProxy> res = Obj.create();
+        Canceller.runInCurrentThread(cancelled -> {
+            try {
+                Debug.runObjectThrowing("Lex " + AdhocMimeTypes.loggableMimeType(mimeType) + " "
+                        + currentLexedName(), "", () -> {
+                            return ActivityPriority.REALTIME.wrapThrowing(() -> {
+                                EmbeddedAntlrParser parser = AdhocLanguageHierarchy.parserFor(mimeType);
+                                EmbeddedAntlrParserResult pres = parser.parse(text);
+                                ParseTreeProxy result = pres.proxy();
+                                LOG.log(Level.FINE, "Lexer gets new mime {0} parser "
+                                        + "result tokens hash {1} hier tokens hash {2}",
+                                        new Object[]{result.loggingInfo(), pres.grammarTokensHash(),
+                                            AdhocLanguageHierarchy.hierarchyInfo(mimeType).grammarTokensHash()});
 
-                            AdhocLanguageHierarchy.maybeUpdateTokenInfo(mimeType, pres);
-                            Document doc = AdhocLanguageHierarchy.document(info);
-                            if (doc != null) {
-                                Debug.message("document", doc::toString);
-                                AdhocReparseListeners.reparsed(mimeType, doc, pres);
-                            }
-                            if (result.isUnparsed()) {
-                                Debug.failure("unparsed", parser::toString);
-                                LOG.log(Level.FINE, "Unparsed result for {0}", currentLexedName());
-                            }
-                            return proxy = result;
+                                AdhocLanguageHierarchy.maybeUpdateTokenInfo(mimeType, pres);
+                                Document doc = AdhocLanguageHierarchy.document(info);
+                                if (doc != null) {
+                                    Debug.message("document", doc::toString);
+                                    AdhocReparseListeners.reparsed(mimeType, doc, pres);
+                                }
+                                if (result.isUnparsed()) {
+                                    Debug.failure("unparsed", parser::toString);
+                                    LOG.log(Level.FINE, "Unparsed result for {0}", currentLexedName());
+                                }
+                                res.set(result);
+                                return proxy = res.get();
+                            });
                         });
-                    });
-        } catch (Exception ex) {
-            String nm = currentLexedName();
-            LOG.log(Level.WARNING, "Thrown in embedded parser for " + nm, ex);
-            return proxy = AntlrProxies.forUnparsed(Paths.get(""), nm, text);
-        }
+            } catch (Exception ex) {
+                String nm = currentLexedName();
+                LOG.log(Level.WARNING, "Thrown in embedded parser for " + nm, ex);
+                res.set(AntlrProxies.forUnparsed(Paths.get(""), nm, text));
+            }
+        });
+        res.ifNullSet(() -> AntlrProxies.forUnparsed(Paths.get(""), currentLexedName(), text));
+        return proxy = res.get();
     }
 
     private List<ProxyToken> iterator() {

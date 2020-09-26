@@ -98,6 +98,10 @@ public class JFSCompileBuilder {
         return this;
     }
 
+    public JFSCompileBuilder addOwningLibraryToClasspath(Class<?> of) {
+        return addToClasspath(of.getProtectionDomain().getCodeSource().getLocation());
+    }
+
     public JFSCompileBuilder addToClasspath(URL url) {
         classpath.add(new URLEntry(url));
         return this;

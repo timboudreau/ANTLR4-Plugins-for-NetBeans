@@ -15,7 +15,9 @@
  */
 package org.nemesis.antlr.live.parsing;
 
+import com.mastfrog.function.TriConsumer;
 import com.mastfrog.function.state.Obj;
+import com.mastfrog.function.throwing.ThrowingFunction;
 import static com.mastfrog.util.preconditions.Checks.notNull;
 import com.mastfrog.util.preconditions.Exceptions;
 import com.mastfrog.util.strings.Escaper;
@@ -25,6 +27,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -78,7 +81,7 @@ import org.openide.util.WeakSet;
  *
  * @author Tim Boudreau
  */
-final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiConsumer<Extraction, GrammarRunResult<EmbeddedParser>> {
+final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements TriConsumer<Extraction, GrammarRunResult<EmbeddedParser>, EmbeddedParser> {
 
     private final Set<BiConsumer<? super Extraction, ? super GrammarRunResult<?>>> listeners
             = Collections.synchronizedSet(new WeakSet<>());
@@ -269,26 +272,28 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         // text is null (in which case, we are being invoked just for the lexer to get
         // the list of token types)
         return Debug.runObjectThrowing(this, logName + "-" + environment.get().grammarTokensHash, () -> {
-            Obj<EmbeddedAntlrParserResult> resHolder = Obj.create();
-            // We need to grab the parser manager lock for our mime type
-            // here, basically to keep everybody else out.
-            if (!EventQueue.isDispatchThread() && ActivityPriority.get() != ActivityPriority.REALTIME) {
-                // Sigh - this locking is more correct, but it is also the
-                // source of many UI freezes.  So, try letting the EDT parse
-                // freely and see if that wreaks more havoc or less
-                ParserManager.parse(mimeType, new UserTask() {
-                    // Seems we need to preemptively acquire the parser manager's
-                    // lock, so as to avoid a deadlock
-                    @Override
-                    public void run(ResultIterator ri) throws Exception {
-                        doReparseText(resHolder, toParse);
-                    }
-
-                });
-            } else {
-                doReparseText(resHolder, toParse);
-            }
-            return resHolder.get();
+            return getOrWaitForParallellResult(toParse, sq -> {
+                Obj<EmbeddedAntlrParserResult> resHolder = Obj.create();
+                // We need to grab the parser manager lock for our mime type
+                // here, basically to keep everybody else out.
+                if (!EventQueue.isDispatchThread() && ActivityPriority.get() != ActivityPriority.REALTIME) {
+                    // Sigh - this locking is more correct, but it is also the
+                    // source of many UI freezes.  So, try letting the EDT parse
+                    // freely and see if that wreaks more havoc or less
+//                    ParserManager.parse(mimeType, new UserTask() {
+//                        // Seems we need to preemptively acquire the parser manager's
+//                        // lock, so as to avoid a deadlock
+//                        @Override
+//                        public void run(ResultIterator ri) throws Exception {
+                    doReparseText(resHolder, toParse);
+//                        }
+//
+//                    });
+                } else {
+                    doReparseText(resHolder, toParse);
+                }
+                return resHolder.get();
+            });
         });
     }
 
@@ -341,13 +346,13 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
         }
         LOG.log(Level.FINEST, "Parsed to {0} by {1}",
                 new Object[]{res.loggingInfo(), info.parser});
-        String gth = info.grammarTokensHash;
+        String tokensHash = info.grammarTokensHash;
         EmbeddedAntlrParserResult result = new EmbeddedAntlrParserResult(path, res,
-                info.runResult, info.grammarTokensHash, grammarName);
+                info.runResult, tokensHash, grammarName);
         if (toParse != null) {
             lastParseInfo.set(new LastParseInfo(result, toParse));
             Trackables.track(AntlrProxies.ParseTreeProxy.class, res, () -> {
-                return res.loggingInfo() + "\t" + gth + "\n" + logName;
+                return res.loggingInfo() + "\t" + tokensHash + "\n" + logName;
             });
         }
         LOG.log(Level.FINE, "New parser result {0}", result);
@@ -357,45 +362,47 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
     }
 
     private boolean forceGrammarFileReparse(EmbeddedParsingEnvironment info) throws Exception {
-        if (info.parser != null || info.parser.getClass() != DeadEmbeddedParser.class) {
-            if (info.runResult != null) {
-                AntlrGenerationResult toCheck = info.runResult.getWrapped(AntlrGenerationResult.class);
-                if (toCheck != null) {
-                    if (RebuildSubscriptions.isThrottled(toCheck)) {
-                        return false;
-                    }
-                    if (toCheck.areOutputFilesUpToDate()) {
-                        return false;
+        if (info != null) {
+            if (info.parser != null || info.parser.getClass() != DeadEmbeddedParser.class) {
+                if (info.runResult != null) {
+                    AntlrGenerationResult toCheck = info.runResult.getWrapped(AntlrGenerationResult.class);
+                    if (toCheck != null) {
+                        if (RebuildSubscriptions.isThrottled(toCheck)) {
+                            return false;
+                        }
+                        if (toCheck.areOutputFilesUpToDate()) {
+                            return false;
+                        }
                     }
                 }
             }
         }
-        return Debug.runBooleanThrowing(this, logName + "-force-reparse-" + info.grammarTokensHash, () -> {
-            FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
-            if (fo != null && fo.isValid()) {
-                INVALIDATOR.accept(fo);
-                LOG.log(Level.FINEST, "Invalidated Source for {0}", fo.getNameExt());
-                Source src = Source.create(fo);
-                if (info != environment.get()) {
-                    // Another thread got here first - we're not locked yet
-                    return true;
-                }
-//                System.out.println("  REALLY FORCING A PARSE " + grammarName + " on " + Thread.currentThread() + " rev " + rev.get());
-                ActivityPriority.REALTIME.wrapThrowing(() -> {
-                    ParserManager.parse(Collections.singleton(src), new UT());
-                });
+        if (EventQueue.isDispatchThread()) {
+            return false;
+        }
+        FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
+        if (fo != null && fo.isValid()) {
+            INVALIDATOR.accept(fo);
+            LOG.log(Level.FINEST, "Invalidated Source for {0}", fo.getNameExt());
+            Source src = Source.create(fo);
+            if (info != environment.get()) {
+                // Another thread got here first - we're not locked yet
                 return true;
-            } else {
-                EmbeddedAntlrParsers.onAtteptToParseNonExistentFile(this);
-                LOG.log(Level.INFO, "File object for {0} disappeared when "
-                        + "attempting to force a reparse.", path);
-                return false;
             }
-        });
+            ActivityPriority.REALTIME.wrapThrowing(() -> {
+                ParserManager.parse(Collections.singleton(src), new UT());
+            });
+            return true;
+        } else {
+            EmbeddedAntlrParsers.onAtteptToParseNonExistentFile(this);
+            LOG.log(Level.INFO, "File object for {0} disappeared when "
+                    + "attempting to force a reparse.", path);
+            return false;
+        }
     }
 
     @Override
-    int setRunner(Extraction extraction, GrammarRunResult<EmbeddedParser> runner) {
+    int setRunner(Extraction extraction, GrammarRunResult<EmbeddedParser> runner, EmbeddedParser parser) {
         if (disposed) {
             LOG.log(Level.FINE,
                     "Attempt to set new extraction on a disposed parser",
@@ -411,7 +418,11 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                 EmbeddedParsingEnvironment current = environment.get();
                 if (current.shouldReplace(extraction, runner)) {
 //                    lastParseInfo.set(placeholderInfo);
-                    environment.set(new EmbeddedParsingEnvironment(extraction.tokensHash(), runner));
+                    try {
+                        environment.set(new EmbeddedParsingEnvironment(extraction.tokensHash(), runner, parser));
+                    } finally {
+                        current.dispose();
+                    }
                     Set<BiConsumer<? super Extraction, ? super GrammarRunResult<?>>> ll = new HashSet<>(listeners);
                     Debug.message("Pass to " + listeners.size() + " listeners", listeners::toString);
                     for (BiConsumer<? super Extraction, ? super GrammarRunResult<?>> l : ll) {
@@ -436,7 +447,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
     }
 
     @Override
-    public void accept(Extraction t, GrammarRunResult<EmbeddedParser> runResult) {
+    public void accept(Extraction t, GrammarRunResult<EmbeddedParser> runResult, EmbeddedParser parser) {
         Debug.run(this, logName + "-accept-" + t.tokensHash(), runResult::toString, () -> {
             if (reentry.get()) {
                 LOG.log(Level.INFO, "Attempt to reenter accept for " + t.source(),
@@ -458,7 +469,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
                             logName
                         });
                 if (runResult.isUsable()) {
-                    setRunner(t, runResult);
+                    setRunner(t, runResult, parser);
                 } else {
                     Debug.failure("non-usable", runResult.genResult()::toString);
                     LOG.log(Level.FINE, "Non-usable generation result {0} for {1}"
@@ -509,7 +520,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
     static class EmbeddedParsingEnvironment {
 
         final String grammarTokensHash;
-        final EmbeddedParser parser;
+        EmbeddedParser parser;
         final GrammarRunResult<EmbeddedParser> runResult;
 
         public EmbeddedParsingEnvironment(Path path, String grammarName) {
@@ -520,7 +531,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             runResult = null;
         }
 
-        public EmbeddedParsingEnvironment(String grammarTokensHash, GrammarRunResult<EmbeddedParser> runner) {
+        public EmbeddedParsingEnvironment(String grammarTokensHash, GrammarRunResult<EmbeddedParser> runner, EmbeddedParser parser) {
             LOG.log(Level.FINER, "Create a new EmbeddedParsingEnvironment for run result {0}",
                     runner);
             this.grammarTokensHash = grammarTokensHash;
@@ -529,7 +540,11 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             // it when really done, since it holds the whole Antlr grammar tree
             // in memory unnecessarily
             this.runResult = runner;
-            this.parser = runner.get();
+            this.parser = parser;
+        }
+
+        void dispose() {
+            parser = null;
         }
 
         public UpToDateness status() {
@@ -566,6 +581,8 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             return !isUpToDate();
         }
     }
+
+    static final UT UT = new UT();
 
     static final class UT extends UserTask {
 
@@ -628,6 +645,102 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements BiCon
             }
         }
         return false;
+    }
+
+    private final Object pendingLock = new Object();
+    private PendingParseInfo ppi;
+
+    EmbeddedAntlrParserResult getOrWaitForParallellResult(CharSequence seq, ThrowingFunction<CharSequence, EmbeddedAntlrParserResult> s) throws Exception {
+        PendingParseInfo p;
+        boolean needParse = false;
+        synchronized (pendingLock) {
+            p = ppi;
+            needParse = p == null;
+            if (needParse) {
+                p = new PendingParseInfo(seq);
+                ppi = p;
+            }
+        }
+        if (needParse) {
+            try {
+                EmbeddedAntlrParserResult res = s.apply(seq);
+                p.set(res);
+                return res;
+            } finally {
+                synchronized (pendingLock) {
+                    if (p == ppi) {
+                        ppi = null;
+                    }
+                }
+                p.release();
+                p = null;
+            }
+        } else {
+            if (p != null) {
+                EmbeddedAntlrParserResult result = p.getIfPresent();
+                if (result != null) {
+                    return result;
+                }
+                // Try not to block the EDT
+                if (!EventQueue.isDispatchThread()) {
+                    result = p.get(seq);
+                    if (result != null) {
+                        return result;
+                    }
+                }
+            }
+        }
+        return s.apply(seq);
+    }
+
+    static final class PendingParseInfo {
+
+        private final CharSequence seq;
+        private final AtomicReference<EmbeddedAntlrParserResult> result = new AtomicReference<>();
+        private final CountDownLatch latch = new CountDownLatch(1);
+
+        PendingParseInfo(CharSequence seq) {
+            this.seq = seq;
+        }
+
+        void release() {
+            latch.countDown();
+        }
+
+        EmbeddedAntlrParserResult getIfPresent() {
+            return result.get();
+        }
+
+        boolean canReuse(CharSequence textToParse) {
+            if (textToParse == null) {
+                return true;
+            }
+            if (seq != null && textToParse != null) {
+                return charSequencesMatchModuloTrailingNewline(seq, textToParse);
+            }
+            return seq != null && Strings.charSequencesEqual(seq, textToParse);
+        }
+
+        void set(EmbeddedAntlrParserResult result) {
+            this.result.set(result);
+            release();
+        }
+
+        EmbeddedAntlrParserResult get(CharSequence seq) {
+            if (canReuse(seq)) {
+                EmbeddedAntlrParserResult res = result.get();
+                if (res != null) {
+                    return res;
+                }
+                try {
+                    latch.await();
+                } catch (InterruptedException ex) {
+                    LOG.log(Level.INFO, "Interrupted waiting for parse", ex);
+                }
+                return result.get();
+            }
+            return null;
+        }
     }
 
     static final class LastParseInfo {

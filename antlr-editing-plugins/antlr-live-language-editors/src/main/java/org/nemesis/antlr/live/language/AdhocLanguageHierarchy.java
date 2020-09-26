@@ -229,6 +229,7 @@ public final class AdhocLanguageHierarchy extends LanguageHierarchy<AdhocTokenId
 
     Language<AdhocTokenId> languageUnsafe;
 
+    @SuppressWarnings("unchecked")
     Language<AdhocTokenId> languageUnsafe() {
         // XXX Evil deadlock work around
         if (languageUnsafe != null) {

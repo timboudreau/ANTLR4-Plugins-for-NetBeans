@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.mastfrog</groupId>
@@ -48,6 +48,47 @@ limitations under the License.
         <!--<maven.test.skip>true</maven.test.skip>-->
         <enforcer.skip>true</enforcer.skip>
     </properties>
+    <profiles>
+        <profile>
+            <id>javadoc-html5-compiler-release</id>
+            <activation>
+                <jdk>[1.9,)</jdk>
+            </activation>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <artifactId>maven-javadoc-plugin</artifactId>
+                            <configuration>
+                                <additionalOptions>-html5</additionalOptions>
+                            </configuration>
+                        </plugin>
+                        <plugin>
+                            <artifactId>maven-compiler-plugin</artifactId>
+                            <version>3.8.1</version>
+                            <configuration>
+                                <fork>false</fork>
+                                <forceJavacCompilerUse>true</forceJavacCompilerUse>
+                                <release>9</release>
+                                <debug>true</debug>
+                                <encoding>UTF-8</encoding>
+                                <showWarnings>true</showWarnings>
+                                <compilerArgument>-Xlint:unchecked</compilerArgument>
+                                <showDeprecation>false</showDeprecation>
+                                <!--<verbose>true</verbose>-->
+                                <jdkToolchain>
+                                    <version>9</version>
+                                </jdkToolchain>
+                                <excludes>
+                                    <exclude>module-info.java</exclude>
+                                </excludes>
+                            </configuration>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+        </profile>
+    </profiles>    
     <build>
         <plugins>
             <plugin>
@@ -136,6 +177,10 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>localizers</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>antlr-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -396,5 +441,10 @@ limitations under the License.
             <scope>test</scope>
             <type>jar</type>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>registration-annotation-processors</artifactId>
+            <scope>provided</scope>
+        </dependency>        
     </dependencies>
 </project>

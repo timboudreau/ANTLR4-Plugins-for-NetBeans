@@ -91,7 +91,7 @@ public final class MemoryTool extends Tool {
     public JFSPathHints hints;
 
     MemoryTool(ToolContext ctx, String... args) {
-        super(args);
+        super(appendInternalArgs(args));
         if (ctx.jfs.get(ctx.inputLocation, ctx.dir) != null) {
             throw new IllegalArgumentException("Input directory is actually "
                     + "a JFS file, not its parent: " + ctx.dir);
@@ -103,6 +103,13 @@ public final class MemoryTool extends Tool {
         errMgr.setFormat(msgFormat);
         grammarEncoding = ctx.jfs.encoding().name();
         initialized = true;
+    }
+
+    private static String[] appendInternalArgs(String[] args) {
+        String[] result = Arrays.copyOf(args, args.length+2);
+        result[result.length-2] = "contextSuperClass";
+        result[result.length-1] = "org.antlr.v4.runtime.RuleContextWithAltNum";
+        return result;
     }
 
     void initLog(ToolContext ctx) {
@@ -675,6 +682,7 @@ public final class MemoryTool extends Tool {
         GrammarRootAST grammarRootAST = parse(fileName, stream);
         final Grammar g = createGrammar(grammarRootAST);
         if (g != null) {
+            System.out.println("CTX SUPER " + g.getOptionString("contextSuperClass"));
             g.fileName = finalFile.path().toString();
             log("Loaded primary grammar " + g.name + " file "
                     + g.fileName + " from " + ctx.inputLocation

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.compilation;
 
+import java.lang.ref.WeakReference;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
@@ -34,7 +35,7 @@ import org.nemesis.jfs.result.UpToDateness;
  */
 public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
 
-    private T result;
+    private WeakReference<T> result;
     private final Throwable thrown;
     private AntlrGenerationAndCompilationResult generationAndCompilationResult;
     private GrammarRunResult<T> lastGood;
@@ -42,8 +43,12 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
     private static final AtomicLong ids = new AtomicLong();
     public final long id = ids.getAndIncrement();
 
+    // XXX tests are the only thing that still expect GrammarRunResult to have a
+    // reference to T - get rid of that and get rid of the generic type, which
+    // is a headache in other places
+
     GrammarRunResult(T result, Throwable thrown, AntlrGenerationAndCompilationResult buildResult, GrammarRunResult<T> lastGood) {
-        this.result = result;
+        this.result = result == null ? null : new WeakReference<>(result);
         this.thrown = thrown;
         this.generationAndCompilationResult = buildResult;
         // Only need a last-good result if we are not; otherwise we
@@ -56,20 +61,21 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
     }
 
     @Override
-    public <T> T getWrapped(Class<T> type) {
+    public <W> W getWrapped(Class<W> type) {
         if (AntlrGenerationAndCompilationResult.class == type) {
             if (generationAndCompilationResult != null) {
                 return type.cast(generationAndCompilationResult);
             }
         }
         if (generationAndCompilationResult != null) {
-            T res = generationAndCompilationResult.getWrapped(type);
+            W res = generationAndCompilationResult.getWrapped(type);
             if (res != null) {
                 return res;
             }
         }
-        if (result != null && type.isInstance(result)) {
-            return type.cast(result);
+        T res = get();
+        if (res != null && type.isInstance(res)) {
+            return type.cast(res);
         }
         if (GrammarRunResult.class == type && lastGood != null) {
             return type.cast(lastGood);
@@ -171,6 +177,7 @@ public class GrammarRunResult<T> implements ProcessingResult, Supplier<T> {
 
     @Override
     public T get() {
-        return result;
+        WeakReference<T> ref = result;
+        return ref == null ? null : ref.get();
     }
 }

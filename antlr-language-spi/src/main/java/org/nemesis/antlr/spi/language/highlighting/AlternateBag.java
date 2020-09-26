@@ -21,9 +21,16 @@ import com.mastfrog.range.Range;
 import java.awt.EventQueue;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import javax.swing.text.AttributeSet;
 import org.nemesis.data.SemanticRegion;
 import org.nemesis.data.SemanticRegions;
@@ -50,11 +57,15 @@ import org.netbeans.spi.editor.highlighting.support.AbstractHighlightsContainer;
  */
 final class AlternateBag extends AbstractHighlightsContainer implements HighlightConsumer {
 
-    private final List<RangeEntry> entries = new ArrayList<>();
-    private short ix = 0;
+    private final List<RangeEntry> entries = new ArrayList<>( 128 );
+    private short ix = Short.MIN_VALUE;
     volatile int rev;
+    int lastSize = 64;
     SemanticRegions<AttributeSet> current;
     private final Object ident;
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    private final WriteLock writeLock = lock.writeLock();
+    private final ReadLock readLock = lock.readLock();
 
     AlternateBag( Object ident ) {
         this.ident = ident;
@@ -69,8 +80,9 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
         synchronized ( this ) {
             if ( !entries.isEmpty() ) {
                 RangeEntry last = entries.get( entries.size() - 1 );
-                if ( last.start == startOffset && last.size == endOffset - startOffset ) {
-                    AttributeSet nue = AttributesUtilities.createComposite( last.attrs, attributes );
+                if ( last.start() == startOffset && last.size() == endOffset - startOffset ) {
+                    AttributeSet nue = AttributesUtilities.createImmutable( last.attrs, attributes );
+//                    AttributeSet nue = AttributesUtilities.createComposite( last.attrs, attributes );
                     last.attrs = nue;
                     return;
                 }
@@ -79,32 +91,61 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
         }
     }
 
+    void update( BooleanSupplier run ) {
+        boolean needCommit;
+        synchronized ( this ) {
+            needCommit = run.getAsBoolean();
+        }
+        if ( needCommit ) {
+            commit();
+        } else {
+            clear();
+        };
+    }
+
     @Override
     public void clear() {
+        int localRev = this.rev;
         synchronized ( this ) {
             entries.clear();
+            ix = Short.MIN_VALUE;
         }
-        ix = 0;
-        synchronized ( this ) {
-            current = null;
+        if ( this.rev == localRev + 1 ) {
+            setCurrent( null );
+        }
+    }
+
+    private void setCurrent( SemanticRegions<AttributeSet> regions ) {
+        writeLock.lock();
+        try {
+            current = regions;
             rev++;
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    SemanticRegions<AttributeSet> current() {
+        readLock.lock();
+        try {
+            return current;
+        } finally {
+            readLock.unlock();
         }
     }
 
     void onDeletion( int chars, int at ) {
         int was = rev;
-        SemanticRegions<AttributeSet> old = current;
+        SemanticRegions<AttributeSet> old = current();
         if ( old == null || old.isEmpty() ) {
             return;
         }
         SemanticRegions<AttributeSet> nue = old.withDeletion( chars, at );
         boolean changed = false;
-        synchronized ( this ) {
-            if ( rev == was ) {
-                current = nue;
-                rev++;
-                changed = true;
-            }
+
+        if ( rev == was ) {
+            setCurrent( nue );
+            changed = true;
         }
         if ( changed ) {
             fireHighlights( old, nue );
@@ -113,18 +154,15 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
 
     void onInsertion( int chars, int at ) {
         int was = rev;
-        SemanticRegions<AttributeSet> old = current;
+        SemanticRegions<AttributeSet> old = current();
         if ( old == null || old.isEmpty() ) {
             return;
         }
         SemanticRegions<AttributeSet> nue = old.withInsertion( chars, at );
         boolean changed = false;
-        synchronized ( this ) {
-            if ( rev == was ) {
-                current = nue;
-                rev++;
-                changed = true;
-            }
+        if ( rev == was ) {
+            setCurrent( nue );
+            changed = true;
         }
         if ( changed ) {
             fireHighlights( old, nue );
@@ -136,102 +174,136 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
             return SemanticRegions.empty();
         }
         List<RangeEntry> copy = new ArrayList<>( entries.size() );
+        int sz;
         synchronized ( this ) {
             copy.addAll( entries );
             entries.clear();
+            lastSize = sz = copy.size();
+            ix = Short.MIN_VALUE;
         }
-        SemanticRegionsBuilder<AttributeSet> bldr = SemanticRegions.builder( AttributeSet.class );
+        SemanticRegionsBuilder<AttributeSet> bldr = SemanticRegions.builder( AttributeSet.class, sz );
         Collections.sort( copy );
         for ( RangeEntry re : copy ) {
-            bldr.add( re.attrs, re.start, re.end() );
+            bldr.add( re.attrs, re.start(), re.end() );
         }
         copy.clear();
-        ix = 0;
-        return bldr.build().flatten( attrs -> {
-            Collections.reverse( attrs );
-            return AttributesUtilities.createComposite( attrs.toArray( new AttributeSet[ attrs.size() ] ) );
-        } );
+
+        return bldr.build().flatten( new AttributesCoalescer() );
+    }
+
+    static class AttributesCoalescer implements Function<List<? extends AttributeSet>, AttributeSet> {
+        private final Map<List<AttributeSet>, AttributeSet> cache = new HashMap<>();
+
+        @Override
+        public AttributeSet apply( List<? extends AttributeSet> attrs ) {
+            AttributeSet result = cache.get( attrs );
+            if ( result != null ) {
+                return result;
+            }
+            result = AttributesUtilities.createComposite( attrs.toArray( new AttributeSet[ attrs.size() ] ) );
+            cache.put( new ArrayList<>( attrs ), result );
+            return result;
+        }
+
     }
 
     void commit() {
+        SemanticRegions<AttributeSet> old = current();
         SemanticRegions<AttributeSet> nue = build();
-        SemanticRegions<AttributeSet> old = current;
-        synchronized ( this ) {
-            rev++;
-            current = nue;
+        boolean simpleChange = ( old == null || old.isEmpty() ) != ( nue == null || nue.isEmpty() );
+        boolean anyChange = simpleChange || ( old != null && nue != null && !old.equalTo( nue ) );
+        if ( anyChange ) {
+            setCurrent( nue );
+            fireHighlights( old, nue );
         }
-        fireHighlights( old, nue );
     }
 
     private static boolean async = !Boolean.getBoolean( "unit.test" );
 
     private void fireHighlights( SemanticRegions<AttributeSet> old, SemanticRegions<AttributeSet> nue ) {
         int was = rev;
-        Runnable dispatch = () -> {
-            if ( rev != was ) {
-                return;
-            }
-            if ( nue.isEmpty() && ( old == null || old.isEmpty() ) ) {
-                return;
-            }
-            if ( old == null ) {
-                fireHighlightsChange( 0, nue.forIndex( nue.size() - 1 ).end() );
-                return;
-            }
-            if ( nue.isEmpty() ) {
-                fireHighlightsChange( old.forIndex( 0 ).start(), old.forIndex( old.size() - 1 ).end() );
-                return;
-            }
-            int changeStart = 0;
-            int changeEnd = 0;
-            int target = -1;
-            for ( int i = 0; i < Math.min( nue.size(), old.size() ); i++ ) {
-                SemanticRegion<AttributeSet> a = old.forIndex( i );
-                SemanticRegion<AttributeSet> b = nue.forIndex( i );
-                if ( a.start() == b.start() && a.end() == b.end() ) {
-                    if ( !a.key().equals( b.key() ) ) {
-                        changeStart = a.start();
-                        target = i;
-                        break;
-                    }
-                } else {
-                    changeStart = Math.min( a.start(), b.start() );
+        if ( nue.isEmpty() && ( old == null || old.isEmpty() ) ) {
+            return;
+        }
+        if ( old == null ) {
+            fireHighlightsChange( 0, nue.forIndex( nue.size() - 1 ).end() );
+            return;
+        }
+        if ( nue.isEmpty() ) {
+            fireHighlightsChange( old.forIndex( 0 ).start(), old.forIndex( old.size() - 1 ).end() );
+            return;
+        }
+        int changeStart = 0;
+        int changeEnd = 0;
+        int target = -1;
+        for ( int i = 0; i < Math.min( nue.size(), old.size() ); i++ ) {
+            SemanticRegion<AttributeSet> a = old.forIndex( i );
+            SemanticRegion<AttributeSet> b = nue.forIndex( i );
+            if ( a.start() == b.start() && a.end() == b.end() ) {
+                if ( !a.key().equals( b.key() ) ) {
+                    changeStart = a.start();
                     target = i;
                     break;
                 }
+            } else {
+                changeStart = Math.min( a.start(), b.start() );
+                target = i;
+                break;
             }
-            if ( target == -1 ) {
-                return;
-            }
-            for ( int endA = old.size() - 1, endB = nue.size() - 1; endA >= 0 && endB >= 0; endA--, endB-- ) {
-                SemanticRegion<AttributeSet> a = old.forIndex( endA );
-                SemanticRegion<AttributeSet> b = nue.forIndex( endB );
-                if ( a.start() == b.start() && a.end() == b.end() ) {
-                    if ( !a.key().equals( b.key() ) ) {
-                        changeEnd = a.end();
-                        break;
-                    }
-                } else {
-                    changeEnd = Math.max( a.end(), b.end() );
+        }
+        if ( target == -1 ) {
+            return;
+        }
+        for ( int endA = old.size() - 1, endB = nue.size() - 1; endA >= 0 && endB >= 0; endA--, endB-- ) {
+            SemanticRegion<AttributeSet> a = old.forIndex( endA );
+            SemanticRegion<AttributeSet> b = nue.forIndex( endB );
+            if ( a.start() == b.start() && a.end() == b.end() ) {
+                if ( !a.key().equals( b.key() ) ) {
+                    changeEnd = a.end();
                     break;
                 }
+            } else {
+                changeEnd = Math.max( a.end(), b.end() );
+                break;
             }
-            fireHighlightsChange( changeStart, changeEnd );
-        };
-        if ( async ) {
-            EventQueue.invokeLater( dispatch );
-        } else {
-            dispatch.run();
         }
+        if ( changeStart != changeEnd ) {
+            fireHighlightsChange( changeStart, changeEnd );
+            ChangeFirer f = new ChangeFirer( changeStart, changeEnd, this, was );
+            if ( async ) {
+                EventQueue.invokeLater( f );
+            } else {
+                f.run();
+            }
+        }
+    }
+
+    static final class ChangeFirer implements Runnable {
+        private final int start;
+        private final int end;
+        private final AlternateBag bag;
+        private final int rev;
+
+        public ChangeFirer( int start, int end, AlternateBag bag, int rev ) {
+            this.start = start;
+            this.end = end;
+            this.bag = bag;
+            this.rev = rev;
+        }
+
+        @Override
+        public void run() {
+            if ( bag.rev == rev ) {
+                bag.fireHighlightsChange( start, end );
+            }
+        }
+
     }
 
     @Override
     public HighlightsSequence getHighlights( int startOffset, int endOffset ) {
 
-        SemanticRegions<AttributeSet> regions;
-        synchronized ( this ) {
-            regions = current;
-        }
+        SemanticRegions<AttributeSet> regions = current();
         if ( regions == null || regions.isEmpty() ) {
             return HighlightsSequence.EMPTY;
         }
@@ -249,16 +321,43 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
     public void setHighlights( HighlightsContainer other ) {
         if ( other instanceof AlternateBag ) {
             AlternateBag alt = ( AlternateBag ) other;
+            boolean needBuild;
             synchronized ( this ) {
                 this.entries.clear();
                 synchronized ( other ) {
                     this.entries.addAll( alt.entries );
                 }
+                needBuild = !this.entries.isEmpty();
             }
-            if ( ( ( AlternateBag ) other ).current != null ) {
-                synchronized ( this ) {
-                    this.current = ( ( AlternateBag ) other ).current;
-                    rev++;
+            if ( needBuild ) {
+                commit();
+            } else {
+                SemanticRegions<AttributeSet> otherCurrent = alt.current();
+                if ( otherCurrent != null ) {
+                    synchronized ( this ) {
+                        setCurrent( otherCurrent );
+                    }
+                }
+            }
+        } else {
+            HighlightsSequence seq = other.getHighlights( 0, Integer.MAX_VALUE );
+            if ( seq == null ) {
+                clear();
+            }
+            boolean any = false;
+            int rev;
+            synchronized ( this ) {
+                rev = this.rev;
+                while ( seq.moveNext() ) {
+                    any = true;
+                    addHighlight( seq.getStartOffset(), seq.getEndOffset(), seq.getAttributes() );
+                }
+            }
+            if ( rev == this.rev ) {
+                if ( any ) {
+                    build();
+                } else {
+                    clear();
                 }
             }
         }
@@ -268,7 +367,7 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
      * Many requests are for the character at the caret, so provide these more
      * efficiently.
      */
-    class SingleSeq implements HighlightsSequence {
+    static class SingleSeq implements HighlightsSequence {
         private final int start;
         private final AttributeSet attrs;
         private boolean used;
@@ -309,7 +408,7 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
         }
     }
 
-    class Seq implements HighlightsSequence {
+    static class Seq implements HighlightsSequence {
 
         private final SemanticRegions<AttributeSet> regions;
         private SemanticRegion<AttributeSet> curr;
@@ -322,15 +421,19 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
             this.startOffset = startOffset;
             this.endOffset = endOffset;
             SemanticRegion<AttributeSet> first = regions.nearestTo( startOffset );
-            if ( first.end() <= startOffset ) {
-                if ( first.index() < regions.size() - 1 ) {
-                    first = regions.forIndex( first.index() + 1 );
-                } else {
-                    cursor = regions.size();
+            if ( first == null ) {
+                cursor = regions.size();
+            } else {
+                if ( first.end() <= startOffset ) {
+                    if ( first.index() < regions.size() - 1 ) {
+                        first = regions.forIndex( first.index() + 1 );
+                    } else {
+                        cursor = regions.size();
+                    }
                 }
-            }
-            if ( cursor == -1 ) {
-                cursor = first.index() - 1;
+                if ( cursor == -1 ) {
+                    cursor = first.index() - 1;
+                }
             }
         }
 
@@ -341,7 +444,7 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
 
             SemanticRegion<AttributeSet> prev = curr.index() == 0 ? null : regions.forIndex( curr.index() - 1 );
             return "Seq(" + curr + " with " + regions.size() + " at " + cursor
-                   + " covering " + startOffset + ":" + endOffset + " for " + AlternateBag.this
+                   + " covering " + startOffset + ":" + endOffset
                    + " prev " + prev + " next " + next + ")";
         }
 
@@ -389,16 +492,17 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
 
     static class RangeEntry implements DataIntRange<AttributeSet, RangeEntry> {
 
-        private final int start;
-        private final int size;
         private AttributeSet attrs;
         private final short index;
+        private final long value;
 
         public RangeEntry( int start, int size, AttributeSet attrs, short index ) {
-            this.start = start;
-            this.size = size;
+//            this.start = start;
+//            this.size = ( short ) Math.min( size, Short.MAX_VALUE );
             this.attrs = attrs;
             this.index = index;
+            // We can wind up with thousands of these in memory.  It's worth it.
+            value = ( ( ( long ) size ) << 32 ) | ( start & 0xffffffffL );
         }
 
         @Override
@@ -423,12 +527,12 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
 
         @Override
         public int start() {
-            return start;
+            return ( int ) value;
         }
 
         @Override
         public int size() {
-            return size;
+            return ( int ) ( value >> 32 );
         }
 
         @Override
@@ -449,8 +553,8 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
         @Override
         public int hashCode() {
             int hash = 7;
-            hash = 97 * hash + this.start;
-            hash = 97 * hash + this.size;
+            hash = 97 * hash + ( ( int ) value );
+            hash = 97 * hash + ( ( int ) ( value >> 32 ) );
             hash = 97 * hash + Objects.hashCode( this.attrs );
             hash = 97 * hash + this.index;
             return hash;
@@ -464,16 +568,7 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
                 return false;
             }
             final RangeEntry other = ( RangeEntry ) obj;
-            if ( this.start != other.start ) {
-                return false;
-            }
-            if ( this.size != other.size ) {
-                return false;
-            }
-            if ( this.index != other.index ) {
-                return false;
-            }
-            return this.start == other.start && this.size == other.size
+            return this.index == other.index && this.value == other.value
                    && Objects.equals( this.attrs, other.attrs );
         }
     }

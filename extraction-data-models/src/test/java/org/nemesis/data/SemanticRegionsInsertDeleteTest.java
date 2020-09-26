@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 import org.nemesis.data.SemanticRegions.SemanticRegionsBuilder;
 
@@ -48,13 +49,14 @@ public class SemanticRegionsInsertDeleteTest {
         assertSearch(1, str, "C");
         assertSearch(4, str, "D");
         assertSearch(0, str, "B");
-        assertSearch(8, str, "E");
+        assertSearch(8, str, "A");
         assertSearch(9, str, "E");
-        assertSearch(6, str, "D");
+        assertSearch(6, str, "A");
         assertSearch(20, str, "E");
         assertSearch(21, str, "E");
         assertSearch(22, str, "E");
-        assertSearch(19, str, "I");
+        assertSearch(18, str, "I");
+        assertSearch(19, str, "E");
         assertSearch(23, str, "Q");
         assertSearch(24, str, "Q");
         assertSearch(25, str, "Q");
@@ -66,8 +68,24 @@ public class SemanticRegionsInsertDeleteTest {
     }
 
     private void assertSearch(int position, SemanticRegions<String> regions, String match) {
+        int ix = regions.indexOf(match);
+        assertTrue("Test bug - " + match + " not present in " + regions, ix >= 0);
         SemanticRegion<String> near = regions.nearestTo(position);
         assertNotNull("No match for " + position, near);
+        if (!match.equals(near.key())) {
+            StringBuilder nearby = new StringBuilder();
+            int start = Math.max(0, ix - 2);
+            int end = Math.min(regions.size() - 1, ix + 2);
+            for (int i = start; i <= end; i++) {
+                if (nearby.length() > 0) {
+                    nearby.append(" / ");
+                }
+                nearby.append(regions.forIndex(i));
+            }
+            assertEquals("Nearest to " + position + " should be " + match + " but was " + near.key()
+                    + " target region " + regions.forIndex(ix) + " got " + near
+                    + " - nearby " + nearby, near.key());
+        }
     }
 
     @Test
@@ -100,13 +118,13 @@ public class SemanticRegionsInsertDeleteTest {
                     assertEquals(0, r.start());
 
                     assertEquals(1, r.end());
-                    assertEquals("AB", r.key());
+                    assertEquals("BA", r.key());
                     break;
                 case 1:
                     assertEquals(1, r.start());
 
                     assertEquals(2, r.end());
-                    assertEquals("ABC", r.key());
+                    assertEquals("CBA", r.key());
                     break;
                 case 2:
                     assertEquals(2, r.start());
@@ -118,7 +136,7 @@ public class SemanticRegionsInsertDeleteTest {
                     assertEquals(4, r.start());
 
                     assertEquals(5, r.end());
-                    assertEquals("AD", r.key());
+                    assertEquals("DA", r.key());
                     break;
                 case 4:
                     assertEquals(5, r.start());
@@ -136,13 +154,13 @@ public class SemanticRegionsInsertDeleteTest {
                     assertEquals(12, r.start());
 
                     assertEquals(13, r.end());
-                    assertEquals("EF", r.key());
+                    assertEquals("FE", r.key());
                     break;
                 case 7:
                     assertEquals(13, r.start());
 
                     assertEquals(15, r.end());
-                    assertEquals("EFG", r.key());
+                    assertEquals("GFE", r.key());
                     break;
                 case 8:
                     assertEquals(15, r.start());
@@ -154,13 +172,13 @@ public class SemanticRegionsInsertDeleteTest {
                     assertEquals(16, r.start());
 
                     assertEquals(18, r.end());
-                    assertEquals("EH", r.key());
+                    assertEquals("HE", r.key());
                     break;
                 case 10:
                     assertEquals(18, r.start());
 
                     assertEquals(19, r.end());
-                    assertEquals("EI", r.key());
+                    assertEquals("IE", r.key());
                     break;
                 case 11:
                     assertEquals(19, r.start());

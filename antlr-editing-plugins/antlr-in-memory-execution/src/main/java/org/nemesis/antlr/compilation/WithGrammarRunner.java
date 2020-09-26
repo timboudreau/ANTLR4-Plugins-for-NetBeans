@@ -62,27 +62,27 @@ public final class WithGrammarRunner {
         return compiler.compile(sourceFileName, options);
     }
 
-    public <T> GrammarRunResult<T> run(ThrowingSupplier<T> reflectiveRunner, GrammarProcessingOptions... options) {
+    public <T> RunResults<T> run(ThrowingSupplier<T> reflectiveRunner, GrammarProcessingOptions... options) {
         return run(reflectiveRunner, reflectiveRunner, options);
     }
 
-    public <T> GrammarRunResult<T> run(Object key, ThrowingSupplier<T> reflectiveRunner, GrammarProcessingOptions... options) {
+    public <T> RunResults<T> run(Object key, ThrowingSupplier<T> reflectiveRunner, GrammarProcessingOptions... options) {
         return run(reflectiveRunner, GrammarProcessingOptions.setOf(options));
     }
 
-    public <T> GrammarRunResult<T> run(ThrowingSupplier<T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
+    public <T> RunResults<T> run(ThrowingSupplier<T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
         return run(reflectiveRunner, reflectiveRunner, options);
     }
 
-    public <T, A> GrammarRunResult<T> run(A arg, ThrowingFunction<A, T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
+    public <T, A> RunResults<T> run(A arg, ThrowingFunction<A, T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
         return runWithArg(arg, reflectiveRunner, arg, options);
     }
 
-    public <T, A> GrammarRunResult<T> run(Object key, A arg, ThrowingFunction<A, T> reflectiveRunner, GrammarProcessingOptions... options) {
+    public <T, A> RunResults<T> run(Object key, A arg, ThrowingFunction<A, T> reflectiveRunner, GrammarProcessingOptions... options) {
         return run(key, arg, reflectiveRunner, GrammarProcessingOptions.setOf(options));
     }
 
-    public <T, A> GrammarRunResult<T> run(Object key, A arg, ThrowingFunction<A, T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
+    public <T, A> RunResults<T> run(Object key, A arg, ThrowingFunction<A, T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
         return runWithArg(key, reflectiveRunner, arg, options);
     }
 
@@ -97,7 +97,7 @@ public final class WithGrammarRunner {
         return lastGenerationResult;
     }
 
-    public <A, T> GrammarRunResult<T> runWithArg(Object key, ThrowingFunction<A, T> reflectiveRunner,
+    public <A, T> RunResults<T> runWithArg(Object key, ThrowingFunction<A, T> reflectiveRunner,
             A arg, Set<GrammarProcessingOptions> options) {
         ThrowingSupplier<T> supp = () -> {
             ClassLoader old = Thread.currentThread().getContextClassLoader();
@@ -125,96 +125,94 @@ public final class WithGrammarRunner {
     }
 
     @SuppressWarnings("FinallyDiscardsException")
-    public <T> GrammarRunResult<T> run(Object key, ThrowingSupplier<T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
+    public <T> RunResults<T> run(Object key, ThrowingSupplier<T> reflectiveRunner, Set<GrammarProcessingOptions> options) {
         // - results checks if stale or not
         // - force re-run or not
         // - optionally return the last good result if there is one
         //    - Maybe a closure that takes both?
         // - clean method on results
-        return Debug.runObject(this, "with-grammar-runner-run " + grammarFileName, () -> {
 //            GenerationAndCompilationResult res;
-            AntlrGenerationAndCompilationResult res;
+        AntlrGenerationAndCompilationResult res;
 
-            if (options.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES) || (lastGenerationResult == null || (lastGenerationResult != null && !lastGenerationResult.isUsable())
-                    && !lastGenerationResult.currentStatus().mayRequireRebuild())) {
-                Debug.message("regenerate-and-compile");
-                res = generateAndCompile(grammarFileName, options);
+        if (options.contains(GrammarProcessingOptions.REBUILD_JAVA_SOURCES) || (lastGenerationResult == null || (lastGenerationResult != null && !lastGenerationResult.isUsable())
+                && !lastGenerationResult.currentStatus().mayRequireRebuild())) {
+            Debug.message("regenerate-and-compile");
+            res = generateAndCompile(grammarFileName, options);
+        } else {
+            Debug.message("use-last-generation-result");
+            res = lastGenerationResult;
+            if (res != null && res.generationResult() != null) {
+                AntlrGenerationResult gr = res.generationResult();
+                if (!gr.isUpToDate()) {
+                    Set<GrammarProcessingOptions> opts = EnumSet.copyOf(options);
+                    CompileResult cr = res.compilationResult();
+                    if (cr != null && (!cr.isUsable() || !cr.areClassesUpToDateWithSources(res.jfs()))
+                            || cr.timestamp() < gr.timestamp) {
+                        opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
+                    }
+                    res = generateAndCompile(grammarFileName, opts);
+                }
+            }
+        }
+        if (!res.isUsable()) {
+            if (lastGenerationResult != null && !lastGenerationResult.isUsable()) {
+                lastGenerationResult = null;
+            }
+            Debug.failure("unusable-result", res::toString);
+            if (options.contains(GrammarProcessingOptions.RETURN_LAST_GOOD_RESULT_ON_FAILURE)) {
+                GrammarRunResult<T> lg = (GrammarRunResult<T> ) lastGood(key);
+                if (lg != null && lg.lastGood() != null) {
+                    lg = lg.lastGood();
+                }
+                return new RunResults<>(new GrammarRunResult<>(lg == null ? null : lg.get(), null, res, lg), lg == null ? null : lg.get());
+            }
+            return new RunResults<>(new GrammarRunResult<>(null, null, res, (GrammarRunResult<T>) lastGood(key)), null);
+        }
+        lastGenerationResult = res;
+        ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
+        GrammarRunResult<T> grr = null;
+        try {
+            ClassLoader ldr = classLoaderSupplier.get();
+            if (ldr != null) {
+                Thread.currentThread().setContextClassLoader(ldr);
+            }
+            LOG.log(Level.FINEST, "Run {0} in {1}", new Object[]{grammarFileName, ldr});
+            T result = reflectiveRunner.get();
+            grr = new GrammarRunResult<>(result, null, res, (GrammarRunResult<T>) lastGoodResults.get(key));
+            if (grr.isUsable()) {
+                lastGoodResults.put(key, grr);
+            }
+            return new RunResults<>(grr, result);
+        } catch (ClassNotFoundException ex) {
+            StringBuilder sb = new StringBuilder();
+            compiler.jfs().list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
+                sb.append('\n').append(loc).append('\t').append(fo.getName());
+            });
+            compiler.jfs().list(StandardLocation.CLASS_OUTPUT, (loc, fo) -> {
+                sb.append('\n').append(loc).append('\t').append(fo.getName());
+            });
+            ClassNotFoundException ex2 = new ClassNotFoundException("Failed in " + reflectiveRunner
+                    + " JFS listing: " + sb, ex);
+            LOG.log(Level.INFO, "Failed in " + reflectiveRunner, ex2);
+            return new RunResults<>(new GrammarRunResult<T>(null, ex, res, lastGood(key)), null);
+        } catch (Exception | Error ex) {
+            Thread.currentThread().setContextClassLoader(oldLoader);
+            Debug.failure(ex.toString(), () -> {
+                return Strings.toString(ex);
+            });
+            if (ex instanceof Error) {
+                LOG.log(Level.SEVERE, "Failed in " + reflectiveRunner, ex);
+                throw (Error) ex;
             } else {
-                Debug.message("use-last-generation-result");
-                res = lastGenerationResult;
-                if (res != null && res.generationResult() != null) {
-                    AntlrGenerationResult gr = res.generationResult();
-                    if (!gr.isUpToDate()) {
-                        Set<GrammarProcessingOptions> opts = EnumSet.copyOf(options);
-                        CompileResult cr = res.compilationResult();
-                        if (cr != null && (!cr.isUsable() || !cr.areClassesUpToDateWithSources(res.jfs()))
-                                || cr.timestamp() < gr.timestamp) {
-                            opts.add(GrammarProcessingOptions.REBUILD_JAVA_SOURCES);
-                        }
-                        res = generateAndCompile(grammarFileName, opts);
-                    }
-                }
+                LOG.log(Level.INFO, "Failed in " + reflectiveRunner, ex);
             }
-            if (!res.isUsable()) {
-                if (lastGenerationResult != null && !lastGenerationResult.isUsable()) {
-                    lastGenerationResult = null;
-                }
-                Debug.failure("unusable-result", res::toString);
-                if (options.contains(GrammarProcessingOptions.RETURN_LAST_GOOD_RESULT_ON_FAILURE)) {
-                    GrammarRunResult<Object> lg = lastGood(key);
-                    if (lg != null && lg.lastGood() != null) {
-                        lg = lg.lastGood();
-                    }
-                    return new GrammarRunResult<>(lg == null ? null : lg.get(), null, res, lg);
-                }
-                return new GrammarRunResult<>(null, null, res, lastGood(key));
-            }
-            lastGenerationResult = res;
-            ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
-            GrammarRunResult<T> grr = null;
-            try {
-                ClassLoader ldr = classLoaderSupplier.get();
-                if (ldr != null) {
-                    Thread.currentThread().setContextClassLoader(ldr);
-                }
-                LOG.log(Level.FINEST, "Run {0} in {1}", new Object[]{grammarFileName, ldr});
-                T result = reflectiveRunner.get();
-                grr = new GrammarRunResult(result, null, res, lastGoodResults.get(key));
-                if (grr.isUsable()) {
-                    lastGoodResults.put(key, grr);
-                }
-                return grr;
-            } catch (ClassNotFoundException ex) {
-                StringBuilder sb = new StringBuilder();
-                compiler.jfs().list(StandardLocation.SOURCE_OUTPUT, (loc, fo) -> {
-                    sb.append('\n').append(loc).append('\t').append(fo.getName());
-                });
-                compiler.jfs().list(StandardLocation.CLASS_OUTPUT, (loc, fo) -> {
-                    sb.append('\n').append(loc).append('\t').append(fo.getName());
-                });
-                ClassNotFoundException ex2 = new ClassNotFoundException("Failed in " + reflectiveRunner
-                        + " JFS listing: " + sb, ex);
-                LOG.log(Level.INFO, "Failed in " + reflectiveRunner, ex2);
-                return new GrammarRunResult(null, ex, res, lastGood(key));
-            } catch (Exception | Error ex) {
-                Thread.currentThread().setContextClassLoader(oldLoader);
-                Debug.failure(ex.toString(), () -> {
-                    return Strings.toString(ex);
-                });
-                if (ex instanceof Error) {
-                    LOG.log(Level.SEVERE, "Failed in " + reflectiveRunner, ex);
-                    throw (Error) ex;
-                } else {
-                    LOG.log(Level.INFO, "Failed in " + reflectiveRunner, ex);
-                }
-                return new GrammarRunResult(null, ex, res, lastGood(key));
-            } finally {
-                Thread.currentThread().setContextClassLoader(oldLoader);
-                Object o = grr;
-                Debug.success("new-grammar-run-result", () -> {
-                    return o == null ? "null" : o.toString();
-                });
-            }
-        });
+            return new RunResults<T>(new GrammarRunResult<>(null, ex, res, (GrammarRunResult<T>) lastGood(key)), null);
+        } finally {
+            Thread.currentThread().setContextClassLoader(oldLoader);
+//                Object o = grr;
+//                Debug.success("new-grammar-run-result", () -> {
+//                    return o == null ? "null" : o.toString();
+//                });
+        }
     }
 }

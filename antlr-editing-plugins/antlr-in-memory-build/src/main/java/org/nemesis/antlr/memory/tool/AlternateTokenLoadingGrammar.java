@@ -30,6 +30,17 @@ final class AlternateTokenLoadingGrammar extends Grammar {
     }
 
     @Override
+    public String getOptionString(String key) {
+        switch(key) {
+            // We need this for ambiguity matching to work, so ambiguities
+            // have correct alt numbers
+            case "contextSuperClass":
+                return "org.antlr.v4.runtime.RuleContextWithAltNum";
+        }
+        return super.getOptionString(key);
+    }
+
+    @Override
     public String toString() {
         return name + "(" + fileName + ":" + rules + ")" ;
     }

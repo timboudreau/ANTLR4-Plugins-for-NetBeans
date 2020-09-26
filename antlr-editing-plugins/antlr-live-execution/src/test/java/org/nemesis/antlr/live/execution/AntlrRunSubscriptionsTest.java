@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.execution;
 
+import com.mastfrog.function.TriConsumer;
 import org.junit.jupiter.api.Test;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import static com.mastfrog.util.collections.CollectionUtils.map;
@@ -28,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 import javax.tools.StandardLocation;
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -157,10 +157,11 @@ public class AntlrRunSubscriptionsTest {
 
     }
 
-    static final class Bic implements BiConsumer<Extraction, GrammarRunResult<Map>> {
+    static final class Bic implements TriConsumer<Extraction, GrammarRunResult<Map>, Map> {
 
         private volatile GrammarRunResult<Map> map;
         private final ResettableCountDownLatch latch = new ResettableCountDownLatch(1);
+        private volatile Map value;
 
         public GrammarRunResult<Map> assertExtracted() throws InterruptedException {
             for (int i = 0; i < 10; i++) {
@@ -182,9 +183,10 @@ public class AntlrRunSubscriptionsTest {
         }
 
         @Override
-        public void accept(Extraction t, GrammarRunResult<Map> u) {
+        public void accept(Extraction t, GrammarRunResult<Map> u, Map map) {
             System.out.println("\n\nBIC ACCEPT " + u + "\n\n");
-            map = u;
+            this.map = u;
+            this.value = map;
             latch.countDown();
         }
     }

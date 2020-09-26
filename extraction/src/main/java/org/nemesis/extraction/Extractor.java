@@ -16,6 +16,8 @@
 package org.nemesis.extraction;
 
 import com.mastfrog.antlr.utils.RulesMapping;
+import com.mastfrog.function.state.Bool;
+import com.mastfrog.util.preconditions.Exceptions;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.security.MessageDigest;
@@ -28,6 +30,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -75,15 +79,17 @@ public final class Extractor<T extends ParserRuleContext> {
     final Map<SingletonKey<?>, SingletonExtractionStrategies<?>> singles;
     private static final Logger LOG = Logger.getLogger(Extractor.class.getName());
     private final String mimeType;
+    private final Function<Supplier<Extraction>, Extraction> wrapExecution;
 
     Extractor(Class<T> documentRootType,
             Set<NamesAndReferencesExtractionStrategy<?>> nameExtractors, Set<RegionExtractionStrategies<?>> regionsInfo2,
-            Map<SingletonKey<?>, SingletonExtractionStrategies<?>> singles, String mimeType) {
+            Map<SingletonKey<?>, SingletonExtractionStrategies<?>> singles, String mimeType, Function<Supplier<Extraction>, Extraction> wrapExecution) {
         this.documentRootType = documentRootType;
         this.nameExtractors = nameExtractors;
         this.regionsInfo = regionsInfo2;
         this.singles = singles;
         this.mimeType = mimeType;
+        this.wrapExecution = wrapExecution;
     }
 
     public String mimeType() {
@@ -149,7 +155,7 @@ public final class Extractor<T extends ParserRuleContext> {
     }
 
     public static <T extends ParserRuleContext> Extractor<T> empty(Class<T> type, String mimeType) {
-        return new Extractor<>(type, emptySet(), emptySet(), emptyMap(), mimeType);
+        return new Extractor<>(type, emptySet(), emptySet(), emptyMap(), mimeType, null);
     }
 
     public boolean isEmpty() {
@@ -222,6 +228,28 @@ public final class Extractor<T extends ParserRuleContext> {
      * extractor's builder.
      */
     public Extraction extract(T ruleNode, GrammarSource<?> source, BooleanSupplier cancelled, Iterable<? extends Token> tokens) {
+        if (wrapExecution == null) {
+            return doExtract(ruleNode, source, cancelled, tokens);
+        } else {
+            Bool called = Bool.create();
+            try {
+                return wrapExecution.apply(() -> {
+                    called.set();
+                    try {
+                        return doExtract(ruleNode, source, cancelled, tokens);
+                    } catch (Exception ex) {
+                        Exceptions.printStackTrace(ex);
+                        return Extraction.empty(mimeType);
+                    }
+                });
+            } finally {
+                assert called.getAsBoolean() : "Execution wrapper " + wrapExecution
+                        + " never called the passed supplier to perform the extraction";
+            }
+        }
+    }
+
+    private Extraction doExtract(T ruleNode, GrammarSource<?> source, BooleanSupplier cancelled, Iterable<? extends Token> tokens) {
         String tkHash = hashTokens(tokens);
         Extraction extraction = new Extraction(extractorsHash(), source, tkHash, documentRootType, mimeType);
         long then = System.currentTimeMillis();

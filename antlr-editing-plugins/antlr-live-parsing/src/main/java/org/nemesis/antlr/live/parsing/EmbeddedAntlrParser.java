@@ -59,7 +59,7 @@ public abstract class EmbeddedAntlrParser {
 
     public abstract EmbeddedAntlrParserResult parse(CharSequence textToParse) throws Exception;
 
-    abstract int setRunner(Extraction extraction, GrammarRunResult<EmbeddedParser> runner);
+    abstract int setRunner(Extraction extraction, GrammarRunResult<EmbeddedParser> runner, EmbeddedParser parser);
 
     /**
      * Subscribe to notifications that the underlying Antlr grammar has been

@@ -69,7 +69,7 @@ public class AntlrProxies {
     public static final String ERRONEOUS_TOKEN_NAME = "$ERRONEOUS";
     private final List<ProxyToken> tokens = new ArrayList<>();
     private final List<ProxyTokenType> tokenTypes = new ArrayList<>(50);
-    private final List<Ambiguity> ambiguities = new ArrayList<>(10);
+    private final Set<Ambiguity> ambiguities = new HashSet<>(10);
     private ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
     private final ProxyTokenType EOF_TYPE = new ProxyTokenType(-1, "EOF", "", "EOF");
     private final List<ParseTreeElement> treeElements = new ArrayList<>(50);
@@ -86,9 +86,11 @@ public class AntlrProxies {
     private final Path grammarPath;
     private final CharSequence text;
     private BitSet[] ruleReferences;
-    private final Set<String> presentRuleNames = new HashSet<>(40);
+    private final BitSet presentRules = new BitSet(64);
+    private final BitSet presentTokens = new BitSet(64);
     private String grammarTokensHash = "--tokensHash--";
     private long tokenNamesChecksum;
+    private boolean lexerGrammar;
 
     public AntlrProxies(String grammarName, Path grammarPath, CharSequence text) {
         this.grammarName = grammarName;
@@ -96,6 +98,10 @@ public class AntlrProxies {
         tokenTypes.add(EOF_TYPE);
         newHash();
         this.text = text;
+    }
+
+    public void setLexerGrammar(boolean val) {
+        lexerGrammar = val;
     }
 
     public void setTokenNamesChecksum(long val) {
@@ -150,8 +156,9 @@ public class AntlrProxies {
         return new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE,
                 treeElements, errors, parserRuleNames, channelNames, hasParseErrors, hashString,
                 grammarName, grammarPath, text, thrown, ruleReferences, ambiguities,
-                lexerRuleNames, presentRuleNames, defaultModeIndex, modeNames,
-                grammarTokensHash, tokenNamesChecksum);
+                lexerRuleNames, presentRules, defaultModeIndex, modeNames,
+                grammarTokensHash, tokenNamesChecksum, presentTokens,
+                lexerGrammar);
     }
 
     /**
@@ -171,19 +178,31 @@ public class AntlrProxies {
             text = "(sample code here)\n";
         }
         ProxyTokenType textType = new ProxyTokenType(0, "text", "text", "text");
-        ProxyToken all = new ProxyToken(0, 0, 0, 0, 0, 0, text.length() - 1, 0);
+        ProxyTokenType errorType = new ProxyTokenType(1, ERRONEOUS_TOKEN_NAME, ERRONEOUS_TOKEN_NAME, ERRONEOUS_TOKEN_NAME);
+
         ProxyToken eof = new ProxyToken(-1, 0, 0, 0, 1, text.length(), text.length(), 0);
         ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
-        ParseTreeElement child = new RuleNodeTreeElement("unparsed", 0, 0, 1, 1);
+        ParseTreeElement child = new RuleNodeTreeElement(0, 0, 0, 1, 1);
         ProxyTokenType EOF_TYPE = new ProxyTokenType(-1, "EOF", "", "EOF");
         root.add(child);
-        List<ProxyTokenType> tokenTypes = Arrays.asList(EOF_TYPE, textType);
-        List<ProxyToken> tokens = Arrays.asList(all, eof);
+        List<ProxyTokenType> tokenTypes = Arrays.asList(EOF_TYPE, textType, errorType);
+
+        List<ProxyToken> tokens;
+        if (text.length() < ProxyToken.MAX_TOKEN_LENGTH) {
+            ProxyToken all = new ProxyToken(0, 0, 0, 0, 0, 0, text.length() - 1, 0);
+            tokens = Arrays.asList(all, eof);
+        } else {
+            ProxyToken[] split = splitToken(0, 0, 0, 0, 0, 0, text.length() - 1, 0);
+            tokens = new ArrayList<>(split.length + 1);
+            tokens.addAll(Arrays.asList(split));
+            tokens.add(eof);
+        }
+        BitSet empty = new BitSet(1);
         ParseTreeProxy prox = new ParseTreeProxy(tokens, tokenTypes, root, EOF_TYPE, Arrays.asList(root, child),
-                Collections.emptySet(), new String[]{"everything"}, new String[]{"default"},
+                Collections.emptySet(), new String[]{"text"}, new String[]{"default"},
                 false, Long.toString(text.hashCode(), 36),
-                grammarName, pth, text, null, new BitSet[1], Collections.emptyList(), new String[0],
-                Collections.emptySet(), 0, null, "-", 0);
+                grammarName, pth, text, null, new BitSet[1], Collections.emptySet(), new String[0],
+                empty, 0, null, "-", 0, empty, false);
         prox.isUnparsed = true;
         return prox;
     }
@@ -203,7 +222,7 @@ public class AntlrProxies {
 
         private final List<ProxyToken> tokens;
         private final List<ProxyTokenType> tokenTypes;
-        private final List<Ambiguity> ambiguities;
+        private final Ambiguity[] ambiguities;
         private final ParseTreeElement root;
         private final ProxyTokenType eofType;
         private final List<ParseTreeElement> treeElements;
@@ -223,22 +242,26 @@ public class AntlrProxies {
         private final long when = System.currentTimeMillis();
         private BitSet[] ruleReferencesForToken;
         private SortedSet<String> allRuleNames;
-        private final Set<String> presentRuleNames;
+        private final BitSet presentRules;
         private final String[] modeNames;
         private final short defaultMode;
         private final String grammarTokensHash;
         private final long tokenNamesChecksum;
+        private final BitSet presentTokens;
+        private final boolean lexerGrammar;
 
         ParseTreeProxy(List<ProxyToken> tokens, List<ProxyTokenType> tokenTypes,
                 ParseTreeElement root, ProxyTokenType eofType, List<ParseTreeElement> treeElements,
                 Set<ProxySyntaxError> errors, String[] parserRuleNames,
                 String[] channelNames, boolean hasParseErrors, String hashString, String grammarName,
                 Path grammarPath, CharSequence text, RuntimeException thrown,
-                BitSet[] ruleReferencesForToken, List<Ambiguity> ambiguities, String[] lexerRuleNames,
-                Set<String> presentRuleNames, int defaultMode, String[] modeNames,
-                String grammarTokensHash, long tokenNamesChecksum) {
-            this.tokens = tokens;
+                BitSet[] ruleReferencesForToken, Set<Ambiguity> ambiguities, String[] lexerRuleNames,
+                BitSet presentRules, int defaultMode, String[] modeNames,
+                String grammarTokensHash, long tokenNamesChecksum, BitSet presentTokens,
+                boolean lexerGrammar) {
+            this.tokens = Collections.unmodifiableList(tokens);
             this.grammarTokensHash = grammarTokensHash;
+            this.presentTokens = presentTokens;
             this.tokenTypes = tokenTypes;
             this.root = root;
             this.eofType = eofType;
@@ -253,13 +276,27 @@ public class AntlrProxies {
             this.text = text;
             this.thrown = thrown;
             this.ruleReferencesForToken = ruleReferencesForToken;
-            this.ambiguities = ambiguities;
+            this.ambiguities = toArray(ambiguities);
             this.lexerRuleNames = lexerRuleNames;
             this.modeNames = modeNames == null ? new String[]{"DEFAULT_MODE"} : modeNames;
             this.defaultMode = (short) defaultMode;
-            this.presentRuleNames = presentRuleNames.isEmpty() ? presentRuleNames
-                    : Collections.unmodifiableSet(presentRuleNames);
+            this.presentRules = presentRules;
             this.tokenNamesChecksum = tokenNamesChecksum;
+            this.lexerGrammar = lexerGrammar;
+        }
+
+        public boolean isLexerGrammar() {
+            return lexerGrammar;
+        }
+
+        private static final Ambiguity[] EMPTY_AMBIGUITIES = new Ambiguity[0];
+        static Ambiguity[] toArray(Set<Ambiguity> all) {
+            if (all.isEmpty()){
+                return EMPTY_AMBIGUITIES;
+            }
+            Ambiguity[] ambs = all.toArray(new Ambiguity[all.size()]);
+            Arrays.sort(ambs);
+            return ambs;
         }
 
         private List<ErrorNodeTreeElement> allErrorElements = null;
@@ -281,6 +318,37 @@ public class AntlrProxies {
             return result;
         }
 
+        public String ruleNameFor(Ambiguity amb) {
+            int rule = amb.ruleIndex();
+            if (rule < 0 || rule >= parserRuleNames.length) {
+                return "unknown";
+            }
+            return parserRuleNames[rule];
+        }
+
+        public String ruleNameFor(RuleNodeTreeElement ruleElement) {
+            return parserRuleNames[ruleElement.ruleIndex()];
+        }
+
+        public CharSequence textOf(Ambiguity ambig) {
+            StringBuilder sb = new StringBuilder();
+            int stop = ambig.stop();
+            for (int i = ambig.start(); i < stop; i++) {
+                sb.append(textOf(tokens.get(i)));
+            }
+            return sb.toString();
+        }
+
+        public List<ProxyToken> tokensIn(Ambiguity ambig) {
+            int start = ambig.start();
+            int stop = ambig.stop();
+            List<ProxyToken> result = new ArrayList<>((stop + 1) - start);
+            for (int i = start; i <= stop; i++) {
+                result.add(tokens.get(i));
+            }
+            return result;
+        }
+
         public long tokenNamesChecksum() {
             return tokenNamesChecksum;
         }
@@ -298,11 +366,12 @@ public class AntlrProxies {
         }
 
         public boolean isDefaultMode(ProxyToken tok) {
-            return tok.mode == defaultMode || tok.mode >= modeNames.length || tok.mode < 0;
+            int mode = tok.mode();
+            return mode == defaultMode || mode >= modeNames.length || mode < 0;
         }
 
         public boolean isErroneousToken(ProxyToken tok) {
-            return tok.type == tokenTypes.size() - 1;
+            return tok.getType() == tokenTypes.size() - 1;
         }
 
         public String modeName(ProxyToken tok) {
@@ -317,8 +386,28 @@ public class AntlrProxies {
             return Arrays.asList(lexerRuleNames);
         }
 
+        private Set<String> presentRuleNames;
+
         public Set<String> presentRuleNames() {
+            if (presentRuleNames == null) {
+                presentRuleNames = new HashSet<>(presentRules.cardinality());
+                for (int bit = presentRules.nextSetBit(0); bit >= 0; bit = presentRules.nextSetBit(bit + 1)) {
+                    presentRuleNames.add(parserRuleNames[bit]);
+                }
+                for (int bit = presentTokens.nextSetBit(0); bit >= 0; bit = presentTokens.nextSetBit(bit + 1)) {
+                    ProxyTokenType type = tokenTypes.get(bit);
+                    presentRuleNames.add(type.symbolicName);
+                }
+            }
             return presentRuleNames;
+        }
+
+        public BitSet presentTokenIds() {
+            return presentTokens;
+        }
+
+        public BitSet presentRuleIds() {
+            return presentRules;
         }
 
         public SortedSet<String> allRuleNames() {
@@ -331,11 +420,11 @@ public class AntlrProxies {
         }
 
         public boolean hasAmbiguities() {
-            return !ambiguities.isEmpty();
+            return ambiguities.length > 0;
         }
 
         public List<? extends Ambiguity> ambiguities() {
-            return ambiguities;
+            return Arrays.asList(ambiguities);
         }
 
         public String loggingInfo() {
@@ -423,7 +512,6 @@ public class AntlrProxies {
             hash = 23 * hash + Objects.hashCode(this.tokens);
             hash = 23 * hash + Objects.hashCode(this.tokenTypes);
             hash = 23 * hash + Objects.hashCode(this.root);
-            hash = 23 * hash + Objects.hashCode(this.eofType);
             hash = 23 * hash + Objects.hashCode(this.treeElements);
             hash = 23 * hash + Objects.hashCode(this.syntaxErrors);
             hash = 23 * hash + Arrays.deepHashCode(this.parserRuleNames);
@@ -526,10 +614,12 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             whitespace = whitespace == null ? "" : whitespace;
             List<ProxyToken> newTokens = Arrays.asList(new ProxyToken(-1, 1, 0, 0, 0, 0, whitespace.length() - 1, 0, 0));
             ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
+            BitSet emptyBits = new BitSet(1);
             return new ParseTreeProxy(newTokens, tokenTypes, root, eofType, Collections.<ParseTreeElement>emptyList(),
                     Collections.<ProxySyntaxError>emptySet(), parserRuleNames, channelNames, false, "x", grammarName,
-                    Paths.get(grammarPath), whitespace, null, null, Collections.emptyList(), lexerRuleNames,
-                    Collections.emptySet(), defaultMode, modeNames, grammarTokensHash, tokenNamesChecksum);
+                    Paths.get(grammarPath), whitespace, null, null, Collections.emptySet(), lexerRuleNames,
+                    emptyBits, defaultMode, modeNames, grammarTokensHash, tokenNamesChecksum, emptyBits,
+                    lexerGrammar);
         }
 
         public RuntimeException thrown() {
@@ -736,7 +826,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         }
 
         public List<ProxyToken> tokens() {
-            return Collections.unmodifiableList(tokens);
+            return tokens;
         }
 
         public List<String> parserRuleNames() {
@@ -799,7 +889,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
     void addElement(ParseTreeElement el) {
         switch (el.kind()) {
             case RULE:
-                presentRuleNames.add(el.name());
+                presentRules.set(((RuleNodeTreeElement) el).ruleIndex());
         }
         int index = treeElements.size();
         treeElements.add(el);
@@ -832,7 +922,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         if (type > -1) {
             ProxyTokenType typeType = tokenTypes.get(type + 1);
             if (typeType.symbolicName != null) {
-                presentRuleNames.add(typeType.symbolicName);
+                presentTokens.set(type + 1);
             }
         }
         ProxyToken token = new ProxyToken(type, line,
@@ -893,18 +983,16 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
     public static class ProxySyntaxError implements Comparable<ProxySyntaxError>, Serializable {
 
         final String message;
-        final int line;
-        final int charPositionInLine;
+        final long lineAndPosition;
 
         ProxySyntaxError(String message, int line, int charPositionInLine) {
             this.message = message;
-            this.line = line;
-            this.charPositionInLine = charPositionInLine;
+            lineAndPosition = pack(line, charPositionInLine);
         }
 
         @Override
         public String toString() {
-            return line + ":" + charPositionInLine + " " + message;
+            return line() + ":" + charPositionInLine() + " " + message;
         }
 
         public String message() {
@@ -912,11 +1000,11 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         }
 
         public int line() {
-            return line;
+            return unpackLeft(lineAndPosition);
         }
 
         public int charPositionInLine() {
-            return charPositionInLine;
+            return unpackRight(lineAndPosition);
         }
 
         public int startIndex() {
@@ -943,8 +1031,8 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         public int hashCode() {
             int hash = 5;
             hash = 53 * hash + Objects.hashCode(this.message);
-            hash = 53 * hash + this.line;
-            hash = 53 * hash + this.charPositionInLine;
+            hash = 53 * hash + this.line();
+            hash = 53 * hash + this.charPositionInLine();
             return hash;
         }
 
@@ -952,33 +1040,23 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         public boolean equals(Object obj) {
             if (this == obj) {
                 return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (!(obj instanceof ProxySyntaxError)) {
+            } else if (obj == null || obj.getClass() != ProxySyntaxError.class) {
                 return false;
             }
             final ProxySyntaxError other = (ProxySyntaxError) obj;
-            if (this.line != other.line) {
-                return false;
-            }
-            if (this.charPositionInLine != other.charPositionInLine) {
-                return false;
-            }
-            return Objects.equals(this.message, other.message);
+            return other.lineAndPosition == lineAndPosition;
         }
 
         @Override
         public int compareTo(ProxySyntaxError o) {
 
-            int result = line > o.line
-                    ? 1 : line == o.line
-                            ? 0 : -1;
+            int result = line() > o.line()
+                    ? 1 : line() == o.line()
+                    ? 0 : -1;
             if (result == 0) {
-                result = charPositionInLine > o.charPositionInLine
-                        ? 1 : charPositionInLine == o.charPositionInLine
-                                ? 0 : -1;
+                result = charPositionInLine() > o.charPositionInLine()
+                        ? 1 : charPositionInLine() == o.charPositionInLine()
+                        ? 0 : -1;
             }
             return result;
         }
@@ -986,47 +1064,43 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
     public static class ProxyDetailedSyntaxError extends ProxySyntaxError implements Serializable {
 
-        private final int tokenIndex;
-        private final int tokenType;
-        private final int startIndex;
-        private final int stopIndex;
+        private final long tokenIndexType;
+        private final long startStop;
 
         private ProxyDetailedSyntaxError(String message, int line,
                 int charPositionInLine, int tokenIndex, int tokenType,
                 int startIndex, int stopIndex) {
             super(message, line, charPositionInLine);
-            this.tokenIndex = tokenIndex;
-            this.tokenType = tokenType;
-            this.startIndex = startIndex;
-            this.stopIndex = stopIndex;
+            tokenIndexType = pack(tokenIndex, tokenType);
+            startStop = pack(startIndex, stopIndex);
         }
 
         @Override
         public String toString() {
-            return line + ":" + charPositionInLine
-                    + "(" + startIndex + "," + stopIndex + ")="
-                    + tokenIndex
-                    + "<" + tokenType + ">"
+            return line() + ":" + charPositionInLine()
+                    + "(" + startIndex() + "," + stopIndex() + ")="
+                    + tokenIndex()
+                    + "<" + tokenType() + ">"
                     + " " + message;
         }
 
         public int tokenType() {
-            return tokenType;
+            return unpackRight(tokenIndexType);
         }
 
         @Override
         public int tokenIndex() {
-            return tokenIndex;
+            return unpackLeft(tokenIndexType);
         }
 
         @Override
         public int startIndex() {
-            return startIndex;
+            return unpackLeft(startStop);
         }
 
         @Override
         public int stopIndex() {
-            return stopIndex;
+            return unpackRight(startStop);
         }
 
         @Override
@@ -1051,6 +1125,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                     int ost = d.stopIndex();
                     result = lst > ost ? 1 : lst == ost ? 0 : -1;
                 }
+                return result;
             }
             return super.compareTo(o);
         }
@@ -1246,6 +1321,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         }
 
         private String category;
+
         public String category() {
             if (category == null) {
                 category = _categorize(this);
@@ -1306,39 +1382,70 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         return "default";
     }
 
+    private static ProxyToken[] splitToken(int type, int line, int charPositionInLine, int channel, int tokenIndex,
+            int startIndex, int stopIndex, int mode) {
+        int length = tokenLength(startIndex, stopIndex);
+        if (length < ProxyToken.MAX_TOKEN_LENGTH) {
+            return new ProxyToken[]{
+                new ProxyToken(type, line, charPositionInLine, channel, tokenIndex, startIndex, stopIndex, type, mode)
+            };
+        } else {
+            int count = length / ProxyToken.MAX_TOKEN_LENGTH;
+            int rem = length % ProxyToken.MAX_TOKEN_LENGTH;
+            if (rem > 0) {
+                count++;
+            }
+            ProxyToken[] result = new ProxyToken[count];
+            for (int i = 0; i < count; i++) {
+                int startOffset = (i * ProxyToken.MAX_TOKEN_LENGTH);
+                int start = startIndex + startOffset;
+                // XXX we are fudging line / char position
+                if (i == count - 1 && rem != 0) {
+                    result[i] = new ProxyToken(type, line + i, charPositionInLine, channel, tokenIndex + i,
+                            start, start + rem - 1, type, mode);
+                } else {
+                    result[i] = new ProxyToken(type, line + i, charPositionInLine, channel, tokenIndex + i,
+                            start, start + ProxyToken.MAX_TOKEN_LENGTH, type, mode);
+                }
+            }
+            return result;
+        }
+    }
+
     public static final class ProxyToken implements Comparable<ProxyToken>, Serializable {
 
+        static final long serialVersionUID = 2;
         // We are making a few pretty safe assumptions here to minimize memory
-        // footprint
-        private final short type;
-        private final int line;
-        private final short charPositionInLine;
-        private final byte channel;
-        private final byte trim;
-        private final int tokenIndex;
-        private final int startIndex;
-        private final short length;
-        private final short mode;
+        // footprint.  Note we are only using 6 bytes of lineChannelTrim -
+        // the top two bytes are available.  This is a little nuts, but there
+        // can be hundreds of thousands of instances in a live VM, and paying
+        // for fields gets expensive.
+        private final long typeCharPositionLengthMode;
+        private final long startTokenIndex;
+        private final long lineChannelTrim;
+        public static int MAX_TOKEN_LENGTH = 65535;
 
-        ProxyToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex, int mode) {
+        ProxyToken(int type, int line, int charPositionInLine, int channel, int tokenIndex,
+                int startIndex, int stopIndex, int mode) {
             this(type, line, charPositionInLine, channel, tokenIndex, startIndex, stopIndex, 0, mode);
         }
 
-        ProxyToken(int type, int line, int charPositionInLine, int channel, int tokenIndex, int startIndex, int stopIndex, int trim, int mode) {
-            this.type = (short) type;
-            this.line = line;
-            this.charPositionInLine = (short) charPositionInLine;
-            this.channel = (byte) channel;
-            this.tokenIndex = tokenIndex;
-            this.startIndex = startIndex;
-            this.length = (short) Math.max(0, (stopIndex - startIndex) + 1);
-            assert trim <= length : "Trim " + trim + " < length " + length;
-            this.trim = 0;
-            this.mode = (short) mode;
+        ProxyToken(int type, int line, int charPositionInLine, int channel, int tokenIndex,
+                int startIndex, int stopIndex, int trim, int mode) {
+
+            int length = type == -1 ? 0 : tokenLength(startIndex, stopIndex);
+            if (length > MAX_TOKEN_LENGTH) {
+                throw new IllegalArgumentException("Max token " + MAX_TOKEN_LENGTH
+                        + " length exceeded.  Split the tokens.");
+            }
+            typeCharPositionLengthMode = pack(type + 1, charPositionInLine,
+                    length, mode);
+            startTokenIndex = pack(startIndex, tokenIndex);
+            lineChannelTrim = pack3(line, channel, trim);
         }
 
         public int mode() {
-            return mode;
+            return unpackD(typeCharPositionLengthMode);
         }
 
         public boolean isWhitespace() {
@@ -1346,104 +1453,107 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         }
 
         public int trimmedLength() {
-            return length - trim;
+            return length() - trim();
         }
 
-        public int stopIndex() {
-            return startIndex + length - 1;
+        public int trim() {
+            return unpack3RightByte(lineChannelTrim);
         }
 
         public boolean startsAfter(int line, int position) {
-            if (this.line > line) {
+            int myLine = getLine();
+            if (myLine > line) {
                 return true;
-            } else if (this.line < line) {
+            } else if (myLine < line) {
                 return false;
             }
-            return this.charPositionInLine > position;
+            return this.getCharPositionInLine() > position;
         }
 
         public boolean endsBefore(int line, int position) {
-            if (this.line < line) {
+            int myLine = getLine();
+            if (myLine < line) {
                 return true;
-            } else if (this.line > line) {
+            } else if (myLine > line) {
                 return false;
             }
-            return this.charPositionInLine + length <= position;
+            return this.getCharPositionInLine() + length() <= position;
         }
 
         public boolean contains(int line, int charOffset) {
-            if (line != this.line) {
+            if (line != this.getLine()) {
                 return false;
             }
-            if (charOffset >= charPositionInLine && charOffset < charPositionInLine + length) {
+            int cp = getCharPositionInLine();
+            if (charOffset >= cp && charOffset < cp + length()) {
                 return true;
             }
             return false;
         }
 
         public boolean contains(int position) {
-            int start = startIndex;
-            int stop = stopIndex();
-            if (type == -1) {
+            int start = getStartIndex();
+            int stop = getStopIndex();
+            if (isEOF()) {
                 // EOF will have an end before its start
-                start = Math.min(startIndex, stop);
-                stop = Math.max(startIndex, stop);
+                start = Math.min(start, stop);
+                stop = Math.max(start, stop);
             }
             return position >= start && position <= stop;
         }
 
         public boolean isEOF() {
-            return type == -1;
+            return getType() == -1;
         }
 
         public boolean startsAfter(int position) {
-            int ix = startIndex;
-            if (type == -1) {
+            int ix = getStartIndex();
+            if (isEOF()) {
                 // EOF will have an end before its start
-                ix = Math.min(stopIndex(), startIndex);
+                ix = Math.min(getStopIndex(), ix);
             }
             return ix > position;
         }
 
         public boolean endsBefore(int position) {
-            int ix = stopIndex();
-            if (type == -1) {
+            int ix = getStopIndex();
+            if (isEOF()) {
                 // EOF will have an end before its start
-                ix = Math.max(stopIndex(), startIndex);
+                ix = Math.max(ix, getStartIndex());
             }
             return ix < position;
         }
 
         public int length() {
-            return length;
+            return unpackC(typeCharPositionLengthMode);
         }
 
         public int getType() {
-            return type;
+            return unpackA(typeCharPositionLengthMode) - 1;
         }
 
         public int getLine() {
-            return line;
+            return unpack3Int(lineChannelTrim);
         }
 
         public int getCharPositionInLine() {
-            return charPositionInLine;
+            return unpackB(typeCharPositionLengthMode);
         }
 
         public int getChannel() {
-            return channel;
+            return unpack3LeftByte(lineChannelTrim);
         }
 
         public int getTokenIndex() {
-            return tokenIndex;
+            return unpackRight(startTokenIndex);
         }
 
         public int getStartIndex() {
-            return startIndex;
+            return unpackLeft(startTokenIndex);
         }
 
         public int getStopIndex() {
-            return stopIndex();
+            return getEndIndex() - 1;
         }
 
         /**
@@ -1453,52 +1563,48 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
          * @return The stop index.
          */
         public int getEndIndex() {
-            return startIndex + length;
+            return getStartIndex() + length();
         }
 
+        @Override
         public String toString() {
-            return "ProxyToken@" + startIndex + ":"
-                    + stopIndex() + "=" + tokenIndex + " line "
-                    + line + " offset " + charPositionInLine
-                    + " length " + length();
+            return "ProxyToken@" + getStartIndex() + ":"
+                    + getStopIndex() + " ix " + getTokenIndex() + " line "
+                    + getLine() + ":" + getCharPositionInLine()
+                    + " length " + length() + " type "
+                    + getType() + " mode " + mode()
+                    + " trim " + trim();
         }
 
         @Override
         public int hashCode() {
-            int hash = 7;
-            hash = 97 * hash + this.type;
-            hash = 97 * hash + this.line;
-            hash = 97 * hash + this.charPositionInLine;
-            return hash;
+            long hash = typeCharPositionLengthMode
+                    ^ (startTokenIndex >>> 24) ^ (lineChannelTrim << 16);
+            return (int) (hash ^ (hash >> 32));
         }
 
         @Override
         public boolean equals(Object obj) {
             if (this == obj) {
                 return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
+            } else if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
             final ProxyToken other = (ProxyToken) obj;
-            if (this.type != other.type) {
-                return false;
-            }
-            if (this.line != other.line) {
-                return false;
-            }
-            if (this.charPositionInLine != other.charPositionInLine) {
-                return false;
-            }
-            return true;
+            return other.typeCharPositionLengthMode == typeCharPositionLengthMode
+                    && other.startTokenIndex == startTokenIndex
+                    && other.lineChannelTrim == lineChannelTrim;
         }
 
         @Override
         public int compareTo(ProxyToken o) {
-            return tokenIndex > o.tokenIndex ? 1 : tokenIndex == o.tokenIndex ? 0 : -1;
+            int tokenIndex = getTokenIndex();
+            int otherTokenIndex = o.getTokenIndex();
+            return tokenIndex > otherTokenIndex
+                    ? 1
+                    : tokenIndex == otherTokenIndex
+                            ? 0
+                            : -1;
         }
     }
 
@@ -1512,11 +1618,11 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             this.proxies = proxies;
         }
 
-        public ParseTreeBuilder addRuleNode(String ruleName, int alternative,
+        public ParseTreeBuilder addRuleNode(int ruleIndex, int alternative,
                 int firstToken, int lastToken, int depth, Runnable run) {
             ParseTreeElement old = element;
             try {
-                element = new RuleNodeTreeElement(ruleName, alternative, firstToken, lastToken, depth);
+                element = new RuleNodeTreeElement(ruleIndex, alternative, firstToken, lastToken, depth);
                 proxies.addElement(element);
                 old.add(element);
                 run.run();
@@ -1526,15 +1632,15 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             return this;
         }
 
-        public ParseTreeBuilder addTerminalNode(int tokenIndex, String tokenText, int currentDepth) {
-            TerminalNodeTreeElement nue = new TerminalNodeTreeElement(tokenIndex, tokenText, currentDepth);
+        public ParseTreeBuilder addTerminalNode(int tokenIndex, int currentDepth) {
+            TerminalNodeTreeElement nue = new TerminalNodeTreeElement(tokenIndex, currentDepth);
             proxies.addElement(nue);
             element.add(nue);
             return this;
         }
 
         public ParseTreeBuilder addErrorNode(int startToken, int endToken, int depth, int tokenStart, int tokenStop, String tokenText, int tokenType) {
-            ErrorNodeTreeElement err = new ErrorNodeTreeElement(startToken, endToken, depth, 
+            ErrorNodeTreeElement err = new ErrorNodeTreeElement(startToken, endToken, depth,
                     tokenStart, tokenStop, tokenText, tokenType);
             proxies.addElement(err);
             element.add(err);
@@ -1571,7 +1677,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             return 0;
         }
 
-        public String name() {
+        public String name(ParseTreeProxy proxy) {
             return kind.toString();
         }
 
@@ -1626,12 +1732,12 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             return toString("", new StringBuilder()).toString();
         }
 
-        public String stringify() {
+        public String stringify(ParseTreeProxy proxy) {
             return kind.name();
         }
 
         public StringBuilder toString(String indent, StringBuilder into) {
-            into.append('\n').append(indent).append(stringify());
+            into.append('\n').append(indent).append(kind.name());
             if (children != null) {
                 for (ParseTreeElement kid : children) {
                     kid.toString(indent + "  ", into);
@@ -1677,59 +1783,58 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         }
     }
 
-    public static class RuleNodeTreeElement extends ParseTreeElement implements TokenAssociated {
+    public final static class RuleNodeTreeElement extends ParseTreeElement implements TokenAssociated {
 
-        private final String ruleName;
-        private final int alternative;
-        private final int startTokenIndex;
-        private final int stopTokenIndex;
-        private final short depth;
+        private final long startStop;
+        private final int altDepth;
+        private final int ruleIndex;
 
-        public RuleNodeTreeElement(String ruleName, int alternative,
+        public RuleNodeTreeElement(int ruleIndex, int alternative,
                 int startTokenIndex, int stopTokenIndex, int depth) {
             super(ParseTreeElementKind.RULE);
-            this.ruleName = ruleName;
-            this.alternative = alternative;
-            this.startTokenIndex = startTokenIndex;
-            this.stopTokenIndex = stopTokenIndex;
-            this.depth = (short) depth;
+            altDepth = packShort(alternative, depth);
+            this.startStop = pack(startTokenIndex, stopTokenIndex);
+            this.ruleIndex = ruleIndex;
+        }
+
+        public String name(ParseTreeProxy prx) {
+            return prx.ruleNameFor(this);
         }
 
         @Override
         public int depth() {
-            return depth;
+            return unpackShortRight(altDepth);
         }
 
-        @Override
-        public String name() {
-            return ruleName;
+        public int ruleIndex() {
+            return ruleIndex;
         }
 
         public int alternative() {
-            return alternative;
+            return unpackShortLeft(altDepth);
         }
 
         @Override
         public int startTokenIndex() {
-            return startTokenIndex;
+            return unpackLeft(startStop);
         }
 
         @Override
         public int stopTokenIndex() {
-            return stopTokenIndex;
+            return unpackRight(startStop);
         }
 
         @Override
-        public String stringify() {
-            return ruleName + "(" + startTokenIndex + ":" + stopTokenIndex + ")";
+        public String stringify(ParseTreeProxy proxy) {
+            return proxy.ruleNameFor(this) + "(" + startTokenIndex() + ":" + stopTokenIndex() + ")";
         }
 
         @Override
         public int hashCode() {
             int hash = 7;
-            hash = 73 * hash + Objects.hashCode(this.ruleName);
-            hash = 73 * hash + this.startTokenIndex;
-            hash = 73 * hash + this.stopTokenIndex;
+            hash = 11107 * hash + ruleIndex;
+            hash += 73 * (startStop ^ (startStop << 32));
+            hash += 111 * altDepth;
             return hash;
         }
 
@@ -1737,102 +1842,86 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         public boolean equals(Object obj) {
             if (this == obj) {
                 return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
+            } else if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
             final RuleNodeTreeElement other = (RuleNodeTreeElement) obj;
-            if (this.startTokenIndex != other.startTokenIndex) {
-                return false;
-            }
-            if (this.stopTokenIndex != other.stopTokenIndex) {
-                return false;
-            }
-            return Objects.equals(this.ruleName, other.ruleName);
+            return startStop == other.startStop && altDepth == other.altDepth
+                    && ruleIndex == other.ruleIndex;
         }
     }
 
     public static class ErrorNodeTreeElement extends ParseTreeElement implements TokenAssociated {
 
-        private final int startTokenIndex;
-        private final int stopTokenIndex;
-        private final short depth;
+        private final long startStopTokenIndex;
+        private final long tokenStartStop;
+        private final int typeAndDepth;
         private final String text;
-        private final int tokenStart;
-        private final int tokenStop;
-        private final short tokenType;
 
         public ErrorNodeTreeElement(int startToken, int stopToken, int depth, int tokenStart,
-                 int tokenStop, String tokenText, int tokenType) {
+                int tokenStop, String tokenText, int tokenType) {
             super(ParseTreeElementKind.ERROR);
-            this.tokenStart = tokenStart;
-            this.tokenStop = tokenStop;
-            this.tokenType = (short) tokenType;
+            // We need to hold the text - it will sometimes be "missing ;" or
+            // similar from the parser
+            tokenStartStop = pack(tokenStart, tokenStop);
             text = tokenText;
-            this.startTokenIndex = startToken;
-            this.stopTokenIndex = stopToken;
-            this.depth = (short) depth;
+            startStopTokenIndex = pack(startToken + 1, stopToken + 1);
+            typeAndDepth = packShort(tokenType, depth);
         }
 
         public int tokenType() {
-            return tokenType;
+            return unpackShortLeft(typeAndDepth);
         }
 
         public int tokenStart() {
-            return tokenStart;
+            return unpackLeft(tokenStartStop);
         }
 
         public int tokenStop() {
-            return tokenStop;
+            return unpackRight(tokenStartStop);
         }
 
         public int tokenEnd() {
-            return tokenStop + 1;
+            return tokenStop() + 1;
         }
 
         public boolean isSynthetic() {
-            return startTokenIndex == -1 || stopTokenIndex == -1;
+            return startTokenIndex() == -1 || stopTokenIndex() == -1;
         }
 
         @Override
         public String toString() {
-            return "Error(startToken=" + startTokenIndex + ", " + stopTokenIndex
-                    + " depth=" + depth + " text='" + text + " start "
-                    + " startTokenIndex=" + startTokenIndex
-                    + " stopTokenIndex=" + stopTokenIndex + ")";
+            return "Error(startToken=" + startTokenIndex() + ", " + stopTokenIndex()
+                    + " depth=" + depth() + " text='" + text + " start "
+                    + " startTokenIndex=" + startTokenIndex()
+                    + " stopTokenIndex=" + stopTokenIndex() + ")";
         }
 
         @Override
         public int depth() {
-            return depth;
+            return unpackShortRight(typeAndDepth);
         }
 
         @Override
         public int startTokenIndex() {
-            return startTokenIndex;
+            return unpackLeft(startStopTokenIndex) - 1;
         }
 
         @Override
         public int stopTokenIndex() {
-            return stopTokenIndex;
+            return unpackRight(startStopTokenIndex) - 1;
         }
 
-        public String stringify() {
+        public String stringify(ParseTreeProxy proxy) {
             return "error: '" + text + "'";
         }
 
         @Override
         public int hashCode() {
-            int hash = 3;
-            hash = 17 * hash + this.startTokenIndex;
-            hash = 17 * hash + this.stopTokenIndex;
-            hash = 17 * hash + this.tokenStart;
-            hash = 17 * hash + this.tokenStop;
-            hash = 17 * hash + this.tokenType;
-            return hash;
+            long hash = ((startStopTokenIndex * 14747)
+                    + (tokenStartStop * 100043))
+                    | (((long) typeAndDepth) << 24);
+            return (int) (hash ^ (hash >> 32));
         }
 
         @Override
@@ -1843,11 +1932,9 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                 return false;
             }
             final ErrorNodeTreeElement other = (ErrorNodeTreeElement) obj;
-            return other.tokenStart == tokenStart
-                    && other.tokenStop == tokenStop
-                    && other.tokenType == tokenType
-                    && other.startTokenIndex == this.startTokenIndex
-                    && other.stopTokenIndex == this.stopTokenIndex;
+            return other.tokenStartStop == tokenStartStop
+                    && other.typeAndDepth == typeAndDepth
+                    && other.startStopTokenIndex == startStopTokenIndex;
         }
 
         public String tokenText() {
@@ -1857,65 +1944,57 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
     public static class TerminalNodeTreeElement extends ParseTreeElement implements TokenAssociated {
 
-        private final int tokenIndex;
-        private final String tokenText;
-        private final short depth;
+        private final int indexAndDepth;
 
-        public TerminalNodeTreeElement(int tokenIndex, String tokenText, int depth) {
+        public TerminalNodeTreeElement(int tokenIndex, int depth) {
             super(ParseTreeElementKind.TERMINAL);
-            this.tokenIndex = tokenIndex;
-            this.tokenText = tokenText;
-            this.depth = (short) depth;
+            indexAndDepth = packShort(tokenIndex, depth);
         }
 
         @Override
         public int depth() {
-            return depth;
+            return unpackShortRight(indexAndDepth);
+        }
+
+        public int tokenIndex() {
+            return unpackShortLeft(indexAndDepth);
         }
 
         @Override
-        public String stringify() {
-            return "'" + tokenText + "'";
+        public String stringify(ParseTreeProxy proxy) {
+            ProxyToken tok = proxy.tokens().get(tokenIndex());
+            return "'" + proxy.textOf(tok) + "'";
         }
 
         @Override
-        public String name() {
-            return tokenText;
+        public String name(ParseTreeProxy proxy) {
+            return proxy.textOf(proxy.tokens().get(tokenIndex())).toString();
         }
 
         @Override
         public int hashCode() {
-            int hash = 5;
-            hash = 37 * hash + this.tokenIndex;
-            return hash;
+            return 17923 * indexAndDepth;
         }
 
         @Override
         public boolean equals(Object obj) {
             if (this == obj) {
                 return true;
-            }
-            if (obj == null) {
+            } else if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            final TerminalNodeTreeElement other = (TerminalNodeTreeElement) obj;
-            if (this.tokenIndex != other.tokenIndex) {
-                return false;
-            }
-            return true;
+            TerminalNodeTreeElement other = (TerminalNodeTreeElement) obj;
+            return indexAndDepth == other.indexAndDepth;
         }
 
         @Override
         public int startTokenIndex() {
-            return tokenIndex;
+            return tokenIndex();
         }
 
         @Override
         public int stopTokenIndex() {
-            return tokenIndex;
+            return tokenIndex();
         }
     }
 
@@ -1960,9 +2039,12 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             }
         }
 
+        public String originalType() {
+            return origType;
+        }
+
         @Override
-        public synchronized Throwable fillInStackTrace() {
-            // do nothing
+        public Throwable fillInStackTrace() {
             return this;
         }
 
@@ -1977,56 +2059,77 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         }
     }
 
-    public static final class Ambiguity {
+    /**
+     * An ambiguity reported by the parser.
+     */
+    public static final class Ambiguity implements Comparable<Ambiguity> {
 
-        public final int decision;
-        public final int ruleIndex;
-        public final String ruleName;
-        public final BitSet conflictingAlternatives;
-        public final int startOffset;
-        public final int stopOffset;
+        private final BitSet conflictingAlternatives;
+        private final int decision;
+        private final int ruleIndexAndOuterAlt;
+        private final long startStop;
 
-        public Ambiguity(int decision, int ruleIndex, String ruleName, BitSet conflictingAlternatives,
-                int startOffset, int stopOffset) {
+        public Ambiguity(int decision, int ruleIndex, BitSet conflictingAlternatives,
+                int startIndex, int stopIndex, int outerAlt) {
             this.decision = decision;
-            this.ruleIndex = ruleIndex;
-            this.ruleName = ruleName;
             this.conflictingAlternatives = conflictingAlternatives;
-            this.startOffset = startOffset;
-            this.stopOffset = stopOffset;
+            ruleIndexAndOuterAlt = packShort(ruleIndex, outerAlt);
+            startStop = pack(startIndex, stopIndex);
         }
 
+        public BitSet conflictingAlternatives() {
+            return conflictingAlternatives;
+        }
+
+        public int ruleIndex() {
+            return unpackShortLeft(ruleIndexAndOuterAlt);
+        }
+
+        public int outerAlternative() {
+            return unpackShortRight(ruleIndexAndOuterAlt);
+        }
+
+        public int decision() {
+            return decision;
+        }
+
+        /**
+         * A unique identifier, useful in APIs that require error markers to
+         * have one.
+         *
+         * @return An id
+         */
         public String identifier() {
-            return ruleName + ":" + decision + ":" + ruleIndex + ":" + startOffset + "-" + stopOffset;
+            return Long.toString(startStop, 36) + ":" + Integer.toString(ruleIndexAndOuterAlt, 36)
+                    + ":" + Integer.toString(decision, 36)
+                    + Arrays.toString(conflictingAlternatives.toLongArray());
         }
 
         public int start() {
-            return startOffset;
+            return unpackLeft(startStop);
         }
 
         public int end() {
-            return stopOffset + 1;
+            return stop() + 1;
         }
 
         public int stop() {
-            return stopOffset;
+            return unpackRight(startStop);
         }
 
-        public String toString() {
-            return "Ambiguity(" + ruleName + " / " + ruleIndex + " / " + decision
-                    + " @ " + startOffset + ":" + stopOffset + " alts: "
-                    + conflictingAlternatives + ")";
+        @Override
+        public int compareTo(Ambiguity o) {
+            return Long.compare(startStop, o.startStop);
         }
 
         @Override
         public int hashCode() {
             int hash = 7;
             hash = 59 * hash + this.decision;
-            hash = 59 * hash + this.ruleIndex;
-            hash = 59 * hash + Objects.hashCode(this.ruleName);
+            hash = 13171 * hash + this.ruleIndexAndOuterAlt;
+            hash = 59 * hash + (int) (this.startStop
+                    ^ (31891 * (startStop >> 32)));
             hash = 59 * hash + Objects.hashCode(this.conflictingAlternatives);
-            hash = 59 * hash + this.startOffset;
-            hash = 59 * hash + this.stopOffset;
             return hash;
         }
 
@@ -2034,33 +2137,100 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         public boolean equals(Object obj) {
             if (this == obj) {
                 return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
+            } else if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
             final Ambiguity other = (Ambiguity) obj;
-            if (this.decision != other.decision) {
-                return false;
-            }
-            if (this.ruleIndex != other.ruleIndex) {
-                return false;
-            }
-            if (this.startOffset != other.startOffset) {
-                return false;
-            }
-            if (this.stopOffset != other.stopOffset) {
-                return false;
-            }
-            if (!Objects.equals(this.ruleName, other.ruleName)) {
-                return false;
-            }
-            if (!Objects.equals(this.conflictingAlternatives, other.conflictingAlternatives)) {
-                return false;
-            }
-            return true;
+            return decision == other.decision
+                    && startStop == other.startStop
+                    && ruleIndexAndOuterAlt == other.ruleIndexAndOuterAlt
+                    && conflictingAlternatives.equals(other.conflictingAlternatives);
         }
+
+        @Override
+        public String toString() {
+            return "Ambiguity(" + " / " + ruleIndex() + " / " + decision
+                    + " @ " + start() + ":" + stop() + " alts: "
+                    + conflictingAlternatives + ")";
+        }
+    }
+
+    // Packing methods for merging numeric values to save on field count
+    // for types there are enormous numbers of instances of
+    static long pack(int left, int right) {
+        return (((long) left) << 32) | (right & 0xFFFF_FFFFL);
+    }
+
+    static int unpackLeft(long value) {
+        return (int) ((value >>> 32) & 0xFFFF_FFFFL);
+    }
+
+    static int unpackRight(long value) {
+        return (int) (value & 0xFFFF_FFFFL);
+    }
+
+    static long unsigned(int x) {
+        return x & 0xFFFFFFFFL;
+    }
+
+    static long pack3(int a, int b, int c) {
+        return ((long) a << 16)
+                | (long) ((b << 8) & 0xFF00) | (c & 0xFF);
+    }
+
+    static int packShort(int left, int right) {
+        return (left << 16)
+                | (right & 0xFFFF);
+    }
+
+    static int unpackShortLeft(int val) {
+        return (val >>> 16) & 0xFFFF;
+    }
+
+    static int unpackShortRight(int val) {
+        return val & 0xFFFF;
+    }
+
+    static int unpack3Int(long value) {
+        return (int) ((value >>> 16) & 0xFFFF_FFFFL);
+    }
+
+    static short unpack3LeftByte(long value) {
+        value = value & 0x0000_0000_0000_FF00L;
+        return (short) ((value >>> 8) & 0xFFFFL);
+    }
+
+    static short unpack3RightByte(long value) {
+        return (short) (value & 0xFFL);
+    }
+
+    static long pack(int a, int b, int c, int d) {
+        return ((long) a << 48)
+                | (long) ((b & 0xFFFF_FFFF_FFFFL) << 32)
+                | (long) ((c & 0xFFFF_FFFF_FFFFL) << 16)
+                | (long) (d & 0xFFFF_FFFF_FFFFL);
+    }
+
+    static int unpackA(long value) {
+        return (int) ((value >>> 48) & 0xFFFFL);
+    }
+
+    static int unpackB(long value) {
+        return (int) ((value >>> 32) & 0xFFFFL);
+    }
+
+    static int unpackC(long value) {
+        return (int) ((value >>> 16) & 0xFFFFL);
+    }
+
+    static int unpackD(long value) {
+        return (int) (value & 0xFFFFL);
+    }
+
+    static int tokenLength(int startIndex, int stopIndex) {
+        if (stopIndex < 0) {
+            return 0;
+        }
+        return Math.max(0, (stopIndex - startIndex) + 1);
     }
 }

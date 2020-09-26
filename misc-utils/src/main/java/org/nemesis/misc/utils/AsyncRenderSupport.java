@@ -60,6 +60,9 @@ public class AsyncRenderSupport {
 
     public void onExitingRender() {
         while (!queue.isEmpty()) {
+            // Note this is very fast, as it involves not iteration,
+            // just moving the head linked list entry of the queue
+            // from the old to the new
             queue.drainTo(sink);
             boolean wasInRender = inRender;
             inRender = true;

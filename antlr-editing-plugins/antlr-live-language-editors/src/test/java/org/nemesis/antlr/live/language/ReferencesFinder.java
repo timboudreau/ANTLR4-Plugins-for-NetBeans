@@ -172,6 +172,7 @@ public class ReferencesFinder {
             return type.isInstance(o);
         }
 
+        @SuppressWarnings("unchecked")
         public boolean apply(String path, Object o, BiConsumer<String, Object> bi, VisitTracker visits) {
             if (o != null && type.isInstance(o)) {
                 doApply((T) type.cast(o), path, bi, visits);
