@@ -59,7 +59,14 @@ public enum AntlrSampleFiles implements SampleFile<ANTLRv4Lexer, ANTLRv4Parser> 
     MARKDOWN_PARSER("MarkdownParser.g4"),
     RETURNS_TEST("ReturnsTest.g4"),
     PROTOBUF_3("Protobuf3.g4"),
-    MEGA_PARENTHESES("MegaParentheses.g4");
+    MEGA_PARENTHESES("MegaParentheses.g4"),
+    MATH_COMBINED_EXPRESSION("MathCombinedExpression.g4"),
+    MATH_COMBINED_EXPRESSION_RECURSIVE("MathCombinedExpressionRecursive.g4"),
+    MATH_SPLIT_RECURSIVE("MathSplitExpression.g4"),
+    MATH_SPLIT_RECURSIVE_LABELED("MathSplitExpressionLabeled.g4"),
+    MATH_SPLIT_RIGHT_SIDE_EXPRESSION("MathSplitRightSideExpression.g4"),
+    MATH_SPLIT_RIGHT_SIDE_RECURSIVE_EXPRESSION("MathSplitRightSideRecursiveExpression.g4"),
+    ;
     private final String fileName;
 
     AntlrSampleFiles(String pathFromRoot) {

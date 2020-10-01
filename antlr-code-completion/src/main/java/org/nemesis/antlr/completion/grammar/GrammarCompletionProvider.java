@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.completion.grammar;
 
+import com.mastfrog.antlr.cc.CodeCompletionCore;
+import com.mastfrog.antlr.cc.FollowSetsHolder;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.IntPredicate;
@@ -41,7 +43,7 @@ public class GrammarCompletionProvider implements CompletionProvider {
     private final ParserAndRuleContextProvider<?, ?> parserForDoc;
     private final IntPredicate preferredRules;
     private final IntPredicate ignoredRules;
-    private final Map<String, IntMap<CodeCompletionCore.FollowSetsHolder>> cache = new HashMap<>(3);
+    private final Map<String, IntMap<FollowSetsHolder>> cache = new HashMap<>(3);
     private final IntMap<String> supplemental;
     private final com.mastfrog.util.collections.IntIntMap ruleSubstitutions;
 

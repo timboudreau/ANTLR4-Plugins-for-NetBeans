@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.completion.grammar;
+package com.mastfrog.antlr.cc;
 
 import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.collections.IntMap;
@@ -31,27 +31,40 @@ import java.util.function.BiConsumer;
  *
  * @author Tim Boudreau
  */
-final class IntArrayMapping {
+public final class IntArrayMapping {
 
     private final IntMap<IntList> values;
 
-    IntArrayMapping() {
-        values = IntMap.create(12, true, () -> IntList.create(16));
+    public IntArrayMapping() {
+        values = IntMap.create(64, true, () -> IntList.create(32));
     }
 
-    IntArrayMapping(IntMap<IntList> values) {
+    public IntArrayMapping(IntMap<IntList> values) {
         this.values = values;
     }
 
-    public IntList get(int key0) {
-        return values.getIfPresent(key0, null);
+    public IntArrayMapping copy() {
+        if (values.isEmpty()) {
+            return new IntArrayMapping();
+        }
+        IntMap<IntList> result = IntMap.create(values.size());
+        values.forEachPair((key, vals) -> {
+            result.put(key, vals.copy());
+        });
+        assert result.equals(values) : "Copy not equal: " + values
+                + " vs " + result;
+        return new IntArrayMapping(result);
     }
 
-    int size() {
+    public IntList get(int key) {
+        return values.getIfPresent(key, null);
+    }
+
+    public int size() {
         return values.size();
     }
 
-    boolean containsKey(int key) {
+    public boolean containsKey(int key) {
         return values.containsKey(key);
     }
 
@@ -59,7 +72,7 @@ final class IntArrayMapping {
         return values.keySet();
     }
 
-    boolean isEmpty() {
+    public boolean isEmpty() {
         if (values.isEmpty()) {
             return true;
         }
@@ -72,36 +85,36 @@ final class IntArrayMapping {
         return true;
     }
 
-    IntArrayMapping filter(BiConsumer<IntMap<IntList>, IntMap<IntList>> c) {
+    public IntArrayMapping filter(BiConsumer<IntMap<IntList>, IntMap<IntList>> c) {
         IntMap<IntList> nue = IntMap.create(values.size());
         c.accept(values, nue);
         return new IntArrayMapping(nue);
     }
 
-    void put(int key, IntList vals) {
-//        values.get(key).addAll(vals);
-        values.put(key, vals.copy());
+    public void put(int key, IntList vals) {
+//        values.put(key, vals.copy());
+        values.put(key, vals);
     }
 
-    void put(int key, int a, int b) {
+    public void put(int key, int a, int b) {
         IntList l = values.get(key);
         l.add(a);
         l.add(b);
     }
 
-    void put(int key, int... vals) {
+    public void put(int key, int... vals) {
         values.get(key).addArray(vals);
     }
 
-    void clear() {
+    public void clear() {
         values.clear();
     }
 
-    void forEach(IntMap.IntMapConsumer<? super IntList> c) {
+    public void forEach(IntMap.IntMapConsumer<? super IntList> c) {
         values.forEachPair(c);
     }
 
-    boolean forSome(IntMap.IntMapAbortableConsumer<? super IntList> c) {
+    public boolean forSome(IntMap.IntMapAbortableConsumer<? super IntList> c) {
         return values.forSomeKeys(c);
     }
 

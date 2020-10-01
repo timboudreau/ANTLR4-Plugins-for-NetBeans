@@ -1,5 +1,6 @@
 package org.nemesis.antlr.memory;
 
+import org.nemesis.antlr.memory.alt.AlternativesInfo;
 import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.streams.Streams;
 import com.mastfrog.util.strings.Strings;
@@ -83,7 +84,7 @@ public class AntlrGeneratorTest {
         assertTrue(result.currentStatus().isUpToDate());
         JFSFileObject outfile = jfs.getFileForOutput(SOURCE_DEST, sourceFile);
         long oldLastModified = outfile.getLastModified();
-        Thread.sleep(1); // on a hypothetical, extremely fast machine we could do all of this in the same millisecond
+        Thread.sleep(1); // on a hypothetical, extremely fast machine we could do convert of this in the same millisecond
         try (Writer w = outfile.openWriter()) {
             w.append("Hello world\n").append("This has been altered.\n");
         }
@@ -118,6 +119,35 @@ public class AntlrGeneratorTest {
         assertNotNull(in);
         assertEquals(1, in.size());
         assertEquals(packagePath.resolve("NestedMapGrammar.g4"), in.iterator().next());
+
+        testAlternativesInfo(result);
+    }
+
+    private void testAlternativesInfo(AntlrGenerationResult res) throws IOException {
+        assertNotNull(res.alterantives());
+        AlternativesInfo alts = res.alterantives();
+        System.out.println("ALTS: ");
+        alts.forEach((start, end, info) -> {
+            System.out.println("ALT: " + info.rule + " alt " + info.altIndex + " " + start + ":" + end);
+            String altText = grammarText.substring(start, end);
+            System.out.println("  '" + altText + "'");
+            switch (info.rule) {
+                case "value":
+                    switch (info.altIndex) {
+                        case 1:
+                            assertEquals("booleanValue", altText);
+                            break;
+                        case 2:
+                            assertEquals("numberValue", altText);
+                            break;
+                        case 3:
+                            assertEquals("stringValue", altText);
+                            break;
+                        default:
+                            throw new AssertionError(info.altIndex + " " + info);
+                    }
+            }
+        });
     }
 
     static Set<UnixPath> toPathSet(Set<JFSCoordinates> set) {
@@ -177,6 +207,8 @@ public class AntlrGeneratorTest {
         return result;
     }
 
+    String grammarText;
+
     @BeforeEach
     public void setup() throws IOException {
         out = new ByteArrayOutputStream(2048);
@@ -186,7 +218,7 @@ public class AntlrGeneratorTest {
         packagePath = UnixPath.get(pkg.replace('.', '/'));
         sourceFile = packagePath.resolve(GRAMMAR_FILE_NAME);
 
-        String contents = Streams.readResourceAsUTF8(AntlrGeneratorTest.class, GRAMMAR_FILE_NAME);
+        String contents = grammarText = Streams.readResourceAsUTF8(AntlrGeneratorTest.class, GRAMMAR_FILE_NAME);
         jfs = JFS.builder().useBlockStorage(BlockStorageKind.HEAP)
                 .withListener(this::onFileCreated).withCharset(UTF_8).build();
         jfs.create(sourceFile, SOURCE_DEST, contents);
@@ -198,6 +230,7 @@ public class AntlrGeneratorTest {
                 + " are incorrect");
         bldr = AntlrGenerator.builder(() -> jfs)
                 .grammarSourceInputLocation(SOURCE_DEST)
+                .requestAlternativesAnalysis()
                 .javaSourceOutputLocation(GENERATED_DEST)
                 .withOriginalFile(Paths.get("AntlrGeneratorTest"))
                 .withTokensHash("-zzzz-")

@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.memory;
 
+import org.nemesis.antlr.memory.alt.AlternativesAnalyzer;
+import org.nemesis.antlr.memory.alt.AlternativesInfo;
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.function.state.Lng;
 import com.mastfrog.function.state.Obj;
@@ -75,6 +77,7 @@ public final class AntlrGenerator {
     private final String originalTokensHash;
     private JFSPathHints pathHints;
     final RerunInterceptor interceptor;
+    private boolean analyzeAlts;
 
     static AntlrGenerator fromResult(AntlrGenerationResult result) {
         return new AntlrGenerator(AntlrGeneratorBuilder.fromResult(result));
@@ -83,7 +86,8 @@ public final class AntlrGenerator {
     public AntlrGenerator(Charset grammarEncoding, boolean generateAll, String packageName,
             Supplier<JFS> jfs, JavaFileManager.Location grammarSourceLocation, UnixPath virtualSourcePath,
             UnixPath virtualImportDir, JavaFileManager.Location outputLocation,
-            Path originalFile, String originalTokensHash, JFSPathHints pathHints, RerunInterceptor interceptor) {
+            Path originalFile, String originalTokensHash, JFSPathHints pathHints, 
+            RerunInterceptor interceptor, boolean analyzeAlts) {
         this.grammarEncoding = grammarEncoding;
         this.generateAll = generateAll;
         this.packageName = packageName;
@@ -96,6 +100,7 @@ public final class AntlrGenerator {
         this.originalTokensHash = originalTokensHash;
         this.pathHints = pathHints == null ? JFSPathHints.NONE : pathHints;
         this.interceptor = interceptor;
+        this.analyzeAlts = analyzeAlts;
     }
 
     public JFSPathHints hints() {
@@ -116,7 +121,8 @@ public final class AntlrGenerator {
         }
         return new AntlrGenerator(grammarEncoding, generateAll,
                 packageName, jfs, grammarSourceLocation, virtualSourcePath,
-                virtualImportDir, outputLocation, originalFile, originalTokensHash, pathHints, interceptor);
+                virtualImportDir, outputLocation, originalFile, 
+                originalTokensHash, pathHints, interceptor, analyzeAlts);
     }
 
     public JavaFileManager.Location sourceLocation() {
@@ -210,6 +216,7 @@ public final class AntlrGenerator {
         this.originalFile = notNull("b.originalFile", b.originalFile);
         this.pathHints = b.pathHints;
         this.interceptor = b.interceptor;
+        this.analyzeAlts = b.analyzeAlts;
     }
 
     public static <T> AntlrGeneratorBuilder<T> builder(Supplier<JFS> jfs, Function<? super AntlrGeneratorBuilder<T>, T> func) {
@@ -244,8 +251,12 @@ public final class AntlrGenerator {
         JFSFileObject fo = jfs.get().get(sourceLocation(), result);
         if (fo == null) {
             result = packagePath().resolve(UnixPath.get(baseName).rawName() + ".g");
+            fo = jfs.get().get(sourceLocation(), result);
         }
-        return fo.toCoordinates();
+        if (fo == null) {
+            System.out.println("NO GRAMMAR PATH FOR " + fileName);
+        }
+        return fo == null ? null : fo.toCoordinates();
     }
 
     private UnixPath resolveSourcePath(String grammarFileName) {
@@ -301,7 +312,7 @@ public final class AntlrGenerator {
                 generateAll, opts, grammarEncoding, originalTokensHash, originalFile, jfs,
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), 0,
                 pathHints, interceptor, Collections.emptySet(), Collections.emptySet(), JFSFileModifications.empty(),
-                JFSFileModifications.empty());
+                JFSFileModifications.empty(), null, false);
     }
 
     private Set<JFSCoordinates> filter(Set<JFSCoordinates> set, Predicate<JFSCoordinates> pred) {
@@ -365,6 +376,7 @@ public final class AntlrGenerator {
             Obj<JFSCoordinates> grammarFile = Obj.create();
             Obj<String> gn = Obj.of("--");
             Lng timestamp = Lng.of(System.currentTimeMillis());
+            Obj<AlternativesInfo> altPositions = Obj.create();
             JFS jfs = this.jfs.get();
             Checkpoint checkpoint = jfs.newCheckpoint();
             try {
@@ -402,11 +414,14 @@ public final class AntlrGenerator {
                                 if (result != null) {
                                     grammars.add(result);
                                 }
-                                if (generateAll) {
+                                if (generateAll && result != null) {
                                     tool.withCurrentPath(grammarFilePath, () -> {
                                         generateAllGrammars(tool, result, new HashSet<>(), generate, grammars, jfs);
                                         return null;
                                     });
+                                }
+                                if (analyzeAlts && result != null) {
+                                    altPositions.set(AlternativesAnalyzer.collectAlternativesOffsets(result));
                                 }
                                 return result;
                             }));
@@ -483,7 +498,7 @@ public final class AntlrGenerator {
                     originalFile, this.jfs, outputFiles.get(), inputFiles.get(),
                     primaryInputFileForGrammarName.get(), dependencies.get(),
                     timestamp.get(), pathHints, interceptor, modifiedFiles, allInputFiles, outputFileModifications,
-                    inputFileModifications);
+                    inputFileModifications, altPositions.get(), analyzeAlts);
         });
     }
 

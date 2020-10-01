@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.completion.grammar;
+package com.mastfrog.antlr.cc;
 
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -43,7 +43,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import org.antlr.v4.runtime.misc.IntegerList;
 import org.antlr.v4.runtime.misc.Interval;
-import com.mastfrog.antlr.code.completion.spi.CaretToken;
 import com.mastfrog.function.state.Bool;
 
 /**
@@ -59,63 +58,10 @@ import com.mastfrog.function.state.Bool;
  * editors with ANTLR generated parsers, independent of the actual
  * language/grammar used for the generation.
  */
-public class CodeCompletionCore {
+public final class CodeCompletionCore {
 
     private static final Logger logger = Logger.getLogger(CodeCompletionCore.class.getName());
 
-    /**
-     * JDO returning information about matching tokens and rules
-     */
-    static final class CandidatesCollection {
-
-        /**
-         * Collection of Token ID candidates, each with a follow-on List of
-         * subsequent tokens
-         */
-        public final IntSetMapping tokens = new IntSetMapping();
-
-        /**
-         * Collection of Rule candidates, each with the callstack of rules to
-         * reach the candidate
-         */
-        public final IntArrayMapping rules = new IntArrayMapping();
-        /**
-         * Collection of matched Preferred Rules each with their start and end
-         * offsets
-         */
-        public final IntArrayMapping rulePositions = new IntArrayMapping();
-
-        public boolean isEmpty() {
-            return tokens.isEmpty() && rules.isEmpty() && rulePositions.isEmpty();
-        }
-
-        @Override
-        public String toString() {
-            return "CandidatesCollection{" + "tokens=" + tokens + ", rules="
-                    + rules + ", ruleStrings=" + rulePositions + '}';
-        }
-    }
-
-    public static class FollowSetWithPath {
-
-        public IntervalSet intervals;
-        public IntList path;
-        public IntList following;
-
-        public String toString() {
-            return "FSWithPath(" + intervals + " / " + path + " / " + following + ")";
-        }
-    }
-
-    public static class FollowSetsHolder {
-
-        public List<FollowSetWithPath> sets;
-        public IntervalSet combined;
-
-        public String toString() {
-            return "FSHolder(" + sets + " / " + combined + ")";
-        }
-    }
 
     public static class PipelineEntry {
 
@@ -149,23 +95,39 @@ public class CodeCompletionCore {
 
     private int tokenStartIndex = 0;
     private int statesProcessed = 0;
+    private final Map<String, IntMap<FollowSetsHolder>> cache;
 
     // A mapping of rule index to token stream position to end token positions.
     // A rule which has been visited before with the same input position will always produce the same output positions.
     private final IntMap<IntMap<IntSet>> shortcutMap = IntMap.create(50, true, () -> {
         return IntMap.create(30, true, IntSet::create);
     });
+    private static final String[] atnStateTypeMap = new String[]{
+        "invalid",
+        "basic",
+        "rule start",
+        "block start",
+        "plus block start",
+        "star block start",
+        "token start",
+        "rule stop",
+        "block end",
+        "star loop back",
+        "star loop entry",
+        "plus loop back",
+        "loop end"
+    };
 
     private final CandidatesCollection candidates = new CandidatesCollection(); // The collected candidates (rules and tokens).
 
     // XXX this should be held by the completion provider
-    private final Map<String, IntMap<FollowSetsHolder>> cache;
 
     public CodeCompletionCore(Parser parser, IntPredicate preferredRules,
             IntPredicate ignoredTokens,
             Map<String, IntMap<FollowSetsHolder>> followSetsByATN) {
         this.parser = parser;
         this.cache = followSetsByATN;
+        candidates.clear();
         this.atn = parser.getATN();
         this.vocabulary = parser.getVocabulary();
         this.ruleNames = parser.getRuleNames();
@@ -202,10 +164,6 @@ public class CodeCompletionCore {
         return -1;
     }
 
-    public CandidatesCollection collectCandidates(CaretToken info, ParserRuleContext context) {
-        return collectCandidates(info.tokenIndex(), context);
-    }
-
     /**
      * This is the main entry point. The caret token index specifies the token
      * stream index for the token which currently covers the caret (or any other
@@ -219,29 +177,20 @@ public class CodeCompletionCore {
         return collectCandidates(caretTokenIndex, context, null);
     }
 
-    public synchronized CandidatesCollection collectCandidates(int caretTokenIndex, ParserRuleContext context, List<? extends Token> tks) {
-        context = null;
-
-        // XXX should shortcut map be cleared, or preserved?
-        this.shortcutMap.clear();
-        this.candidates.rules.clear();
-        this.candidates.tokens.clear();
-        this.statesProcessed = 0;
-
-        this.tokenStartIndex = context != null ? context.start.getTokenIndex() : 0;
-        parser.reset();
-        TokenStream tokenStream = this.parser.getInputStream();
-
-        int currentIndex = tokenStream.index();
-
-        if (currentIndex != 0) {
-            tokenStream.seek(Math.max(0, this.tokenStartIndex));
+    private List<? extends Token> computeTokenList(int start, int caretTokenIndex, List<? extends Token> orig, TokenStream tokenStream) {
+        if (orig != null) {
+            if (orig.size() > caretTokenIndex+1) {
+                return orig.subList(0, caretTokenIndex+1);
+            }
         }
-
         List<Token> toks = new ArrayList<>(caretTokenIndex + 1);
-        this.tokens = toks;
         int negativeIndicesSeen = 0;
         int offset = 1;
+        int originalStreamIndex = tokenStream.index();
+        if (originalStreamIndex != 0) {
+            tokenStream.seek(Math.max(0, this.tokenStartIndex));
+        }
+        try {
         for (;;) {
             Token token = tokenStream.LT(offset++);
             CCLog.log(this, token);
@@ -255,14 +204,44 @@ public class CodeCompletionCore {
                     + "with a token index < 0 - this stream is not composed of "
                     + "CommonToken instances, and completion will not work.");
         }
-        tokenStream.seek(Math.max(0, currentIndex));
-        assert this.tokens != null : "null tokens";
-        CCLog.log(this, "Start", (this.tokens.isEmpty() ? "emptytokens" : this.tokens.get(this.tokens.size() - 1)), " toks ", this.tokens.size());
-        IntList callStack = IntList.create(64);
-        int startRule = context != null ? context.getRuleIndex() : 0;
-        this.processRule(this.atn.ruleToStartState[startRule], 0, callStack, "\n");
+        } finally {
+            if (originalStreamIndex < 0) {
+                tokenStream.seek(0);
+            } else {
+                tokenStream.seek(originalStreamIndex);
+            }
+        }
+        return toks;
+    }
 
-        tokenStream.seek(Math.max(0, currentIndex));
+    void reset() {
+        assert Thread.holdsLock(this);
+        candidates.clear();
+        this.statesProcessed = 0;
+        parser.reset();
+        this.shortcutMap.clear();
+    }
+
+    public synchronized CandidatesCollection collectCandidates(int caretTokenIndex, ParserRuleContext context, List<? extends Token> tks) {
+        reset();
+        context = null;
+        this.tokenStartIndex = context != null ? context.start.getTokenIndex() : 0;
+        TokenStream tokenStream = this.parser.getInputStream();
+
+        int originalTokenStreamPosition = tokenStream.index();
+        if (originalTokenStreamPosition != 0) {
+            tokenStream.seek(Math.max(0, this.tokenStartIndex));
+        }
+
+        this.tokens = computeTokenList(tokenStartIndex, caretTokenIndex, tks, tokenStream);
+        assert this.tokens != null : "null tokens";
+
+
+        CCLog.log(this, "Start", (this.tokens.isEmpty() ? "emptytokens" : this.tokens.get(this.tokens.size() - 1)), " toks ", this.tokens.size());
+        IntList callStack = IntList.create(ruleNames.length);
+        int startRule = context != null ? context.getRuleIndex() : 0;
+
+        this.processRule(this.atn.ruleToStartState[startRule], 0, callStack, "\n");
 
         // now post-process the rule candidates and find the last occurrences
         // of each preferred rule and extract its start and end in the input stream
@@ -365,7 +344,7 @@ public class CodeCompletionCore {
                 Bool an = Bool.create(true);
                 final int ix = i;
                 this.candidates.rules.forSome((int key, IntList list) -> {
-                    if (key != ruleStack.get(ix) || list.size() != path.size()) {
+                    if (key != ruleStack.getAsInt(ix) || list.size() != path.size()) {
                         return true;
                     }
                     if (path.equals(list)) {
@@ -376,7 +355,7 @@ public class CodeCompletionCore {
                 });
                 final boolean addNew = an.getAsBoolean();
                 if (addNew) {
-                    int rule = ruleStack.get(i);
+                    int rule = ruleStack.getAsInt(i);
                     this.candidates.rules.put(rule, path);
 //                    assert this.candidates.rules.containsKey(rule) : "absent key " + rule;
 //                    assert this.candidates.rules.get(rule) != null : "absent after put: " + rule + " with " + path;
@@ -400,7 +379,7 @@ public class CodeCompletionCore {
      * other rules and only if there is a single symbol for a transition.
      */
     private IntList getFollowingTokens(Transition initialTransition) {
-        IntList result = IntList.create(5);
+        IntList result = IntList.create(vocabulary.getMaxTokenType());
         LinkedList<ATNState> pipeline = new LinkedList<>();
         pipeline.add(initialTransition.target);
 
@@ -431,7 +410,7 @@ public class CodeCompletionCore {
     private LinkedList<FollowSetWithPath> determineFollowSets(ATNState start, ATNState stop) {
         LinkedList<FollowSetWithPath> result = new LinkedList<>();
         Set<ATNState> seen = new HashSet<>();
-        IntList ruleStack = IntList.create(64);
+        IntList ruleStack = IntList.create(parser.getRuleNames().length);
         this.collectFollowSets(start, stop, result, seen, ruleStack);
         return result;
     }
@@ -531,11 +510,8 @@ public class CodeCompletionCore {
         // 3) We get this lookup for free with any 2nd or further visit of the same rule, which often happens
         //    in non trivial grammars, especially with (recursive) expressions and of course when invoking code completion
         //    multiple times.
-        IntMap<FollowSetsHolder> setsPerState = cache.get(this.parser.getClass().getName());
-        if (setsPerState == null) {
-            setsPerState = IntMap.create(16);
-            cache.put(this.parser.getClass().getName(), setsPerState);
-        }
+        IntMap<FollowSetsHolder> setsPerState = cache.computeIfAbsent(this.parser.getClass().getName(),
+                nm -> IntMap.create(64));
 
         FollowSetsHolder followSets = setsPerState.get(startState.stateNumber);
         if (followSets == null) {
@@ -681,8 +657,8 @@ public class CodeCompletionCore {
                                 for (int i = 0; i < il.size(); i++) {
                                     int token = il.get(i);
                                     if (!this.ignoredTokens.test(token)) {
-                                        this.candidates.tokens.putReplace(token, IntSet.create(3));
-//                                        assert candidates.tokens.containsKey(token) : "no " + token + " in " + candidates.tokens.keySet();
+                                        this.candidates.tokens.putNewSet(token);
+//                                        assert candidates.tokens.containsKeys(token) : "no " + token + " in " + candidates.tokens.keySet();
                                     }
                                 }
                             }
@@ -726,7 +702,7 @@ public class CodeCompletionCore {
 //                                                        || this.candidates.tokens.getIfPresent(symbol).containsAll(foll)) : " non-match "
 //                                                        + this.candidates.tokens.getIfPresent(symbol) + " expected " + foll;
                                             } else {
-                                                this.candidates.tokens.put(symbol, IntSet.create(5));
+                                                this.candidates.tokens.putNewSet(symbol);
 //                                                assert this.candidates.tokens.containsKey(symbol) : "no key " + symbol;
 //                                                assert this.candidates.tokens.getIfPresent(symbol) != null : "no " + symbol;
 //                                                assert this.candidates.tokens.getIfPresent(symbol).isEmpty() : "no " + symbol;
@@ -769,14 +745,14 @@ public class CodeCompletionCore {
             }
             if (!this.candidates.tokens.containsKey(symbol)) {
                 if (set.following == null) {
-                    set.following = IntList.create(5);
+                    set.following = IntList.create(vocabulary.getMaxTokenType());
                 }
                 this.candidates.tokens.put(symbol, set.following); // Following is empty if there is more than one entry in the set.
 //                assert candidates.tokens.containsKey(symbol);
             } else {
                 // More than one following list for the same symbol.
                 if (!this.candidates.tokens.get(symbol).equals(set.following)) { // XXX js uses !=
-                    this.candidates.tokens.putReplace(symbol, IntSet.create(5));
+                    this.candidates.tokens.putNewSet(symbol);
 //                    assert candidates.tokens.containsKey(symbol);
 //                    assert candidates.tokens.getIfPresent(symbol).isEmpty();
                 }
@@ -786,21 +762,6 @@ public class CodeCompletionCore {
         }
     }
 
-    private static final String[] atnStateTypeMap = new String[]{
-        "invalid",
-        "basic",
-        "rule start",
-        "block start",
-        "plus block start",
-        "star block start",
-        "token start",
-        "rule stop",
-        "block end",
-        "star loop back",
-        "star loop entry",
-        "plus loop back",
-        "loop end"
-    };
 
     private String generateBaseDescription(ATNState state) {
         String stateValue = (state.stateNumber == ATNState.INVALID_STATE_NUMBER) ? "Invalid" : Integer.toString(state.stateNumber);

@@ -249,7 +249,7 @@ public class AdhocEditorKit extends ExtKit {
                                         Arrays.fill(pad, ' ');
                                         infoLine.append(pad);
                                     } else if (text.length() < info.length()) {
-                                        char[] pad = new char[text.length() - info.length()];
+                                        char[] pad = new char[info.length() - text.length()];
                                         Arrays.fill(pad, ' ');
                                         textLine.append(pad);
                                     }

@@ -41,6 +41,7 @@ import java.util.function.Supplier;
 import javax.tools.JavaFileManager.Location;
 import org.antlr.v4.tool.Grammar;
 import org.nemesis.antlr.common.TimedWeakReference;
+import org.nemesis.antlr.memory.alt.AlternativesInfo;
 import org.nemesis.antlr.memory.AntlrGenerator.RerunInterceptor;
 import org.nemesis.antlr.memory.output.ParsedAntlrError;
 import org.nemesis.antlr.memory.spi.AntlrLoggers;
@@ -91,6 +92,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
     public final Map<JFSCoordinates, Set<JFSCoordinates>> dependencies;
     public final long timestamp;
     public final JFSPathHints hints;
+    public final boolean wasAnalyzeAlts;
     /**
      * Allows AntlrGenerationSubscriptionsForProject to obtain (or supply its own
      * cached) generation results when generation is run directly using this
@@ -106,6 +108,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
      * once on demand and keep a copy.
      */
     private ObjectGraph<UnixPath> cachedDependencyGraph;
+    private final AlternativesInfo altPositions;
 
     @SuppressWarnings("LeakingThisInConstructor")
     AntlrGenerationResult(boolean success, int code, Throwable thrown,
@@ -122,7 +125,9 @@ public final class AntlrGenerationResult implements ProcessingResult {
             long timestamp, JFSPathHints hints, RerunInterceptor interceptor,
             Set<JFSCoordinates> allOutputFiles, Set<JFSCoordinates> allInputFiles,
             JFSFileModifications outputFileModifications,
-            JFSFileModifications inputFileModifications) {
+            JFSFileModifications inputFileModifications, AlternativesInfo altPositions,
+            boolean wasAnalyzeAlts) {
+        this.wasAnalyzeAlts = wasAnalyzeAlts;
         this.outputFiles = allOutputFiles;
         this.inputFiles = allInputFiles;
         this.outputFileModifications = outputFileModifications;
@@ -156,7 +161,12 @@ public final class AntlrGenerationResult implements ProcessingResult {
         this.dependencies = dependencies;
         this.hints = hints;
         this.interceptor = interceptor;
+        this.altPositions = altPositions;
         Trackables.track(AntlrGenerationResult.class, this);
+    }
+
+    public AlternativesInfo alterantives() {
+        return altPositions;
     }
 
     public Reference<JFS> originalJFSReference() {
@@ -197,7 +207,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
                 originalFilePath, jfsSupplier, outputDependencies, inputFilesForGrammarName,
                 primaryFileForGrammarName, dependencies, System.currentTimeMillis(),
                 hints, interceptor, outputFiles, inputFiles, outModifications,
-                inModifications);
+                inModifications, altPositions, wasAnalyzeAlts);
     }
 
     /**
@@ -326,7 +336,7 @@ public final class AntlrGenerationResult implements ProcessingResult {
                 sourceDir, importDir, generateAll, options,
                 grammarEncoding, tokensHash, originalFilePath, jfsSupplier, outputDependencies, inputFilesForGrammarName,
                 fakePrimaries, dependencies, timestamp, hints, interceptor, outputFiles, inputFiles,
-                outputFileModifications, inputFileModifications);
+                outputFileModifications, inputFileModifications, null, wasAnalyzeAlts);
     }
 
     /**

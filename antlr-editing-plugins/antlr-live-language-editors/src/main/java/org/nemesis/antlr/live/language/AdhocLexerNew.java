@@ -243,7 +243,9 @@ public class AdhocLexerNew implements Lexer<AdhocTokenId> {
                 Matcher m = ERRMP.matcher(ex.getMessage());
                 if (m.find()) {
                     int realLength = Integer.parseInt(m.group(2));
-                    return info.tokenFactory().createToken(targetId, realLength);
+                    if (realLength != 0) {
+                        return info.tokenFactory().createToken(targetId, realLength);
+                    }
                 }
             }
 

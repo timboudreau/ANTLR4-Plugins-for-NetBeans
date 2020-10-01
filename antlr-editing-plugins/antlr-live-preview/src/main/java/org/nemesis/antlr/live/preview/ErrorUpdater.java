@@ -630,8 +630,11 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                         emres.runResult().genResult().generationResult().cleanOldOutput();
                     }
                     try {
-                        emres.runResult().jfs().clear(StandardLocation.CLASS_OUTPUT);
-                        emres.runResult().jfs().clear(StandardLocation.SOURCE_OUTPUT);
+                        JFS jfs = emres.runResult().jfs();
+                        if (jfs != null) {
+                            emres.runResult().jfs().clear(StandardLocation.CLASS_OUTPUT);
+                            emres.runResult().jfs().clear(StandardLocation.SOURCE_OUTPUT);
+                        }
                     } catch (IOException ex) {
                         Exceptions.printStackTrace(ex);
                     }
@@ -639,7 +642,14 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                 // Invalidate and start from scratch on EVERYTHING
                 Path grammarSource = AdhocMimeTypes.grammarFilePathForMimeType(editorPane.getContentType());
                 FileObject grammarFileObject = FileUtil.toFileObject(grammarSource.toFile());
-                NbAntlrUtils.invalidateSource(grammarFileObject);
+                if (grammarFileObject != null) {
+                    NbAntlrUtils.invalidateSource(grammarFileObject);
+                } else {
+                    grammarFileObject = NbEditorUtilities.getFileObject(editorPane.getDocument());
+                    if (grammarFileObject != null) {
+                        return;
+                    }
+                }
                 AdhocMimeDataProvider.getDefault().gooseLanguage(editorPane.getContentType());
                 FileObject sampleFile = NbEditorUtilities.getFileObject(editorPane.getDocument());
                 NbAntlrUtils.invalidateSource(sampleFile);

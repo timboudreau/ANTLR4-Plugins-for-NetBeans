@@ -522,7 +522,7 @@ public final class AdhocDataObject extends DataObject implements CookieSet.Befor
                 return null;
             }
             FileObject fo = FileUtil.toFileObject(grammar.toFile());
-            if (fo.isValid()) {
+            if (fo != null) {
                 return fo;
             }
             return null;

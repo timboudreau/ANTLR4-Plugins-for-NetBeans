@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 Tim Boudreau, Frédéric Yvon Vinet
+ * Copyright 2016-2020 Tim Boudreau, Frédéric Yvon Vinet
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.completion.grammar;
+package com.mastfrog.antlr.cc;
 
+import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.collections.IntSet;
 import java.util.Collection;
@@ -27,11 +28,33 @@ import java.util.PrimitiveIterator;
  *
  * @author Tim Boudreau
  */
-class IntSetMapping {
+public final class IntSetMapping {
 
-    private final IntMap<IntSet> values = IntMap.create(12, true, () -> IntSet.create(5));
+    private final IntMap<IntSet> values;
 
-    boolean isEmpty() {
+    public IntSetMapping(IntMap<IntSet> values) {
+        this.values = values;
+    }
+
+    public IntSetMapping() {
+        values = IntMap.create(64, true, IntSetMapping::newIntSet);
+    }
+
+    public IntSetMapping copy() {
+        if (values.isEmpty()) {
+            return new IntSetMapping();
+        }
+        IntMap<IntSet> result = IntMap.create(values.size());
+        values.forEachPair((key, vals) -> {
+            result.put(key, vals.copy());
+        });
+        assert result.equals(values) : "Copy not equal: " + values
+                + " vs " + result;
+
+        return new IntSetMapping(result);
+    }
+
+    public boolean isEmpty() {
         if (values.isEmpty()) {
             return true;
         }
@@ -52,19 +75,33 @@ class IntSetMapping {
         return values.getIfPresent(key, null);
     }
 
-    boolean containsKey(int key) {
+    public boolean containsKey(int key) {
         return values.containsKey(key);
     }
 
-    void forEach(IntMap.IntMapConsumer<? super IntSet> cons) {
+    public void forEach(IntMap.IntMapConsumer<? super IntSet> cons) {
         values.forEachPair(cons);
     }
 
-    void clear() {
+    public void clear() {
         values.clear();
     }
 
-    void putReplace(int key, Collection<Integer> all) {
+    private static IntSet newIntSet() {
+        return newIntSet(128);
+    }
+
+    private static IntSet newIntSet(int size) {
+        return IntSet.bitSetBased(size);
+    }
+
+    public IntSet putNewSet(int key) {
+        IntSet result = newIntSet();
+        values.put(key, result);
+        return result;
+    }
+
+    public void putReplace(int key, Collection<Integer> all) {
         // Assertions disabled for performance, since NetBeans is usually
         // run with -ea
         if (all instanceof IntSet) {
@@ -73,6 +110,8 @@ class IntSetMapping {
 //            assert values.containsKey(key) : "After put of " + all + " with key "
 //                    + key + ", key is absent: " + values.keySet() + " - all: "
 //                    + values;
+        } else if (all instanceof IntList) {
+            values.put(key, ((IntList) all).toSet());
         } else {
             IntSet result = IntSet.create(all);
             values.put(key, result);
@@ -83,7 +122,7 @@ class IntSetMapping {
         }
     }
 
-    void put(int key, Collection<Integer> all) {
+    public void put(int key, Collection<Integer> all) {
         if (all instanceof IntSet) {
             put(key, (IntSet) all);
         } else {
@@ -92,11 +131,11 @@ class IntSetMapping {
         }
     }
 
-    void put(int key, IntSet all) {
+    public void put(int key, IntSet all) {
         values.get(key).addAll(all);
     }
 
-    void put(int key, int... vals) {
+    public void put(int key, int... vals) {
         values.get(key).addAll(vals);
     }
 

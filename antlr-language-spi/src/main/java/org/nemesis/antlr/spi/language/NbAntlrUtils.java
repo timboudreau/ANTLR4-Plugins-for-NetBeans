@@ -388,10 +388,8 @@ public final class NbAntlrUtils {
     @SuppressWarnings( "DoubleCheckedLocking" )
     static void storeExtraction( Document doc, Extraction ext ) {
         if ( doc != null && ext != null && !ext.isPlaceholder() ) {
-
             AtomicReference<TimedWeakReference<Extraction>> ref = extractionReference( doc );
             TimedWeakReference<Extraction> old = ref.get();
-//            WeakReference<Extraction> old = ref.get();
             TimedWeakReference<Extraction> nue = TimedWeakReference.create( ext );
             ref.set( nue );
             if ( old != null ) {

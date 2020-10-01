@@ -38,9 +38,10 @@ limitations under the License.
         <mastfrog.version>2.7.0</mastfrog.version>
         <mastfrog.util.collections.version>2.7.0.5</mastfrog.util.collections.version>
         <mastfrog.util.graph.version>2.7.0.4</mastfrog.util.graph.version>
-        <mastfrog.function.version>2.7.0.1</mastfrog.function.version>
+        <mastfrog.function.version>2.7.0.3</mastfrog.function.version>
         <mastfrog.subscriptions.version>2.7.0.2</mastfrog.subscriptions.version>
         <mastfrog.converters.version>2.7.0.1</mastfrog.converters.version>
+        <mastfrog.strings.version>2.7.0.2</mastfrog.strings.version>
         <java.vogon.version>2.7.0.3</java.vogon.version>
         <antlr.message.format>gnu</antlr.message.format>
         <old.junit.version>4.12</old.junit.version>
@@ -317,6 +318,7 @@ limitations under the License.
         <module>editor-features</module>
         <module>antlr-code-completion-spi</module>
         <module>antlr-ant-task</module>
+        <module>code-completion-core</module>
     </modules>
     <repositories>
         <repository>
@@ -376,6 +378,11 @@ limitations under the License.
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>antlr-ant-task</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>code-completion-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -756,7 +763,7 @@ limitations under the License.
             <dependency>
                 <groupId>com.mastfrog</groupId>
                 <artifactId>util-strings</artifactId>
-                <version>${mastfrog.version}</version>
+                <version>${mastfrog.strings.version}</version>
             </dependency>
             <dependency>
                 <groupId>junit</groupId>

@@ -13,15 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.completion.grammar;
+package com.mastfrog.antlr.cc;
 
-import org.nemesis.antlr.sample.AntlrSampleFiles;
 import com.mastfrog.predicates.integer.IntPredicates;
 import com.mastfrog.util.collections.ArrayUtils;
+import org.nemesis.antlr.sample.AntlrSampleFiles;
 import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.collections.IntSet;
 import java.io.IOException;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,16 +39,17 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.misc.Pair;
 import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.Test;
 import org.nemesis.antlr.ANTLRv4Lexer;
-import static org.nemesis.antlr.ANTLRv4Lexer.*;
 import org.nemesis.antlr.ANTLRv4Parser;
-import org.nemesis.antlr.completion.grammar.CodeCompletionCore.CandidatesCollection;
-import org.nemesis.antlr.completion.grammar.CodeCompletionCore.FollowSetsHolder;
+import static org.nemesis.antlr.ANTLRv4Parser.*;
 import org.nemesis.simple.SampleFile;
 
 public class CodeCompletionCoreTest {
+
+    private static final int ITERATIONS = 25;
 
     @Test
     public void testSample() throws Exception {
@@ -55,8 +57,7 @@ public class CodeCompletionCoreTest {
     }
 
     public void testSample(AntlrSampleFiles sample) throws Exception {
-        System.out.println("SAMPLE: \n" + sample.text());
-//        CCLog.enable(true);
+        CCLog.enable(true);
         boolean foundAnyOpt = false;
         boolean foundAnyOrig = false;
 
@@ -74,54 +75,85 @@ public class CodeCompletionCoreTest {
                 break;
             }
         }
+        long[] times = new long[ITERATIONS * 2];
 
         IntList failing = IntList.create(count);
-        assert failing.isEmpty();
 
-//        for (int j = 0; j < 100; j++) {
-        for (int i = 0; i < count; i++) {
-            CCLog.clear();
+        Map<String, IntMap<FollowSetsHolder>> m = new HashMap<>();
+
+        for (int j = 0; j < ITERATIONS; j++) {
+            long iterNewCumulative = 0;
+            long iterOldCumulative = 0;
             ANTLRv4Parser p = parser(sample);
-            p.grammarFile();
-            Map<String, IntMap<FollowSetsHolder>> m = new HashMap<>();
-            long then = System.currentTimeMillis();
-            CodeCompletionCore core = new CodeCompletionCore(p, ANTLR_PREFERRED_RULES, ANTLR_IGNORE, m);
-            CandidatesCollection coll = core.collectCandidates(i, null);
-            newTime += System.currentTimeMillis() - then;
-            if (!coll.isEmpty()) {
-                foundAnyOpt = true;
-//                System.out.println("Completions for " + i);
-//                System.out.println(rulesToString(coll));
-            }
-
-            p = parser(sample);
-            p.grammarFile();
-            then = System.currentTimeMillis();
             CodeCompletionCoreOrig orig = new CodeCompletionCoreOrig(p, setOf(PREFERRED_RULE_IDS), setOf(IGNORABLE_TOKEN_IDS));
-            CodeCompletionCoreOrig.CandidatesCollection cands
-                    = orig.collectCandidates(i, null);
-            origTime += System.currentTimeMillis() - then;
-            if (!isEmpty(cands)) {
-                foundAnyOrig = true;
-//                if (cands.rules.size() > 0) {
-//                    System.out.println("Orig Completions for " + i + cands);
-//                    System.out.println(rulesToString(cands));
-//                }
+
+            CodeCompletionCore core = new CodeCompletionCore(p, ANTLR_PREFERRED_RULES, ANTLR_IGNORE, m);
+            IntMap<Pair<CandidatesCollection, CodeCompletionCoreOrig.CandidatesCollection>> failures = IntMap.create(count);
+            for (int i = 0; i < count; i++) {
+                CCLog.clear();
+
+                long then = System.currentTimeMillis();
+                CandidatesCollection coll = core.collectCandidates(i, null);
+                long newElapsed = System.currentTimeMillis() - then;
+                newTime += newElapsed;
+                iterNewCumulative += newElapsed;
+
+                coll = coll.copy();
+
+                if (!coll.isEmpty()) {
+                    foundAnyOpt = true;
+                }
+
+                then = System.currentTimeMillis();
+                CodeCompletionCoreOrig.CandidatesCollection cands
+                        = orig.collectCandidates(i, null);
+                long origElapsed = System.currentTimeMillis() - then;
+                iterOldCumulative += origElapsed;
+                origTime += origElapsed;
+
+                if (!isEmpty(cands)) {
+                    foundAnyOrig = true;
+                }
+                boolean ok = assertEq(i + ". ", cands, coll);
+                if (!ok) {
+                    failing.add(i);
+                    failures.put(i, new Pair<>(coll.copy(), cands.copy()));
+                    System.out.println((j + 1) + ". Fail on token " + i + " - " + tokens.get(i)
+                            + " expected:\n" + cands.toString(ruleNames, VOCABULARY)
+                            + "\n\nbut got\n" + coll.toString(ruleNames, VOCABULARY));
+                }
+                if (!failing.isEmpty()) {
+                    StringBuilder sb = new StringBuilder(CCLog.mismatch(orig, core)).append('\n');
+                    int iter = j + 1;
+                    failures.forEachPair((tok, pair) -> {
+                        sb.append(iter).append(". Mismatch on token ").append(VOCABULARY.getSymbolicName(tok))
+                                .append("orig ").append(pair.b.toString(ruleNames, VOCABULARY))
+                                .append("new ").append(pair.a.toString(ruleNames, VOCABULARY))
+                                .append("\n--------------------------------");
+                    });
+                    fail(sb.toString());
+                }
             }
-            boolean ok = assertEq(i + ". ", cands, coll);
-            if (!ok) {
-                failing.add(i);
-                System.out.println("Fail on token " + i + " - " + tokens.get(i));
-            }
-            if (!failing.isEmpty()) {
-                fail(CCLog.mismatch(orig, core));
-            }
-//            System.out.println("OK " + i);
+            times[j * 2] = iterNewCumulative;
+            times[(j * 2) + 1] = iterOldCumulative;
         }
+
+//        CCLog.print();
 //        }
+        DecimalFormat fmt = new DecimalFormat("##0.##");
 
         System.out.println("ORIG ELAPSED: " + origTime);
         System.out.println("NIMP ELAPSED: " + newTime);
+        System.out.println("CUMULATIVE SPEEDUP: "
+                + fmt.format(
+                        ((double) (origTime) / (double) newTime) * 100D)
+                + "%");
+
+        for (int i = 0; i < times.length; i += 2) {
+            double pct = (double) (times[i+1]) / (double) times[i];
+            System.out.println("Iter " + i + ". " + times[i + 1] + "ms / "
+                    + times[i] + " speedup " + fmt.format(pct * 100D) + "%");
+        }
 
         System.out.println("FAILING (" + failing.size() + "/" + count + "): " + failing);
 

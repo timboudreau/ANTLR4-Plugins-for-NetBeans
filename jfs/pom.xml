@@ -44,9 +44,6 @@ limitations under the License.
             <distribution>repo</distribution>
         </license>
     </licenses>
-    <properties>
-        <maven.test.skip>false</maven.test.skip>
-    </properties>
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>

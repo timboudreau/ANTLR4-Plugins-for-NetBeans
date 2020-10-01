@@ -23,7 +23,6 @@ import com.mastfrog.subscription.SubscribableBuilder;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.collections.SetFactories;
-import com.mastfrog.util.strings.AppendableCharSequence;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import java.awt.BasicStroke;
@@ -51,11 +50,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
@@ -114,6 +111,7 @@ import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
+import org.netbeans.spi.editor.hints.ChangeInfo;
 import org.netbeans.spi.editor.hints.ErrorDescription;
 import org.netbeans.spi.editor.hints.ErrorDescriptionFactory;
 import org.netbeans.spi.editor.hints.Fix;
@@ -421,7 +419,11 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         }
     }
 
-
+    @Messages({
+        "# {0} - theText",
+        "# {1} - theRule",
+        "ambiguitiesInText=<html>Ambiguity in <b>{1}</b> when parsing ''<i>{0}</i>''"
+    })
     private void highlightAmbiguitiesCrossReferencingWithGrammar(List<? extends AntlrProxies.Ambiguity> ambiguities,
             ParseTreeProxy semantics, Map<String, IntMap<LabelAndRange>> ranges, PositionFactory positions,
             OffsetsBag bag, List<ErrorDescription> set, Document doc) {
@@ -443,6 +445,12 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         // 5.  Rip through all the ambiguities we have, and for anything we were able to resolve
         //     back to the original file, generate a hint that says what's going on
         for (AntlrProxies.Ambiguity amb : ambiguities) {
+            int startChar = semantics.tokens().get(amb.start()).getStartIndex();
+            int endChar = semantics.tokens().get(amb.stop()).getStopIndex();
+            if ((startChar < 0 || endChar < 0) | endChar < startChar) {
+                // synthetic token or eof
+                continue;
+            }
             SimpleAttributeSet sas = new SimpleAttributeSet();
             sas.addAttribute(StyleConstants.Background, colors.get());
             StringBuilder alts = new StringBuilder();
@@ -450,7 +458,9 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
             IntMap<LabelAndRange> rangesForRule = ranges.get(ruleName);
             StringBuilder alternativeTexts = new StringBuilder();
             StringBuilder tipTexts = new StringBuilder();
-            List<Fix> fixen = null;
+            CharSequence ambText = Strings.elide(Escaper.BASIC_HTML.and(Escaper.CONTROL_CHARACTERS).escape(semantics.textOf(amb)), 40);
+            OuterFix fixen = new OuterFix(Bundle.ambiguitiesInText(ambText, ruleName));
+
             BitSet conflictingAlternatives = amb.conflictingAlternatives();
             for (int bit = conflictingAlternatives.nextSetBit(0);
                     bit >= 0;
@@ -470,9 +480,6 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                         alts.append(range.alternativeName);
                         int targetAlternative = bit;
                         String navMessage = Bundle.navToAmbiguityCulprit(range.alternativeName, ruleName, semantics.grammarName());
-                        if (fixen == null) {
-                            fixen = new LinkedList<>();
-                        }
                         fixen.add(new NavigationFix(navMessage, range.range, () -> {
                             goToAlternativeInGrammar(ruleName, conflictingAlternatives, targetAlternative, ranges);
                         }));
@@ -482,9 +489,11 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                 alts.append(bit);
             }
             try {
-                CharSequence ambText = semantics.textOf(amb);
-                int startChar = semantics.tokens().get(amb.start()).getStartIndex();
-                int endChar = semantics.tokens().get(amb.stop()).getStopIndex();
+                if (startChar < 0 || startChar >= endChar) {
+                    // eof or similar
+                    continue;
+                }
+                CharSequence ambText2 = semantics.textOf(amb);
                 int lastNonWhitespaceOnLine = LineDocumentUtils.getLineLastNonWhitespace(lineDoc, startChar);
 
                 // Set the error to only be on the line where the ambiguity starts,
@@ -493,20 +502,22 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                         Math.min(lastNonWhitespaceOnLine, endChar), Position.Bias.Backward);
 
                 AttributeSet warn = AttributesUtilities.createComposite(warning(), sas);
-                CharSequence textMunged = elide(escapeControlCharactersAndMultipleWhitespace(ambText), 40);
+                CharSequence textMunged = Strings.elide(escapeControlCharactersAndMultipleWhitespace(ambText2), 40 / 2);
                 String ambMessage = Bundle.ambiguityMsg(ruleName, textMunged, alts);
                 String detailMessage = alternativeTexts.length() == 0 ? null
                         : Bundle.ambigDetails(ruleName, textMunged, alternativeTexts);
-                String tipMessage = Bundle.ambigHtmlTip(ruleName, escapeForHtml(elide(ambText)), tipTexts.append("</p>"));
+                String tipMessage = Bundle.ambigHtmlTip(ruleName, escapeForHtml(Strings.elide(ambText2)), tipTexts.append("</p>"));
                 sas.addAttribute(EditorStyleConstants.Tooltip, tipMessage);
 
                 addHighlightsAvoidingCrossingNewlines(amb, warn, semantics, bag, lineDoc);
 
-                if (fixen != null) {
+                Fix fix = fixen.commit();
+
+                if (fix != null) {
                     set.add(ErrorDescriptionFactory.createErrorDescription(
                             amb.identifier(),
                             Severity.WARNING, ambMessage, detailMessage,
-                            ErrorDescriptionFactory.lazyListForFixes(fixen), doc, range.startPosition(), range.endPosition()));
+                            ErrorDescriptionFactory.lazyListForFixes(Collections.singletonList(fix)), doc, range.startPosition(), range.endPosition()));
                 } else {
                     set.add(ErrorDescriptionFactory.createErrorDescription(
                             amb.identifier(), Severity.WARNING,
@@ -565,24 +576,42 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         }
     }
 
-    private static final CharSequence ELLIPSIS = Strings.singleChar('\u2026');
+    static class OuterFix implements Fix {
 
-    static CharSequence elide(CharSequence orig) {
-        return elide(orig, 40);
-    }
+        private final String text;
+        private List<Fix> fixen;
 
-    static CharSequence elide(CharSequence orig, int maxLength) {
-        int len = orig.length();
-        if (orig.length() <= maxLength) {
-            return orig;
+        public OuterFix(String text) {
+            this.text = text;
         }
-        if (maxLength % 2 == 0) {
-            maxLength++;
+
+        Fix commit() {
+            if (fixen == null) {
+                return null;
+            }
+            return ErrorDescriptionFactory.attachSubfixes(this, fixen);
         }
-        int half = maxLength / 2;
-        CharSequence left = orig.subSequence(0, half);
-        CharSequence right = orig.subSequence(len - half, len);
-        return new AppendableCharSequence(left, ELLIPSIS, right);
+
+        void add(Fix fix) {
+            if (fixen == null) {
+                fixen = new ArrayList<>();
+            }
+            fixen.add(fix);
+        }
+
+        @Override
+        public String getText() {
+            return text;
+        }
+
+        @Override
+        public ChangeInfo implement() throws Exception {
+            if (fixen == null) {
+                return null;
+            }
+            return fixen.get(0).implement();
+        }
+
     }
 
     private static CharSequence escapeControlCharactersAndMultipleWhitespace(CharSequence seq) {

@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.completion.grammar;
+package com.mastfrog.antlr.cc;
 
+import com.mastfrog.antlr.cc.CCLog;
+import com.mastfrog.antlr.cc.CodeCompletionCore;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -41,10 +43,6 @@ import org.antlr.v4.runtime.atn.RuleTransition;
 import org.antlr.v4.runtime.atn.Transition;
 import org.antlr.v4.runtime.misc.IntervalSet;
 
-/**
- *
- * @author Tim Boudreau
- */
 public class CodeCompletionCoreOrig {
 
     public final static Logger logger = Logger.getLogger(CodeCompletionCore.class.getName());
@@ -80,10 +78,92 @@ public class CodeCompletionCoreOrig {
          */
         public Map<Integer, List<Integer>> rulePositions = new NoNullsMap<>();
 
+        public CandidatesCollection() {
+
+        }
+
+        CandidatesCollection(CandidatesCollection other) {
+            tokens.putAll(other.tokens);
+            rules.putAll(other.rules);
+            rulePositions.putAll(other.rulePositions);
+        }
+
+        public CandidatesCollection copy() {
+            return new CandidatesCollection(this);
+        }
+
         @Override
         public String toString() {
             return "CandidatesCollection{" + "tokens=" + tokens + ", rules=" + rules + ", ruleStrings=" + rulePositions + '}';
         }
+
+        private static String nameOfToken(int token, Vocabulary vocab) {
+            String result = vocab.getSymbolicName(token);
+            if (result == null) {
+                result = vocab.getDisplayName(token);
+            }
+            if (result == null) {
+                result = Integer.toString(token);
+            }
+            return result;
+        }
+
+        private static String nameOfRule(String[] rules, int ix) {
+            if (ix < 0 || ix >= rules.length) {
+                return "unknown(" + ix + ")";
+            }
+            return rules[ix];
+        }
+
+        public String toString(String[] ruleNames, Vocabulary vocab) {
+            StringBuilder sb = new StringBuilder(256);
+            if (!tokens.isEmpty()) {
+                sb.append("Candidate tokens with subsequent:");
+                tokens.forEach((tok, following) -> {
+                    sb.append('\n').append(nameOfToken(tok, vocab)).append(":\n\t");
+                    for (int i = 0; i < following.size(); i++) {
+                        if (i > 0 && i != following.size() - 1) {
+                            sb.append(", ");
+                        }
+                        sb.append(nameOfToken(following.get(i), vocab));
+                    }
+                });
+            }
+            if (!rules.isEmpty()) {
+                sb.append("Rules with paths:");
+                rules.forEach((rule, stack) -> {
+                    sb.append('\n').append(nameOfRule(ruleNames, rule)).append(":\n\t");
+                    for (int i = 0; i < stack.size(); i++) {
+                        int currRule = stack.get(i);
+                        if (i > 0 && i != stack.size() - 1) {
+                            sb.append(" -> ");
+                        }
+                        sb.append(nameOfRule(ruleNames, currRule));
+                    }
+                });
+            }
+            if (!rulePositions.isEmpty()) {
+                sb.append("Rule positions:");
+                rulePositions.forEach((rule, positions) -> {
+                    sb.append('\n').append(nameOfRule(ruleNames, rule)).append(":\n\t");
+                    for (int i = 0; i < positions.size(); i += 2) {
+                        if (i > 0 && i != positions.size() - 2) {
+                            sb.append(", ");
+                        }
+                        int start = positions.get(i);
+                        int end = positions.get(i + 1);
+                        sb.append('[').append(start).append(':').append(end);
+                    }
+                });
+            }
+            if (sb.length() == 0) {
+                sb.append("empty-candidates");
+            } else {
+                sb.insert(0, "Candidates:\n");
+            }
+            return sb.toString();
+        }
+
     }
 
     public static class FollowSetWithPath {

@@ -16,21 +16,29 @@
 package org.nemesis.antlr.live.language;
 
 import com.mastfrog.antlr.utils.TreeUtils;
-import com.mastfrog.util.collections.IntMap;
-import java.util.ArrayList;
-import java.util.Collections;
+import com.mastfrog.function.state.Bool;
+import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.strings.Strings;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.BiPredicate;
+import org.antlr.v4.runtime.tree.RuleNode;
 import org.nemesis.antlr.ANTLRv4BaseVisitor;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleAlternativeContext;
+import org.nemesis.antlr.ANTLRv4Parser.ParserRuleAtomContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDeclarationContext;
+import org.nemesis.antlr.ANTLRv4Parser.ParserRuleDefinitionContext;
+import org.nemesis.antlr.ANTLRv4Parser.ParserRuleElementContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleIdentifierContext;
 import org.nemesis.antlr.ANTLRv4Parser.ParserRuleLabeledAlternativeContext;
+import org.nemesis.antlr.ANTLRv4Parser.TerminalContext;
+import org.nemesis.antlr.ANTLRv4Parser.TokenRuleIdentifierContext;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.extraction.ExtractionRegistration;
 import org.nemesis.extraction.ExtractorBuilder;
@@ -38,6 +46,14 @@ import org.nemesis.extraction.key.RegionsKey;
 import org.nemesis.localizers.annotations.Localize;
 
 /**
+ * This little nightmare extracts <u>exactly</u> the same alternatives and
+ * alternative numbers as Antlr's parser does, so the contents of the BitSet
+ * from <code>ANTLRErrorListener.reportAmbiguity()</code> can be correctly
+ * mapped back to the code region that is that alternative. Getting these out of
+ * Antlr itself is difficult and error-prone, because anything containing
+ * left-recursion gets its tree rewritten with garbage for token indices and
+ * offsets; the tests for this check that we at least get the correct set of
+ * alternatives in the same general places in the code.
  *
  * @author Tim Boudreau
  */
@@ -47,51 +63,211 @@ public class AlternativesExtractors {
     static final RegionsKey<AlternativeKey> OUTER_ALTERNATIVES_WITH_SIBLINGS
             = RegionsKey.create(AlternativeKey.class, "oalts");
 
-    private static ThreadLocal<Map<ParserRuleAlternativeContext, AlternativeKey>> MAP_CACHE = new ThreadLocal<>();
+    private static final ThreadLocal<Map<ParserRuleAlternativeContext, AlternativeKeyWithOffsets>> ALT_CACHE = new ThreadLocal<>();
+    private static final ThreadLocal<Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets>> SET_CACHE = new ThreadLocal<>();
+    private static final ThreadLocal<Bool> SCANNED = new ThreadLocal<>();
 
     @ExtractionRegistration(mimeType = ANTLR_MIME_TYPE,
             entryPoint = ANTLRv4Parser.GrammarFileContext.class)
     public static void populateBuilder(ExtractorBuilder<? super ANTLRv4Parser.GrammarFileContext> bldr) {
+        // We need to do a real tree walk, not just capture items, so we set up some
+        // threadlocals that will be set on the beginning of an extraction and cleared on
+        // exit so nothing leaks;  on first invocation, we send some visitors off to chew
+        // on the whole file and figure things out, then store the elements we want to return
+        // in the cache mapped to the elements they correspond to
         bldr.wrappingExtractionWith(runner -> {
             try {
                 // Set up the cache before each extraction
-                MAP_CACHE.set(new HashMap<>());
+                ALT_CACHE.set(new HashMap<>(32));
+                SET_CACHE.set(new HashMap<>(32));
+                SCANNED.set(Bool.create());
                 return runner.get();
             } finally {
                 // And tear it down
-                MAP_CACHE.remove();
+                ALT_CACHE.remove();
+                SET_CACHE.remove();
+                SCANNED.remove();
             }
-        }).extractingRegionsUnder(OUTER_ALTERNATIVES_WITH_SIBLINGS).whenRuleType(ParserRuleAlternativeContext.class)
-                .extractingBoundsFromRuleAndKeyWith((ParserRuleAlternativeContext alt) -> {
-                    Map<ParserRuleAlternativeContext, AlternativeKey> info = MAP_CACHE.get();
-                    assert info != null : "Wrapper not called";
-                    if (info.isEmpty()) {
-                        GrammarFileContext top = TreeUtils.ancestor(alt, ANTLRv4Parser.GrammarFileContext.class);
-                        top.accept(new V(info));
+        }).extractingRegionsUnder(OUTER_ALTERNATIVES_WITH_SIBLINGS)
+                .whenRuleType(ParserRuleDefinitionContext.class)
+                .extractingKeyAndBoundsWith((ParserRuleDefinitionContext alt, BiPredicate<AlternativeKey, int[]> bip) -> {
+
+                    Bool scanned = SCANNED.get();
+                    assert scanned != null : "Wrapper not called";
+                    Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> altsForRules = SET_CACHE.get();
+                    if (!scanned.getAsBoolean()) {
+                        // if the first run, shoot off our visitors and collect
+                        // what we need to know
+                        try {
+                            Map<ParserRuleAlternativeContext, AlternativeKeyWithOffsets> altsForAlts = ALT_CACHE.get();
+                            assert altsForAlts != null : "Wrapper not called";
+                            GrammarFileContext top = TreeUtils.ancestor(alt, ANTLRv4Parser.GrammarFileContext.class);
+                            SetFinder setFinder = new SetFinder();
+                            Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> overarchingAlts = top.accept(setFinder);
+                            AlternativeFinder v = new AlternativeFinder(overarchingAlts);
+                            Map<ParserRuleAlternativeContext, AlternativeStub> keys = top.accept(v);
+                            altsForAlts.putAll(toKeys(keys));
+                            altsForRules.putAll(overarchingAlts);
+                        } finally {
+                            scanned.set();
+                        }
                     }
-                    return info.get(alt);
+                    // Get the item for this *entire* rule - our grammar treats
+                    // as alternatives some elements that Antlr treats as a single
+                    // unit - specifically, a rule which contains only or-separated
+                    // token rules is a SET, not a collection of individual alternatives.
+                    // So these get a single item for the entire rule, and nothing for
+                    // any ParserRuleAlternativeContexts they contain
+                    AlternativeKeyWithOffsets ak = altsForRules.get(alt);
+                    if (ak != null) {
+                        return bip.test(ak.key, new int[]{ak.start, ak.stop + 1});
+                    }
+                    return false;
+                })
+                .whenRuleType(ParserRuleAlternativeContext.class)
+                .extractingKeyAndBoundsWith((ParserRuleAlternativeContext alt, BiPredicate<AlternativeKey, int[]> bip) -> {
+                    // Get the item for an alternative down inside a rule
+                    ParserRuleLabeledAlternativeContext lab = TreeUtils.ancestor(alt, ParserRuleLabeledAlternativeContext.class);
+                    Map<ParserRuleAlternativeContext, AlternativeKeyWithOffsets> info = ALT_CACHE.get();
+                    assert info != null : "Wrapper not called";
+                    AlternativeKeyWithOffsets altern = info.get(alt);
+                    if (altern != null) {
+                        return bip.test(altern.key, new int[]{altern.start, altern.stop});
+                    }
+                    return false;
                 }).finishRegionExtractor();
     }
 
-    static class V extends ANTLRv4BaseVisitor<Map<ParserRuleAlternativeContext, AlternativeKey>> {
+    /**
+     * Finds elements where the entire rule consists of a set of tokens - in
+     * other wrods, 'SomeToken | OtherToken | OtherOtherToken' - our grammar
+     * treats these as alternative nodes; Antlr's Tool calls them a SET and does
+     * not break them out, and maps the rule definition element to the data to
+     * put into the extraction for it.
+     */
+    private static class SetFinder extends ANTLRv4BaseVisitor<Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets>> {
 
-        private final Map<ParserRuleAlternativeContext, AlternativeKey> m;
+        Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> collectedResults = new HashMap<>();
+        Set<Class<?>> currentContainedTypes = new HashSet<>();
+        private static final Set<Class<?>> targetTypes
+                = CollectionUtils.immutableSetOf(
+                        ParserRuleDefinitionContext.class,
+                        ParserRuleAlternativeContext.class,
+                        TokenRuleIdentifierContext.class,
+                        TerminalContext.class,
+                        ParserRuleLabeledAlternativeContext.class, ParserRuleElementContext.class,
+                        ParserRuleAtomContext.class);
+        private boolean inDefinition;
+        private int atomsSeen;
+        private int terminalsSeen;
+        private String currentRule;
+
+        @Override
+        public Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> visitParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext ctx) {
+            ParserRuleDeclarationContext decl = ctx.parserRuleDeclaration();
+            if (decl != null && decl.parserRuleIdentifier() != null) {
+                currentRule = decl.parserRuleIdentifier().getText();
+            }
+            try {
+                return super.visitParserRuleSpec(ctx);
+            } finally {
+                currentRule = null;
+            }
+        }
+
+        @Override
+        public Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> visitTerminal(TerminalContext ctx) {
+            terminalsSeen++;
+            return super.visitTerminal(ctx);
+        }
+
+        private String setToString(Set<Class<?>> c) {
+            return Strings.join(',', c, Class::getSimpleName);
+        }
+
+        @Override
+        public Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> visitParserRuleDefinition(ParserRuleDefinitionContext ctx) {
+            inDefinition = true;
+            currentContainedTypes.clear();
+            atomsSeen = 0;
+            try {
+                return super.visitParserRuleDefinition(ctx);
+            } finally {
+                inDefinition = false;
+                switch (currentRule) {
+                    case "intrinsic_type":
+                    case "signed_int_subtype":
+                    case "unsigned_int_subtype":
+                        System.out.println("RULE " + currentRule
+                                + " atoms seen " + atomsSeen + " seen types \n" + setToString(CollectionUtils.immutableSet(currentContainedTypes))
+                                + " expecting \n" + setToString(targetTypes) + " match? " + targetTypes.equals(currentContainedTypes) + "\n\n");
+
+                }
+                // If all of the elements were single terminal nodes we are a go
+                if (atomsSeen > 0 && terminalsSeen >= atomsSeen && currentRule != null
+                        && targetTypes.equals(currentContainedTypes)) {
+                    AlternativeKeyWithOffsets kwo = new AlternativeKeyWithOffsets(new AlternativeKey(currentRule, 1, null), ctx.getStart().getStartIndex(),
+                            ctx.getStop().getStopIndex());
+                    collectedResults.put(ctx, kwo);
+                }
+            }
+        }
+
+        @Override
+        public Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> visitParserRuleAtom(ParserRuleAtomContext ctx) {
+            atomsSeen++;
+            return super.visitParserRuleAtom(ctx);
+        }
+
+        @Override
+        protected Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> defaultResult() {
+            return collectedResults;
+        }
+
+        @Override
+        public Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> visitChildren(RuleNode node) {
+            if (inDefinition) {
+                currentContainedTypes.add(node.getClass());
+            }
+            return super.visitChildren(node);
+        }
+    }
+
+    /**
+     * Finds alternatives within rules that do not have an overarching
+     * alternative already set, and creates the data that will be fed into the
+     * extraction for that case.
+     */
+    static class AlternativeFinder extends ANTLRv4BaseVisitor<Map<ParserRuleAlternativeContext, AlternativeStub>> {
+
+        private final Map<ParserRuleAlternativeContext, AlternativeStub> m = new HashMap<>();
         private int counter = -1;
         private String currentRuleName = null;
         private String currentLabel = null;
         private boolean inAlternative;
+        private final Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> definitionResults;
 
-        public V(Map<ParserRuleAlternativeContext, AlternativeKey> m) {
-            this.m = m;
+        public AlternativeFinder(Map<ParserRuleDefinitionContext, AlternativeKeyWithOffsets> definitionResults) {
+            this.definitionResults = definitionResults;
         }
 
         @Override
-        protected Map<ParserRuleAlternativeContext, AlternativeKey> defaultResult() {
+        protected Map<ParserRuleAlternativeContext, AlternativeStub> defaultResult() {
             return m;
         }
 
         @Override
-        public Map<ParserRuleAlternativeContext, AlternativeKey> visitParserRuleLabeledAlternative(ParserRuleLabeledAlternativeContext labeledAlt) {
+        public Map<ParserRuleAlternativeContext, AlternativeStub> visitParserRuleDefinition(ParserRuleDefinitionContext ctx) {
+            if (definitionResults.containsKey(ctx)) {
+                // Don't traverse if we have an overarching alt that spans the
+                // whole rule
+                return defaultResult();
+            }
+            return super.visitParserRuleDefinition(ctx);
+        }
+
+        @Override
+        public Map<ParserRuleAlternativeContext, AlternativeStub> visitParserRuleLabeledAlternative(ParserRuleLabeledAlternativeContext labeledAlt) {
             if (labeledAlt.identifier() != null) {
                 currentLabel = labeledAlt.identifier().getText();
                 try {
@@ -104,7 +280,7 @@ public class AlternativesExtractors {
         }
 
         @Override
-        public Map<ParserRuleAlternativeContext, AlternativeKey> visitParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext spec) {
+        public Map<ParserRuleAlternativeContext, AlternativeStub> visitParserRuleSpec(ANTLRv4Parser.ParserRuleSpecContext spec) {
             ParserRuleDeclarationContext decl = spec.parserRuleDeclaration();
             if (decl != null) {
                 if (decl != null) {
@@ -123,7 +299,7 @@ public class AlternativesExtractors {
         }
 
         @Override
-        public Map<ParserRuleAlternativeContext, AlternativeKey> visitParserRuleAlternative(ParserRuleAlternativeContext ctx) {
+        public Map<ParserRuleAlternativeContext, AlternativeStub> visitParserRuleAlternative(ParserRuleAlternativeContext ctx) {
             if (counter < 0) { // broken source
                 return super.visitParserRuleAlternative(ctx);
             }
@@ -133,11 +309,20 @@ public class AlternativesExtractors {
             }
             try {
                 int currIndex = counter++;
-                Map<ParserRuleAlternativeContext, AlternativeKey> info = MAP_CACHE.get();
                 // if we're in a nested alternative, it can't have a label - only top level
                 // ones do
-                info.put(ctx, new AlternativeKey(currentRuleName, currIndex,
-                        inAlternative ? null : currentLabel));
+                int start = ctx.getStart().getStartIndex();
+                int stop = ctx.getStop().getStopIndex();
+                if (ctx.getParent() instanceof ParserRuleLabeledAlternativeContext) {
+                    ParserRuleLabeledAlternativeContext lab = (ParserRuleLabeledAlternativeContext) ctx.getParent();
+                    if (lab.identifier() != null) {
+                        stop = lab.identifier().getStop().getStopIndex();
+                    }
+                }
+                if (!m.containsKey(ctx)) {
+                    m.put(ctx, new AlternativeStub(start, stop + 1, currentRuleName, currIndex,
+                            inAlternative ? null : currentLabel));
+                }
                 inAlternative = true;
                 return super.visitParserRuleAlternative(ctx);
             } finally {
@@ -166,25 +351,51 @@ public class AlternativesExtractors {
         public int compareTo(AlternativeStub o) {
             int result = Integer.compare(startTokenIndex, o.startTokenIndex);
             if (result == 0) {
+                result = -Integer.compare(stopTokenIndex, o.stopTokenIndex);
+            }
+            if (result == 0) {
                 result = Integer.compare(alternativeInParseSequence, o.alternativeInParseSequence);
             }
             return result;
         }
+
+        AlternativeKey toKey(int index) {
+            return new AlternativeKey(ruleName, index, label == null ? Integer.toString(index) : label);
+        }
     }
 
-    static Map<String, IntMap<AlternativeKey>> toKeys(Map<String, Set<AlternativeStub>> m) {
-        Map<String, IntMap<AlternativeKey>> map = new HashMap<>(m.size());
-        for (Map.Entry<String, Set<AlternativeStub>> e : m.entrySet()) {
-            List<AlternativeStub> stubs = new ArrayList<>(e.getValue());
-            Collections.sort(stubs);
-            IntMap<AlternativeKey> result = IntMap.create(stubs.size());
-            for (int i = 0; i < stubs.size(); i++) {
-                AlternativeStub stub = stubs.get(i);
-                result.put(i+1, new AlternativeKey(stub.ruleName, i, stub.label));
-            }
-            map.put(e.getKey(), result);
+    static Map<ParserRuleAlternativeContext, AlternativeKeyWithOffsets> toKeys(Map<ParserRuleAlternativeContext, AlternativeStub> m) {
+        // This gets us the alternatives sorted in lexical order
+        Map<String, Set<AlternativeStub>> map = CollectionUtils.supplierMap(TreeSet::new);
+        Map<AlternativeStub, ParserRuleAlternativeContext> inverse = new HashMap<>();
+        for (Map.Entry<ParserRuleAlternativeContext, AlternativeStub> e : m.entrySet()) {
+            map.get(e.getValue().ruleName).add(e.getValue());
+            inverse.put(e.getValue(), e.getKey());
         }
-        return map;
+        Map<ParserRuleAlternativeContext, AlternativeKeyWithOffsets> result = new HashMap<>(m.size());
+        for (Map.Entry<String, Set<AlternativeStub>> e : map.entrySet()) {
+            int cursor = 1;
+            for (AlternativeStub stub : e.getValue()) {
+                ParserRuleAlternativeContext ctx = inverse.get(stub);
+                AlternativeKey key = stub.toKey(cursor++);
+                AlternativeKeyWithOffsets withOffsets = new AlternativeKeyWithOffsets(key, stub.startTokenIndex, stub.stopTokenIndex);
+                result.put(ctx, withOffsets);
+            }
+        }
+        return result;
+    }
+
+    static final class AlternativeKeyWithOffsets {
+
+        private final AlternativeKey key;
+        private final int start;
+        private final int stop;
+
+        public AlternativeKeyWithOffsets(AlternativeKey key, int start, int stop) {
+            this.key = key;
+            this.start = start;
+            this.stop = stop;
+        }
     }
 
     static final class AlternativeKey implements Comparable<AlternativeKey> {
@@ -232,7 +443,11 @@ public class AlternativesExtractors {
 
         @Override
         public String toString() {
-            return ruleName + ":" + alternativeIndex + (label.length() > 0 ? ":" + label : "");
+            String result = ruleName + ":" + alternativeIndex;
+            if (label.length() > 0 && !label.equals(Integer.toString(alternativeIndex))) {
+                result += "(" + label + ")";
+            }
+            return result;
         }
 
         @Override

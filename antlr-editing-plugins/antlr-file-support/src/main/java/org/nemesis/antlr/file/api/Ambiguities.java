@@ -15,16 +15,29 @@
  */
 package org.nemesis.antlr.file.api;
 
+import com.mastfrog.util.collections.AtomicLinkedQueue;
+import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.MapFactories;
 import com.mastfrog.util.strings.Escaper;
+import com.mastfrog.util.strings.Strings;
+import java.lang.ref.Reference;
 import java.nio.file.Path;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.nemesis.antlr.common.TimedWeakReference;
+import org.openide.util.Exceptions;
+import org.openide.util.RequestProcessor;
 
 /**
  * Communication interface which allows the Antlr preview to communicate with
@@ -38,7 +51,28 @@ public final class Ambiguities {
     private static final Map<Path, Ambiguities> ambiguitiesForGrammar = MapFactories.WEAK_VALUE.createMap(16, true);
     private final Set<Runnable> notify = com.mastfrog.util.collections.SetFactories.WEAK_HASH.newSet(3, true);
     private final Path file;
-    private final AtomicReference<Set<? extends AmbiguityRecord>> entriesRef = new AtomicReference<>(Collections.emptySet());
+    private final AtomicReference<Collection<? extends AmbiguityRecord>> entriesRef
+            = new AtomicReference<>(Collections.emptySet());
+    private static Reference<Ambiguities> PENDING;
+    private static final AtomicLinkedQueue<Ambiguities> PENDING_NOTIFICATIONS
+            = new AtomicLinkedQueue<>();
+
+    private static final int DELAY = 2000;
+    private static final RequestProcessor.Task FLUSH_EVENTS
+            = RequestProcessor.getDefault().create(() -> {
+                List<Ambiguities> all = new LinkedList<>();
+                Set<Path> paths = new HashSet<>();
+                while (!PENDING_NOTIFICATIONS.isEmpty()) {
+                    PENDING_NOTIFICATIONS.drainTo(all);
+                    for (Ambiguities ambig : all) {
+                        if (!paths.contains(ambig.path())) {
+                            ambig.fire();
+                            paths.add(ambig.path());
+                        }
+                    }
+                    all.clear();
+                }
+            });
 
     private Ambiguities(Path file) {
         this.file = file;
@@ -78,17 +112,26 @@ public final class Ambiguities {
      *
      * @return
      */
-    public Set<? extends AmbiguityRecord> get() {
+    public Collection<? extends AmbiguityRecord> get() {
         return entriesRef.get();
     }
 
-    private void setEntries(Set<AmbiguityEntryImpl> entries) {
-        Set<? extends AmbiguityRecord> old = entriesRef.get();
+    private void fire() {
+        for (Runnable r : notify) {
+            try {
+                r.run();
+            } catch (Exception | Error ex) {
+                Exceptions.printStackTrace(ex);
+            }
+        }
+    }
+
+    private void setEntries(Collection<? extends AmbiguityEntryImpl> entries) {
+        Collection<? extends AmbiguityRecord> old = entriesRef.get();
         if (!entries.equals(old)) {
             entriesRef.set(entries);
-            for (Runnable r : notify) {
-                r.run();
-            }
+            PENDING_NOTIFICATIONS.add(this);
+            FLUSH_EVENTS.schedule(DELAY);
         }
     }
 
@@ -96,17 +139,27 @@ public final class Ambiguities {
      * Report some ambiguities encountered when parsing; if nothing is
      * listening, the passed consumer will not be called back.
      *
-     * @param grammarFile A grammar file
+     * @param grammarPath A grammar file
      * @param c A consumer which will be called back if something has registered
      * interest in ambiguities
      */
-    public static void reportAmbiguities(Path grammarFile, Consumer<AmbiguityConsumer> c) {
-        Ambiguities ambigs = ambiguitiesForGrammar.get(grammarFile);
+    public static void reportAmbiguities(Path grammarPath, Consumer<AmbiguityConsumer> c) {
+//        Ambiguities ambigs = ambiguitiesForGrammar.get(grammarFile);
+//        Ambiguities ambigs = forGrammar(grammarFile);
+        Ambiguities ambigs = ambiguitiesForGrammar.computeIfAbsent(grammarPath, p -> {
+            Ambiguities result = new Ambiguities(p);
+            // In the case that an editor is opening but no highlighter has
+            // requested an Ambiguities yet, we want to hold a temporary strong
+            // reference to the return value;  otherwise they will not talk
+            // to the same instance
+            PENDING = TimedWeakReference.create(result, 1, TimeUnit.MINUTES);
+            return result;
+        });
         if (ambigs != null) {
             Update update = new Update();
             c.accept(update);
             if (update.entries != null) {
-                ambigs.setEntries(update.entries);
+                ambigs.setEntries(CollectionUtils.immutableSet(update.entries.values()));
             } else {
                 ambigs.setEntries(Collections.emptySet());
             }
@@ -115,12 +168,12 @@ public final class Ambiguities {
 
     private static class Update implements AmbiguityConsumer {
 
-        Set<AmbiguityEntryImpl> entries;
+        Map<RuleAltKey, AmbiguityEntryImpl> entries;
 
         @Override
         public void reportAmbiguity(String inRule, BitSet alternatives, CharSequence inText, int start, int end) {
             if (entries == null) {
-                entries = new HashSet<>();
+                entries = new HashMap<>();
             }
             CharSequence txt;
             if (end > start) {
@@ -128,7 +181,36 @@ public final class Ambiguities {
             } else {
                 txt = "";
             }
-            entries.add(new AmbiguityEntryImpl(inRule, txt, alternatives, start, end));
+            RuleAltKey rak = new RuleAltKey(inRule, alternatives);
+            AmbiguityEntryImpl impl = entries.get(rak);
+            if (impl == null) {
+                entries.put(rak, new AmbiguityEntryImpl(inRule, txt, alternatives));
+            } else {
+                impl.add(txt);
+            }
+        }
+
+        static final class RuleAltKey {
+
+            private final String rule;
+            private final BitSet alts;
+            private final int hc;
+
+            public RuleAltKey(String rule, BitSet alts) {
+                this.rule = rule;
+                this.alts = alts;
+                hc = (80599 * rule.hashCode()) ^ (5813 * alts.hashCode());
+            }
+
+            public boolean equals(Object o) {
+                return o == null ? false : o == this ? true
+                        : o.getClass() == RuleAltKey.class ? ((RuleAltKey) o).alts.equals(alts)
+                        && ((RuleAltKey) o).rule.equals(rule) : false;
+            }
+
+            public int hashCode() {
+                return hc;
+            }
         }
 
     }
@@ -136,22 +218,23 @@ public final class Ambiguities {
     private static class AmbiguityEntryImpl implements AmbiguityRecord {
 
         final String inRule;
-        final CharSequence text;
+        final Set<CharSequence> texts = new TreeSet<>(Strings.charSequenceComparator());
         final BitSet alternatives;
-        final int start;
-        final int end;
 
-        public AmbiguityEntryImpl(String inRule, CharSequence text, BitSet alternatives, int start, int end) {
+        public AmbiguityEntryImpl(String inRule, CharSequence text, BitSet alternatives) {
             this.inRule = inRule;
-            this.text = text;
+            texts.add(text);
             this.alternatives = alternatives;
-            this.start = start;
-            this.end = end;
+        }
+
+        void add(CharSequence seq) {
+            texts.add(seq);
         }
 
         @Override
         public String toString() {
-            return inRule + ":" + alternatives + ":" + Escaper.CONTROL_CHARACTERS.escape(text);
+            return inRule + ":" + alternatives + ":"
+                    + Escaper.CONTROL_CHARACTERS.escape(texts.iterator().next());
         }
 
         @Override
@@ -165,13 +248,13 @@ public final class Ambiguities {
         }
 
         @Override
-        public CharSequence causeText() {
-            return text;
+        public Set<CharSequence> causeText() {
+            return texts;
         }
 
         @Override
         public int hashCode() {
-            return 3 + (79 * inRule.hashCode()) + (131 * alternatives.hashCode());
+            return (80599 * inRule.hashCode()) ^ (5813 * alternatives.hashCode());
         }
 
         @Override
@@ -183,26 +266,6 @@ public final class Ambiguities {
             }
             final AmbiguityEntryImpl other = (AmbiguityEntryImpl) obj;
             return inRule.equals(other.inRule) && alternatives.equals(other.alternatives);
-        }
-
-        @Override
-        public int start() {
-            return start;
-        }
-
-        @Override
-        public int size() {
-            return Math.max(0, end - start);
-        }
-
-        @Override
-        public AmbiguityRecord newRange(int start, int size) {
-            return new AmbiguityEntryImpl(this.rule(), this.causeText(), alternatives, start, end);
-        }
-
-        @Override
-        public AmbiguityRecord newRange(long start, long size) {
-            return newRange((int) start, (int) size);
         }
     }
 }

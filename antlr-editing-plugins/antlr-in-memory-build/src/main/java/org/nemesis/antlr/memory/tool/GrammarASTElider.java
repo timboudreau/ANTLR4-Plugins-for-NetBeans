@@ -62,7 +62,8 @@ final class GrammarASTElider {
         if (LOG.isLoggable(Level.FINEST)) {
             out(grammar, 0);
         }
-        return elideRoot(grammar, new BufferedTreeNodeStream(grammar));
+        GrammarRootAST result = elideRoot(grammar, new BufferedTreeNodeStream(grammar));
+        return result;
     }
 
     private void out(Tree tree, int depth) {
@@ -79,6 +80,7 @@ final class GrammarASTElider {
         elideReturnsClauses(ast, copy, stream, 0);
         assert ast.getChildCount() > 0;
         assert copy.getChild(0) != null : "Null child for 0 in " + textOf(copy);
+        copy.freshenParentAndChildIndexesDeeply();
         return copy;
     }
 

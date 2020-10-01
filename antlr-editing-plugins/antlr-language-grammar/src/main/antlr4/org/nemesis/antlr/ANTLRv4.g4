@@ -301,7 +301,7 @@ parserRuleDefinition :
     ;
 
 parserRuleLabeledAlternative :
-    parserRuleAlternative (SHARP identifier)?
+    alt=parserRuleAlternative (SHARP identifier)?
     ;
 
 // --------------------

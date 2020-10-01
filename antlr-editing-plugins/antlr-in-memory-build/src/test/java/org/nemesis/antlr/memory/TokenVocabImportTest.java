@@ -105,6 +105,7 @@ public class TokenVocabImportTest {
             assertTrue(sib.inputChanges().isUpToDate());
 
             assertNotNull(parserResult);
+            parserResult.rethrow();
             assertTrue(parserResult.isSuccess(), parserResult::toString);
             JFS jfs = parserResult.originalJFS();
             assertNotNull(jfs);

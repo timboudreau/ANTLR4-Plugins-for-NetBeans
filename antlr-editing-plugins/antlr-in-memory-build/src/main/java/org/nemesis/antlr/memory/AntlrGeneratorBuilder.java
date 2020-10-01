@@ -54,6 +54,7 @@ public final class AntlrGeneratorBuilder<T> {
     private final Function<? super AntlrGeneratorBuilder<T>, T> convert;
     JFSPathHints pathHints = JFSPathHints.NONE;
     RerunInterceptor interceptor;
+    boolean analyzeAlts;
 
     AntlrGeneratorBuilder(Supplier<JFS> jfs, Function<? super AntlrGeneratorBuilder<T>, T> convert) {
         this.jfs = jfs;
@@ -62,6 +63,11 @@ public final class AntlrGeneratorBuilder<T> {
             grammarEncoding = enc;
         }
         this.convert = convert;
+    }
+
+    public AntlrGeneratorBuilder<T> requestAlternativesAnalysis() {
+        analyzeAlts = true;
+        return this;
     }
 
     public AntlrGeneratorBuilder<T> withInterceptor(RerunInterceptor icept) {

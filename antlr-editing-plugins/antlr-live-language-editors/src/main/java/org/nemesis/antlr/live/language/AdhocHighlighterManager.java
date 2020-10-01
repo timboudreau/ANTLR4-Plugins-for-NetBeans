@@ -16,6 +16,7 @@
 package org.nemesis.antlr.live.language;
 
 import com.mastfrog.function.state.Obj;
+import java.awt.EventQueue;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import java.awt.event.ComponentAdapter;
@@ -316,7 +317,7 @@ final class AdhocHighlighterManager {
         for (AdhocHighlighter hl : highlighters) {
             hl.refresh(info);
         }
-        ctx.getComponent().repaint();
+        EventQueue.invokeLater(ctx.getComponent()::repaint);
     }
 
     static final Consumer<FileObject> INVALIDATOR
@@ -403,7 +404,7 @@ final class AdhocHighlighterManager {
                                     AntlrProxies.ProxyToken a = prox.tokens().get(start);
                                     AntlrProxies.ProxyToken b = prox.tokens().get(stop);
                                     String ruleName = prox.ruleNameFor(amb);
-                                    ac.reportAmbiguity(ruleName, amb.conflictingAlternatives(), text,
+                                    ac.reportAmbiguity(ruleName, amb.conflictingAlternatives(), prox.text(),
                                             a.getStartIndex(), b.getEndIndex());
                                 }
                             }

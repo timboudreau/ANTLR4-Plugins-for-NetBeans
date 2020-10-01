@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.completion.grammar;
+package com.mastfrog.antlr.cc;
 
 import com.mastfrog.util.collections.CollectionUtils;
+import com.mastfrog.util.file.FileUtils;
 import java.io.IOException;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
@@ -40,14 +41,52 @@ final class CCLog {
             = CollectionUtils.supplierMap(ArrayList::new);
     private static boolean enabled = false;
 
+    static void print() {
+        int max = 0;
+        List<String> ids = new ArrayList<>();
+        List<List<String>> lns = new ArrayList<>();
+        for (Map.Entry<Object, List<String>> e : lines.entrySet()) {
+            max = Math.max(e.getValue().size(), max);
+            Object k = e.getKey();
+            ids.add(k.getClass().getSimpleName() + "-" + Integer.toHexString(System.identityHashCode(k)));
+            lns.add(e.getValue());
+        }
+        for (int i = 0; i < max; i++) {
+            for (int j = 0; j < ids.size(); j++) {
+                List<String> currList = lns.get(j);
+                if (i < currList.size()) {
+                    String k = ids.get(j);
+                    String curr = currList.get(i);
+                    System.out.println((i + 1) + ". " + k + "\t" + curr);
+                }
+            }
+        }
+    }
+
     static void clear() {
-        lines.clear();
+        if (enabled) {
+            lines.clear();
+            Path aFile = Paths.get("/tmp/a.log");
+            Path bFile = Paths.get("/tmp/b.log");
+            Path diffFile = Paths.get("/tmp/ab.diff");
+            try {
+                FileUtils.deleteIfExists(aFile, bFile, diffFile);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
     }
 
     static void enable(boolean val) {
         enabled = val;
         if (!val) {
             lines.clear();
+        }
+    }
+
+    public void ifLog(Runnable run) {
+        if (enabled) {
+            run.run();
         }
     }
 

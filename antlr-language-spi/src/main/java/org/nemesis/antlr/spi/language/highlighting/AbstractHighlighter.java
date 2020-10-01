@@ -16,10 +16,13 @@
 package org.nemesis.antlr.spi.language.highlighting;
 
 import com.mastfrog.util.strings.Strings;
+import java.awt.Component;
 import java.awt.EventQueue;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.HashMap;
@@ -42,6 +45,7 @@ import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.netbeans.spi.editor.highlighting.ZOrder;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
+import org.openide.util.Exceptions;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakListeners;
 
@@ -146,7 +150,10 @@ public abstract class AbstractHighlighter {
         } else {
             fileName = Objects.toString( o );
         }
-        return getClass().getSimpleName() + ":" + fileName + " " + toString();
+        JTextComponent comp = ctx.getComponent();
+        String name = comp.getName();
+        return getClass().getSimpleName() + ":" + fileName + " " + toString()
+               + ( name == null ? "" : name );
     }
 
     /**
@@ -161,9 +168,14 @@ public abstract class AbstractHighlighter {
      *                          added any highlights to it, false if not.
      */
     protected final void updateHighlights( Predicate<HighlightConsumer> highlightsUpdater ) {
-        bag.update( () -> {
-            return highlightsUpdater.test( bag );
-        } );
+        try {
+            bag.update( () -> {
+                return highlightsUpdater.test( bag );
+            } );
+        } catch ( Exception | Error ex ) {
+            // RequestProcessor swallows Errors silently
+            Exceptions.printStackTrace( ex );
+        }
     }
 
     /**
@@ -208,7 +220,8 @@ public abstract class AbstractHighlighter {
         }
         JTextComponent editor = ctx.getComponent();
         int h = editor == null ? 0 : System.identityHashCode( editor );
-        return fileName + "-" + h;
+        String name = editor.getName();
+        return fileName + "-" + h + ( name == null ? "" : name );
     }
 
     @SuppressWarnings( "DoubleCheckedLocking" )
@@ -305,12 +318,27 @@ public abstract class AbstractHighlighter {
      * the component becomes visible or is hidden, so it can ignore changes
      * when the component is not onscreen.
      */
-    private final class CompL extends ComponentAdapter implements Runnable, DocumentListener, PropertyChangeListener {
+    private final class CompL extends ComponentAdapter implements Runnable,
+                                                                  DocumentListener,
+                                                                  PropertyChangeListener,
+                                                                  FocusListener {
 
         // Volatile because while highlighters are only attached and detached from the
         // event thread, it can be read from any thread that checks state
         private volatile boolean active;
         private final RequestProcessor.Task task = threadPool().create( this );
+
+        @Override
+        public void focusGained( FocusEvent e ) {
+            if ( e.getComponent().isShowing() ) {
+                setActive( true );
+            }
+        }
+
+        @Override
+        public void focusLost( FocusEvent e ) {
+            // do nothing
+        }
 
         @Override
         public void componentShown( ComponentEvent e ) {
@@ -327,7 +355,14 @@ public abstract class AbstractHighlighter {
         @Override
         public void propertyChange( PropertyChangeEvent evt ) {
             if ( "ancestor".equals( evt.getPropertyName() ) ) {
-
+                if ( evt.getSource() instanceof Component ) {
+                    Component comp = ( Component ) evt.getSource();
+                    if ( comp.isShowing() ) {
+                        setActive( true );
+                    } else {
+                        setActive( false );
+                    }
+                }
             }
         }
 

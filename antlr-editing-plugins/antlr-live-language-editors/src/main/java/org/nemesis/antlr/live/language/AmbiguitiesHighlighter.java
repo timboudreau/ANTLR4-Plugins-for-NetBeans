@@ -25,8 +25,12 @@ import java.awt.EventQueue;
 import java.io.File;
 import static java.lang.Boolean.TRUE;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.BitSet;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,7 +45,6 @@ import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.file.api.Ambiguities;
 import org.nemesis.antlr.file.api.AmbiguityRecord;
-import static org.nemesis.antlr.live.language.AdhocErrorHighlighter.elide;
 import org.nemesis.antlr.live.language.AlternativesExtractors.AlternativeKey;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.antlr.spi.language.highlighting.AbstractHighlighter;
@@ -84,8 +87,6 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
         base.addAttribute(EditorStyleConstants.RightBorderLineColor, Color.BLUE);
         base.addAttribute(EditorStyleConstants.TopBorderLineColor, Color.BLUE);
         base.addAttribute(EditorStyleConstants.BottomBorderLineColor, Color.BLUE);
-
-        System.out.println("CREATE AN AMBIG HIGHLIGHTER");
     }
 
     @Override
@@ -99,6 +100,7 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
                 Path path = file.toPath();
                 ambiguities = Ambiguities.forGrammar(path);
                 ambiguities.listen(this);
+                run();
             }
         }
     }
@@ -125,14 +127,7 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
         });
     }
 
-    private static CharSequence truncate(CharSequence msg) {
-        if (msg.length() > 40) {
-            return msg.subSequence(0, 40) + "\u2026";
-        }
-        return msg;
-    }
-
-    private static String message(String rule, BitSet bits, CharSequence trigger,
+    private static String tooltipMessage(String rule, BitSet bits, Collection<? extends CharSequence> triggers,
             IntMap<String> labelForAlt, IntMap<CharSequence> fragmentTextsForAlternatives,
             AmbiguityRecord rec) {
         StringBuilder bitsList = new StringBuilder(bits.cardinality() * 2);
@@ -148,18 +143,85 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
             }
         }
         return Bundle.ambiguityDesc(bitsList, rule,
-                truncate(trigger), ruleTextList(fragmentTextsForAlternatives, rec, labelForAlt));
+                formatTriggers(triggers, 400), ruleTextList(fragmentTextsForAlternatives, rec, labelForAlt));
     }
 
+    /**
+     * Format the texts that triggered an ambiguity as HTML pre elements with
+     * dividers.
+     *
+     * @param triggers The text elements
+     * @param maxChars The maximum length in characters
+     * @return Formatted text
+     */
+    @Messages({
+        "# {0} - remaining",
+        "andNmore=...and {0} more."
+    })
+    private static StringBuilder formatTriggers(Collection<? extends CharSequence> triggers, int maxChars) {
+        StringBuilder sb = new StringBuilder();
+        List<CharSequence> byLength = new ArrayList<>(triggers);
+        Collections.sort(byLength, (a, b) -> -Integer.compare(a.length(), b.length()));
+        int minLength = Integer.MAX_VALUE;
+        int maxLength = Integer.MIN_VALUE;
+        for (CharSequence seq : byLength) {
+            minLength = Math.min(seq.length(), minLength);
+            maxLength = Math.max(seq.length(), maxLength);
+        }
+        int used = 0;
+        int items = 0;
+        int maxItems= 3;
+        sb.append("<ul>\n");
+        Set<CharSequence> seen = new HashSet<>();
+        for (CharSequence seq : byLength) {
+            if (seq.length() > maxChars && minLength < maxChars || seen.contains(seq)) {
+                continue;
+            }
+            seen.add(seq);
+            seq = Strings.trim(seq);
+            int remaining = maxChars - used;
+            if (seq.length() > 0 && remaining < minLength) {
+                break;
+            }
+            if (seq.length() > remaining && remaining > 4) {
+                seq = Strings.elide(seq, (maxChars - used) / 2);
+            }
+            // do this before escaping
+            used += seq.length();
+            seq = Escaper.BASIC_HTML.escape(seq);
+            sb.append("\n<li><pre style='border-bottom: 1px dashed gray; margin-top: 7px'>");
+            sb.append(seq);
+            sb.append(seq);
+            sb.append("\n</pre></li>");
+            if (++items == maxItems) {
+                break;
+            }
+        }
+        sb.append("</ul>");
+        if (byLength.size() > maxItems) {
+            sb.append(Bundle.andNmore(byLength.size()-maxItems));
+        }
+        return sb;
+    }
+
+    @SuppressWarnings("null")
     private static Map<String, IntMap<CharSequence>> ruleTextForAmbiguities(Iterable<? extends AmbiguityRecord> records,
             Extraction ext, SemanticRegions<AlternativeKey> alterns, Document doc) throws BadLocationException {
-        Map<String, IntMap<CharSequence>> result = CollectionUtils.supplierMap(IntMap::create);
-        Map<String, BitSet> alternativesForRule = CollectionUtils.supplierMap(BitSet::new);
+        Map<String, IntMap<CharSequence>> result = new HashMap<>();
+        Map<String, BitSet> alternativesForRule = new HashMap<>();
         Map<String, IntMap<SemanticRegion<AlternativeKey>>> regionsForRule = CollectionUtils.supplierMap(IntMap::create);
         for (AmbiguityRecord ambig : records) {
-            alternativesForRule.get(ambig.rule()).or(ambig.alternatives());
+            assert ambig != null : "Null in ambiguities collection: " + ambig
+                    + " of type " + records.getClass().getName();
+            if (ambig == null) {
+                continue;
+            }
+            assert ambig.alternatives() != null : "Null alternatives in " + ambig;
+            assert ambig.rule() != null : "Null rule name in " + ambig;
+            alternativesForRule.computeIfAbsent(ambig.rule(), rl -> new BitSet(ambig.alternatives().cardinality()))
+                    .or(ambig.alternatives());
         }
-        alterns.collect(ak -> {
+        alterns.collect((AlternativeKey ak) -> {
             if (alternativesForRule.containsKey(ak.rule())) {
                 return alternativesForRule.get(ak.rule()).get(ak.alternativeIndex());
             }
@@ -175,7 +237,7 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
         for (Map.Entry<String, IntMap<SemanticRegion<AlternativeKey>>> e : regionsForRule.entrySet()) {
             e.getValue().forEachPair((key, val) -> {
                 CharSequence seq = seg.subSequence(val.start(), val.end());
-                result.get(e.getKey()).put(key, seq);
+                result.computeIfAbsent(e.getKey(), k -> IntMap.create()).put(key, seq);
             });
         }
         return result;
@@ -206,76 +268,72 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
         "# {1} - ruleName",
         "# {2} - parsedText",
         "# {3} - ruleTextList",
-        "ambiguityDesc=<html><b>Ambiguity in Rule {1}</b><p>Ambiguous alternatives <b>{0}</b> "
-        + "when parsing the text</p><blockquote><pre>{2}</pre></blockquote><p>"
-        + "<b>Alternatives</b></p>{3}<p>Ambiguities can slow down parsing."
+        "ambiguityDesc=<html style='margin: 7px'><b>Ambiguity in Rule {1}</b><p>Ambiguous alternatives <b>{0}</b> "
+        + "when parsing the text</p>{2}<p>"
+        + "<b>Alternatives</b></p>{3}<p>Ambiguities can slow down parsing.</p>"
     })
-    private void refreshItems(Set<? extends AmbiguityRecord> set) {
-        System.out.println("REFRESH AMBIGUITIES for " + ctx.getComponent().isShowing());
+    private void refreshItems(Collection<? extends AmbiguityRecord> set) {
+        System.out.println("REFRESH AMBIGUITIES for " + ctx.getComponent().isShowing() + " with " + set.size()
+                + " comp " + ctx.getComponent().getName());
         if (!set.isEmpty()) {
             Extraction ext = NbAntlrUtils.extractionFor(ctx.getDocument());
-            if (!ext.isPlaceholder()) {
-                NamedSemanticRegions<RuleTypes> ruleBounds = ext.namedRegions(AntlrKeys.RULE_BOUNDS);
-                SemanticRegions<AlternativeKey> alterns = ext.regions(OUTER_ALTERNATIVES_WITH_SIBLINGS);
-                if (!ruleBounds.isEmpty() && !alterns.isEmpty()) {
-                    updateHighlights((HighlightConsumer bag) -> {
-                        RotatingColors colors = new RotatingColors();
-                        boolean any = false;
-                        Map<String, IntMap<CharSequence>> ruleFragments;
-                        try {
-                            ruleFragments = ruleTextForAmbiguities(set, ext, alterns, ctx.getDocument());
-                        } catch (BadLocationException ex) {
-                            Exceptions.printStackTrace(ex);
-                            ruleFragments = new HashMap<>();
-                        }
-                        for (AmbiguityRecord rec : set) {
-                            NamedSemanticRegion<RuleTypes> rule = ruleBounds.regionFor(rec.rule());
-                            if (rule != null) {
-                                BitSet conflictingAlts = rec.alternatives();
-                                List<? extends SemanticRegion<AlternativeKey>> causes
-                                        = alterns.collectBetween(rule.start(), rule.end() + 1, (AlternativeKey ak) -> {
-                                            return conflictingAlts.get(ak.alternativeIndex());
+            if (ext != null && !ext.isPlaceholder()) {
+                try {
+                    NamedSemanticRegions<RuleTypes> ruleBounds = ext.namedRegions(AntlrKeys.RULE_BOUNDS);
+                    SemanticRegions<AlternativeKey> alterns = ext.regions(OUTER_ALTERNATIVES_WITH_SIBLINGS);
+                    if (!ruleBounds.isEmpty() && !alterns.isEmpty()) {
+                        System.out.println("  some to update");
+                        updateHighlights((HighlightConsumer bag) -> {
+                            System.out.println("  enter update highlights");
+                            RotatingColors colors = new RotatingColors();
+                            boolean any = false;
+                            Map<String, IntMap<CharSequence>> ruleFragments;
+                            try {
+                                ruleFragments = ruleTextForAmbiguities(set, ext, alterns, ctx.getDocument());
+                            } catch (BadLocationException ex) {
+                                Exceptions.printStackTrace(ex);
+                                ruleFragments = new HashMap<>();
+                            }
+                            int ct = 0;
+                            for (AmbiguityRecord rec : set) {
+                                NamedSemanticRegion<RuleTypes> rule = ruleBounds.regionFor(rec.rule());
+                                if (rule != null) {
+                                    BitSet conflictingAlts = rec.alternatives();
+                                    List<? extends SemanticRegion<AlternativeKey>> causes
+                                            = alterns.collectBetween(rule.start(), rule.end() + 1, (AlternativeKey ak) -> {
+                                                return conflictingAlts.get(ak.alternativeIndex());
+                                            });
+                                    if (!causes.isEmpty()) {
+                                        IntMap<String> labelForAlt = IntMap.create(conflictingAlts.cardinality());
+                                        causes.forEach(ak -> {
+                                            labelForAlt.put(ak.key().alternativeIndex(), ak.key().label());
                                         });
-                                if (!causes.isEmpty()) {
-                                    IntMap<String> labelForAlt = IntMap.create(conflictingAlts.cardinality());
-                                    causes.forEach(ak -> {
-                                        labelForAlt.put(ak.key().alternativeIndex(), ak.key().label());
-                                    });
-                                    SimpleAttributeSet hint = new SimpleAttributeSet();
-                                    IntMap<CharSequence> fragmentTextsForAlternatives = ruleFragments.get(rec.rule());
-                                    // if > 400 chars, elide, ellipsizing the middle, so it will fit
-                                    CharSequence elidedCause = elide(rec.causeText(), 400);
-                                    String msg = message(rec.rule(), conflictingAlts, Escaper.BASIC_HTML.escape(elidedCause),
-                                            labelForAlt, fragmentTextsForAlternatives, rec);
-                                    hint.addAttribute(EditorStyleConstants.Tooltip, msg);
-                                    hint.addAttribute(StyleConstants.Background, colors.get());
-                                    AttributeSet attrs = AttributesUtilities.createComposite(base, hint);
-                                    for (SemanticRegion<AlternativeKey> reg : causes) {
+                                        SimpleAttributeSet hint = new SimpleAttributeSet();
+                                        IntMap<CharSequence> fragmentTextsForAlternatives = ruleFragments.get(rec.rule());
+                                        String msg = tooltipMessage(rec.rule(), conflictingAlts, rec.causeText(),
+                                                labelForAlt, fragmentTextsForAlternatives, rec);
+                                        hint.addAttribute(EditorStyleConstants.Tooltip, msg);
+                                        hint.addAttribute(StyleConstants.Background, colors.get());
+                                        AttributeSet attrs = AttributesUtilities.createComposite(base, hint);
+                                        for (SemanticRegion<AlternativeKey> reg : causes) {
+                                            ct++;
 //                                        System.out.println("Highlight " + msg + " " + reg.start() + ":" + reg.end());
-                                        bag.addHighlight(reg.start(), reg.end(), attrs);
-                                        any = true;
+                                            bag.addHighlight(reg.start(), reg.end(), attrs);
+                                            any = true;
+                                        }
                                     }
-//                                } else {
-//                                    System.out.println("ALTS: " + conflictingAlts + " in '" + rec.rule() + "' "
-//                                            + " within rule bounds " + rule.start() + ":" + rule.end());
-//                                    System.out.println("ALTS WITHIN RULE BOUNDS: " + alterns.collectBetween(rule.start(), rule.end() + 1, x -> true));
-//                                    System.out.println("ALTS WITH NAME: " + alterns.collect(al -> rec.rule().equals(al.rule())));
-//                                    if (!logged) {
-//                                        logged = true;
-//                                        System.out.println("\n---------------------------\n");
-//                                        System.out.println(alterns.toCode(ak -> {
-//                                            return "new AlternativeKey(\"" + ak.rule() + "\", " + ak.alternativeIndex() + ", \"" + ak.label() + "\")";
-//                                        }));
-//                                        System.out.println("\n---------------------------\n");
-//                                    }
                                 }
                             }
-                        }
-                        return any;
-                    });
+                            System.out.println("  any updated? " + any + " count " + ct);
+                            return any;
+                        });
+                    }
+                } catch (Exception | Error ex) {
+                    Exceptions.printStackTrace(ex);
                 }
             }
         } else {
+            System.out.println("no ambs to highlight");
             updateHighlights(ignored -> false);
         }
     }

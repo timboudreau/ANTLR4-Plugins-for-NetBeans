@@ -720,6 +720,9 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                 return oldRes.recycle();
             }
         }
+        // Preemptively goose the JFS, so it gets rebuilt if necessary ahead
+        // of time
+        mappingManager.jfs();
         AntlrGenerationResult res = localRerunner.run(grammarFileName, logStream, generate);
 //        AntlrParseResult.simulateReparse(null, NbAntlrUtils.extractionFor(fo));
 //        AntlrRegenerationEvent evt = new AntlrRegenerationEvent(res.)

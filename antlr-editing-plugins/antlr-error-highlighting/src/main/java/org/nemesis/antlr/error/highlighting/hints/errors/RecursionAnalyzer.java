@@ -167,25 +167,27 @@ class RecursionAnalyzer {
             // foo: (foo bar)* baz;
             // is NOT
             Alts alts = callOrderings.get(lookingFor.a);
-            alts.visitAlternativesContaining(lookingFor.a, ai -> {
-                for (NameReference item : ai) {
-                    // In this case, if the item is not in a block or is not
-                    // flagged as a wildcard, it's either not the same item,
-                    // or a case of legal self-left-recursion
-                    if (lookingFor.a.equals(item.name) && item.inNestedBlock) {
-                        culprits.get(item).add(path);
-                        altsAccepted.increment();
-                        break;
-                    } else if (lookingFor.a.equals(item.name)) {
-                        break;
-                    } else if (!item.isWildcard()) {
-                        LOG.log(Level.FINEST, "Left-Path {0} of {1} interrupted  in\n\t{2}"
-                                + "\n\tbecause {3}({4}:{5}) is not wildcarded",
-                                new Object[]{lookingFor, path, ai, item, item.start, item.end});
-                        break;
+            if (alts != null) {
+                alts.visitAlternativesContaining(lookingFor.a, ai -> {
+                    for (NameReference item : ai) {
+                        // In this case, if the item is not in a block or is not
+                        // flagged as a wildcard, it's either not the same item,
+                        // or a case of legal self-left-recursion
+                        if (lookingFor.a.equals(item.name) && item.inNestedBlock) {
+                            culprits.get(item).add(path);
+                            altsAccepted.increment();
+                            break;
+                        } else if (lookingFor.a.equals(item.name)) {
+                            break;
+                        } else if (!item.isWildcard()) {
+                            LOG.log(Level.FINEST, "Left-Path {0} of {1} interrupted  in\n\t{2}"
+                                    + "\n\tbecause {3}({4}:{5}) is not wildcarded",
+                                    new Object[]{lookingFor, path, ai, item, item.start, item.end});
+                            break;
+                        }
                     }
-                }
-            });
+                });
+            }
             return altsAccepted.getAsInt() > 0;
         }
         boolean result = true;

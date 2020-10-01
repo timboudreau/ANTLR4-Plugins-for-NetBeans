@@ -15,6 +15,10 @@
  */
 package org.nemesis.antlr.completion.grammar;
 
+import com.mastfrog.antlr.cc.CandidatesCollection;
+import com.mastfrog.antlr.cc.IntArrayMapping;
+import com.mastfrog.antlr.cc.CodeCompletionCore;
+import com.mastfrog.antlr.cc.FollowSetsHolder;
 import com.mastfrog.antlr.code.completion.spi.CompletionsSupplier;
 import com.mastfrog.antlr.utils.RulesMapping;
 import com.mastfrog.util.collections.IntList;
@@ -76,14 +80,14 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery implements Supp
     private final ParserAndRuleContextProvider<?, ?> parserProvider;
     private final IntPredicate preferredRules;
     private final IntPredicate ignoredTokens;
-    private final Map<String, IntMap<CodeCompletionCore.FollowSetsHolder>> cache;
+    private final Map<String, IntMap<FollowSetsHolder>> cache;
     private final IntMap<String> supplemental;
     private final com.mastfrog.util.collections.IntIntMap ruleSubstitutions;
 
     GrammarCompletionQuery(String mimeType,
             ParserAndRuleContextProvider<?, ?> parserProvider,
             IntPredicate preferredRules, IntPredicate ignoredRules,
-            Map<String, IntMap<CodeCompletionCore.FollowSetsHolder>> cache,
+            Map<String, IntMap<FollowSetsHolder>> cache,
             IntMap<String> supplemental, IntIntMap ruleSubstitutions) {
         this.mimeType = mimeType;
         this.parserProvider = parserProvider;
@@ -285,7 +289,7 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery implements Supp
         CaretToken caretToken = ct;
         List<? extends Token> tokens = toks;
 
-        CodeCompletionCore.CandidatesCollection result = runCodeCompletionCore(p, caretToken, provider, tokens);
+        CandidatesCollection result = runCodeCompletionCore(p, caretToken, provider, tokens);
 
         if (result.isEmpty()) {
             // Got nothing - bail
@@ -602,7 +606,7 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery implements Supp
         return sb.toString();
     }
 
-    private <P extends Parser, R extends ParserRuleContext> CodeCompletionCore.CandidatesCollection runCodeCompletionCore(P p,
+    private <P extends Parser, R extends ParserRuleContext> CandidatesCollection runCodeCompletionCore(P p,
             CaretToken tokenInfo, ParserAndRuleContextProvider<P, R> provider, List<? extends Token> tokens) throws IOException {
         CodeCompletionCore core = new CodeCompletionCore(p, preferredRules, ignoredTokens, cache);
         int ix = tokenInfo.tokenIndex();
@@ -613,7 +617,7 @@ public class GrammarCompletionQuery extends AsyncCompletionQuery implements Supp
                         + p.getVocabulary().getDisplayName(tokenInfo.before().tokenType());
             });
         }
-        CodeCompletionCore.CandidatesCollection result = core.collectCandidates(ix,
+        CandidatesCollection result = core.collectCandidates(ix,
                 null /*provider.rootElement(p)*/, tokens);
         return result;
     }

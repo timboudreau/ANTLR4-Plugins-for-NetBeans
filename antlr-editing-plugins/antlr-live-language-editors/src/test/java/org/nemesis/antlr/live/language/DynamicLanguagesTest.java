@@ -491,9 +491,8 @@ public class DynamicLanguagesTest {
         newLanguage = null;
 //        assertNotEquals(originalLanguageIdentityHashcode, newLanguageIdHash,
 //                "Language was not replaced.");
-        
-//        AdhocMimeDataProvider.getDefault().gooseLanguage(mime);
 
+//        AdhocMimeDataProvider.getDefault().gooseLanguage(mime);
         String tid = AdhocLanguageHierarchy.hierarchyInfo(mime).grammarTokensHash();
         System.out.println("TOKS HASH " + tid + " p1 hash " + p1.grammarHash() + " orig hash " + originalTokenHash);
 
@@ -799,8 +798,7 @@ public class DynamicLanguagesTest {
 
     public static TestFixtures initAntlrTestFixtures(boolean verbose) {
         TestFixtures fixtures = new TestFixtures()
-                .avoidStartingModuleSystem()
-//                .insanelyVerboseLogging();
+                .avoidStartingModuleSystem() //                .insanelyVerboseLogging();
                 ;
         if (verbose) {
             fixtures.verboseGlobalLogging(
@@ -808,23 +806,22 @@ public class DynamicLanguagesTest {
                     AdhocMimeDataProvider.class,
                     AdhocLanguageFactory.class,
                     AdhocLexerNew.class,
-
-//                    AntlrGeneratorAndCompiler.class,
-//                    ParsingUtils.class,
-//                    RebuildSubscriptions.class,
-//                    AntlrRunSubscriptions.class,
-//                    AntlrGenerator.class,
-//                    JFS.class,
-//                    "org.nemesis.antlr.memory.tool.ToolContext",
-//                    "org.nemesis.antlr.project.AntlrConfigurationCache",
-//                    "org.nemesis.antlr.project.impl.FoldersHelperTrampoline",
-//                    "org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation",
-//                    "org.nemesis.antlr.project.impl.InferredConfig",
-//                    AntlrGeneratorAndCompiler.class,
-//                    AntlrGeneratorBuilder.class,
-//                    AntlrGeneratorAndCompilerBuilder.class,
+                    //                    AntlrGeneratorAndCompiler.class,
+                    //                    ParsingUtils.class,
+                    //                    RebuildSubscriptions.class,
+                    //                    AntlrRunSubscriptions.class,
+                    //                    AntlrGenerator.class,
+                    //                    JFS.class,
+                    //                    "org.nemesis.antlr.memory.tool.ToolContext",
+                    //                    "org.nemesis.antlr.project.AntlrConfigurationCache",
+                    //                    "org.nemesis.antlr.project.impl.FoldersHelperTrampoline",
+                    //                    "org.nemesis.antlr.project.impl.HeuristicFoldersHelperImplementation",
+                    //                    "org.nemesis.antlr.project.impl.InferredConfig",
+                    //                    AntlrGeneratorAndCompiler.class,
+                    //                    AntlrGeneratorBuilder.class,
+                    //                    AntlrGeneratorAndCompilerBuilder.class,
                     InvocationRunner.class,
-//                    "org.nemesis.antlr.live.JFSMapping",
+                    //                    "org.nemesis.antlr.live.JFSMapping",
                     "org.nemesis.antlr.live.parsing.EmbeddedAntlrParserImpl",
                     ProxiesInvocationRunner.class,
                     DynamicLanguages.class
@@ -836,7 +833,9 @@ public class DynamicLanguagesTest {
                 .addToMimeLookup("text/x-g4", AntlrNbParser.createErrorHighlighter(), fact)
                 .addToNamedLookup(
                         org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder.REGISTRATION_PATH,
-                        new org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder())
+                        new org.nemesis.antlr.file.impl.AntlrExtractor_ExtractionContributor_populateBuilder(),
+                        new org.nemesis.antlr.live.language.AlternativesExtractors_ExtractionContributor_populateBuilder()
+                )
                 .addToDefaultLookup(
                         FakeAntlrLoggers.class,
                         AdhocMimeResolver.class,

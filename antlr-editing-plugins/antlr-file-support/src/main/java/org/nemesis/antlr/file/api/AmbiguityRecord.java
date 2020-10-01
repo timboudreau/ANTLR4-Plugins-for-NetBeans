@@ -15,19 +15,19 @@
  */
 package org.nemesis.antlr.file.api;
 
-import com.mastfrog.range.IntRange;
 import java.util.BitSet;
+import java.util.Collection;
 
 /**
  *
  * @author Tim Boudreau
  */
-public interface AmbiguityRecord extends IntRange<AmbiguityRecord> {
+public interface AmbiguityRecord {
 
-    public String rule();
+    String rule();
 
-    public BitSet alternatives();
+    BitSet alternatives();
 
-    public CharSequence causeText();
+    Collection<? extends CharSequence> causeText();
 
 }

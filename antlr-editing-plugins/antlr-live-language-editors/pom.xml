@@ -446,5 +446,40 @@ limitations under the License.
             <artifactId>registration-annotation-processors</artifactId>
             <scope>provided</scope>
         </dependency>        
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>simple-test-language</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Needed so surefire doesn't become deeply confused about the
+             test classpath and omit antlr and a few other things from it
+             causing test-single mode to throw NoClassDefFoundErrors-->
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>antlr-runtime</artifactId>
+            <version>3.5.2</version>
+            <scope>provided</scope>
+        </dependency>
+       <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>antlr4-runtime</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>antlr4</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>util-streams</artifactId>
+            <scope>provided</scope>
+            <version>${mastfrog.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>util-preconditions</artifactId>
+            <scope>provided</scope>
+        </dependency>        
     </dependencies>
 </project>

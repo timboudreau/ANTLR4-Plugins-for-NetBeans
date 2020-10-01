@@ -54,6 +54,7 @@ import org.netbeans.modules.parsing.api.UserTask;
 import org.netbeans.modules.parsing.spi.Parser;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.util.RequestProcessor;
 import org.openide.util.WeakSet;
 
 /**
@@ -361,7 +362,40 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements TriCo
         return false;
     }
 
+    private final RequestProcessor proc = new RequestProcessor("embedded-parser-grammar-reparse", 1, false);
+
+    class Reparser implements Runnable {
+
+        @Override
+        public void run() {
+            FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile()));
+            if (fo != null && fo.isValid()) {
+                try {
+                    INVALIDATOR.accept(fo);
+                    LOG.log(Level.FINEST, "Invalidated Source for {0}", fo.getNameExt());
+                    Source src = Source.create(fo);
+                    ParserManager.parseWhenScanFinished(Collections.singleton(src), new UT());
+                } catch (Exception ex) {
+                    org.openide.util.Exceptions.printStackTrace(ex);
+                }
+            } else {
+                EmbeddedAntlrParsers.onAtteptToParseNonExistentFile(EmbeddedAntlrParserImpl.this);
+                LOG.log(Level.INFO, "File object for {0} disappeared when "
+                        + "attempting to force a reparse.", path);
+            }
+        }
+    }
+    private final RequestProcessor.Task reparseTask = proc.create(new Reparser());
+
+    private void reparseLater() {
+        reparseTask.schedule(500);
+    }
+
     private boolean forceGrammarFileReparse(EmbeddedParsingEnvironment info) throws Exception {
+        if (true) {
+            reparseLater();
+            return false;
+        }
         if (info != null) {
             if (info.parser != null || info.parser.getClass() != DeadEmbeddedParser.class) {
                 if (info.runResult != null) {

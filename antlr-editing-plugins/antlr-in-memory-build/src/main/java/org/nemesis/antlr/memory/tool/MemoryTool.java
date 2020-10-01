@@ -106,9 +106,9 @@ public final class MemoryTool extends Tool {
     }
 
     private static String[] appendInternalArgs(String[] args) {
-        String[] result = Arrays.copyOf(args, args.length+2);
-        result[result.length-2] = "contextSuperClass";
-        result[result.length-1] = "org.antlr.v4.runtime.RuleContextWithAltNum";
+        String[] result = Arrays.copyOf(args, args.length + 2);
+        result[result.length - 2] = "contextSuperClass";
+        result[result.length - 1] = "org.antlr.v4.runtime.RuleContextWithAltNum";
         return result;
     }
 

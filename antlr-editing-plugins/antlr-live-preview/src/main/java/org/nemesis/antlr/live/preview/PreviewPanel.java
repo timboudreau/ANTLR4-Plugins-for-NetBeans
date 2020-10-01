@@ -327,6 +327,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         // our mime type
         // Configure the editor pane to use it
         editorPane.setEditorKit(kit);
+        editorPane.setName("preview");
         // Open the document and set it on the editor pane
         content.add(doc);
         editorPane.setDocument(doc);
@@ -348,6 +349,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             split.setTopComponent(sampleScroll = new JScrollPane(editorPane));
         }
         grammarEditorClone = new JEditorPane();
+        grammarEditorClone.setName("preview");
         // Same for the grammar editor - need to make sure we are the VERY FIRST
         // focus listener so we can update our lookup before anything tries to
         // use it to determine action enablement state
@@ -1393,7 +1395,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             if (!referenceChain.isEmpty()) {
                 ParseTreeElement rule = referenceChain.get(referenceChain.size() - 1);
                 int ix = syntaxModel.select(rule);
-                if (ix >= 0) {
+                // One, not zero here, because we don't want to furiously
+                // scroll up to the top and back down again if the user exits
+                // a method or something
+                if (ix >= 1) {
                     Scroller.get(syntaxTreeList).beginScroll(syntaxTreeList, ix);
                 }
                 if (referenceChain.size() > 1) {
@@ -1512,6 +1517,13 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             leftSideSize = previousSideComponentSize;
         } else {
             leftSideSize = listsSplit.getPreferredSize();
+            int myCurrentWidth = getWidth();
+            if (myCurrentWidth > 0) {
+                // Ensure that having one really wide element in the
+                // parse tree doesn't make the window change sizes
+                leftSideSize.width = Math.min(
+                        Math.max(10, leftSideSize.width), myCurrentWidth / 3);
+            }
         }
         Dimension topSize = customizer.getPreferredSize();
         Dimension bottomSize = breadcrumb.getPreferredSize();
@@ -1845,10 +1857,35 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         private final BiConsumer<Throwable, ErrorDetectingEditorPane> killMeNow;
         private int fontHeight;
         private int charWidth;
+        private Container topLevel;
 
         public ErrorDetectingEditorPane(BiConsumer<Throwable, ErrorDetectingEditorPane> killMeNow) {
             this.killMeNow = killMeNow;
             setFontHeightWidth(getFont());
+        }
+
+        @Override
+        public void addNotify() {
+            super.addNotify();
+            topLevel = getTopLevelAncestor();
+        }
+
+        @Override
+        public void removeNotify() {
+            topLevel = null;
+            super.removeNotify();
+        }
+
+        public Dimension getPreferredSize() {
+            // Ensure the editor doesen't hijack all available
+            // width
+            // XXX figure out why this is happening
+            Dimension result = super.getPreferredSize();
+            int topWidth = topLevel.getWidth();
+            if (topWidth > 6 && isDisplayable()) {
+                result.width = Math.min(result.width, (topWidth / 3) * 2);
+            }
+            return result;
         }
 
         public void paint(Graphics g) {

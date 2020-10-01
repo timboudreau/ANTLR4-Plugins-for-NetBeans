@@ -464,6 +464,10 @@ public class AntlrRunSubscriptions {
                         + " " + res.grammarFile;
                 LOG.log(Level.FINER, msg, new Exception(msg));
                 FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(res.originalFilePath.toFile()));
+                if (fo == null) {
+                    LOG.log(Level.INFO, "Could not find a FileObject for {0}", res.originalFilePath);
+                    return;
+                }
                 extraction = NbAntlrUtils.extractionFor(fo);
             }
             JFS jfs = res.jfsSupplier.get();
