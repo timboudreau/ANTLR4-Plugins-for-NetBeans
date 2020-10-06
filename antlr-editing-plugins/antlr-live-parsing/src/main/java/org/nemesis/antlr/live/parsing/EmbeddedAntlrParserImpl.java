@@ -267,7 +267,7 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements TriCo
             }
         }
         // XXX - this sucks, but lexer / snapshot char sequences explode on
-        // contact after a while
+        // contact if touched after exiting the UserTask
         CharSequence toParse = textToParse == null ? null : convert(textToParse);
         // Return the cached lastParseInfo where possible, ignoring cases where the
         // text is null (in which case, we are being invoked just for the lexer to get
@@ -387,21 +387,36 @@ final class EmbeddedAntlrParserImpl extends EmbeddedAntlrParser implements TriCo
     }
     private final RequestProcessor.Task reparseTask = proc.create(new Reparser());
 
-    private void reparseLater() {
+    private void reparseLater(EmbeddedParsingEnvironment info) {
+        if (info != null) {
+            if (info.parser != null && info.parser.getClass() != DeadEmbeddedParser.class) {
+                if (info.runResult != null) {
+                    AntlrGenerationResult toCheck = info.runResult.getWrapped(AntlrGenerationResult.class);
+                    if (toCheck != null) {
+                        if (!toCheck.isUsable() && RebuildSubscriptions.isThrottled(toCheck)) {
+                            return;
+                        }
+                        if (toCheck.areOutputFilesUpToDate()) {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
         reparseTask.schedule(500);
     }
 
     private boolean forceGrammarFileReparse(EmbeddedParsingEnvironment info) throws Exception {
         if (true) {
-            reparseLater();
+            reparseLater(info);
             return false;
         }
         if (info != null) {
-            if (info.parser != null || info.parser.getClass() != DeadEmbeddedParser.class) {
+            if (info.parser != null && info.parser.getClass() != DeadEmbeddedParser.class) {
                 if (info.runResult != null) {
                     AntlrGenerationResult toCheck = info.runResult.getWrapped(AntlrGenerationResult.class);
                     if (toCheck != null) {
-                        if (RebuildSubscriptions.isThrottled(toCheck)) {
+                        if (!toCheck.isUsable() && RebuildSubscriptions.isThrottled(toCheck)) {
                             return false;
                         }
                         if (toCheck.areOutputFilesUpToDate()) {

@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language;
 
+import org.nemesis.swing.RotatingColors;
 import com.mastfrog.graph.BitSetUtils;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.IntMap;
@@ -254,7 +255,7 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
             sb.append("\n<li>");
             sb.append("<b>").append(labelForAlt.get(alt)).append("</b> &mdash; <code>");
             if (seq != null) {
-                sb.append(Escaper.BASIC_HTML.escape(Strings.trim(seq)));
+                sb.append(Escaper.BASIC_HTML.escape(seq));
             } else {
                 sb.append(Bundle.ruleTextNotPresent());
             }

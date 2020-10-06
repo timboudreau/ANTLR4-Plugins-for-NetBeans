@@ -173,20 +173,16 @@ fragment WORD_LIKE
     : (LETTER | DIGIT)(LETTER | DIGIT | PUNC2)*;
 
 fragment PUNC2
-    :
-    [><{}/\\:;+!@.,$%^&\-='"?];
+    : [><{}/\\:;+!@.,$%^&\-='"?];
 
 fragment PUNCTUATION
-    :
-    [\p{Punctuation}];
+    : [\p{Punctuation}];
 
 fragment LETTER
-    :
-    [\p{Alphabetic}];
+    : [\p{Alphabetic}];
 
 fragment DIGIT
-    :
-    [\p{Digit}];
+    : [\p{Digit}];
 
 //    : '0'..'9';
 fragment ALL_WS
@@ -211,13 +207,11 @@ fragment SPECIAL_CHARS
     | STRIKE;
 
 fragment NON_WHITESPACE
-    :
-    ~[ \r\n\t];
+    : ~[ \r\n\t];
 
 //    :~[\p{White_Space}];
 fragment LINK_TEXT
-    :
-    [a-zA-Z0-9]
+    : [a-zA-Z0-9]
     | '/'
     | '.';
 

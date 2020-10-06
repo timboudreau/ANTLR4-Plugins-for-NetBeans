@@ -43,6 +43,9 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.tools.JavaFileManager;
 import javax.tools.StandardLocation;
+import static javax.tools.StandardLocation.CLASS_OUTPUT;
+import static javax.tools.StandardLocation.SOURCE_OUTPUT;
+import static javax.tools.StandardLocation.SOURCE_PATH;
 import org.antlr.v4.parse.ANTLRParser;
 import org.antlr.v4.tool.ANTLRMessage;
 import org.antlr.v4.tool.ErrorType;
@@ -86,7 +89,7 @@ public final class AntlrGenerator {
     public AntlrGenerator(Charset grammarEncoding, boolean generateAll, String packageName,
             Supplier<JFS> jfs, JavaFileManager.Location grammarSourceLocation, UnixPath virtualSourcePath,
             UnixPath virtualImportDir, JavaFileManager.Location outputLocation,
-            Path originalFile, String originalTokensHash, JFSPathHints pathHints, 
+            Path originalFile, String originalTokensHash, JFSPathHints pathHints,
             RerunInterceptor interceptor, boolean analyzeAlts) {
         this.grammarEncoding = grammarEncoding;
         this.generateAll = generateAll;
@@ -121,7 +124,7 @@ public final class AntlrGenerator {
         }
         return new AntlrGenerator(grammarEncoding, generateAll,
                 packageName, jfs, grammarSourceLocation, virtualSourcePath,
-                virtualImportDir, outputLocation, originalFile, 
+                virtualImportDir, outputLocation, originalFile,
                 originalTokensHash, pathHints, interceptor, analyzeAlts);
     }
 
@@ -240,21 +243,26 @@ public final class AntlrGenerator {
     }
 
     public JFSCoordinates grammarFilePath(String fileName) {
+        JFS jfs = jfs();
         String baseName = fileName;
         if (fileName.indexOf('.') < 0) {
             fileName += ".g4";
         }
-        UnixPath result = pathHints.firstPathForRawName(baseName, "g4", "g");
+        String rawName = UnixPath.get(baseName).rawName();
+        UnixPath result = pathHints.firstPathForRawName(rawName, "g4", "g");
         if (result == null) {
             result = packagePath().resolve(fileName);
         }
-        JFSFileObject fo = jfs.get().get(sourceLocation(), result);
+        JFSFileObject fo = jfs.get(sourceLocation(), result);
         if (fo == null) {
             result = packagePath().resolve(UnixPath.get(baseName).rawName() + ".g");
-            fo = jfs.get().get(sourceLocation(), result);
+            fo = jfs.get(sourceLocation(), result);
         }
         if (fo == null) {
-            System.out.println("NO GRAMMAR PATH FOR " + fileName);
+            System.out.println("NO GRAMMAR PATH FOR " + fileName + " rawName "
+                    + rawName + " baseName " + baseName
+                    + " hints " + pathHints + " jfs " + jfs.id()
+                    + " listing " + jfs.list(SOURCE_PATH, SOURCE_OUTPUT, CLASS_OUTPUT));
         }
         return fo == null ? null : fo.toCoordinates();
     }
@@ -265,17 +273,16 @@ public final class AntlrGenerator {
         // how UnixPath works.
         UnixPath result = virtualSourcePath;
         if (result == null || result.toString().isEmpty()) {
-            return grammarFilePath(grammarFileName).path();
+            JFSCoordinates fromHints = grammarFilePath(grammarFileName);
+            if (fromHints != null) {
+                result = fromHints.path();
+            }
         }
         return result;
     }
 
     private String listJFS() {
-        StringBuilder sb = new StringBuilder("Input JFS:");
-        jfs.get().list(sourceLocation(), (loc, jfo) -> {
-            sb.append('\n').append(jfo.getName()).append(" len ").append(jfo.length());
-        });
-        return sb.toString();
+        return jfs.get().list(SOURCE_PATH, SOURCE_OUTPUT, CLASS_OUTPUT);
     }
 
     public interface ReRunner {
@@ -391,7 +398,12 @@ public final class AntlrGenerator {
                             if (this.pathHints != null) {
                                 tool.hints = this.pathHints;
                             }
-                            JFSCoordinates grammarFilePath;
+                            JFSCoordinates grammarFilePath = grammarFilePath(grammarFileName);
+                            if (grammarFilePath == null) {
+                                success.set(false);
+                                throw new IOException("Could not resolve grammar file " + grammarFileName
+                                    + " in " + jfs.list(SOURCE_PATH, SOURCE_OUTPUT, CLASS_OUTPUT));
+                            }
                             String grammarName = "--";
                             tool.generate_ATN_dot = opts.contains(AntlrGenerationOption.GENERATE_ATN);
                             tool.grammarEncoding = grammarEncoding.name();
@@ -400,7 +412,6 @@ public final class AntlrGenerator {
                             tool.log = opts.contains(AntlrGenerationOption.LOG);
                             tool.force_atn = opts.contains(AntlrGenerationOption.FORCE_ATN);
                             tool.genPackage = packageName;
-                            grammarFilePath = grammarFilePath(grammarFileName);
                             logStream.println("Grammar File Path:\t" + grammarFilePath);
 
                             timestamp.set(System.currentTimeMillis());

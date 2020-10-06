@@ -49,11 +49,11 @@ import org.nemesis.simple.SampleFile;
 
 public class CodeCompletionCoreTest {
 
-    private static final int ITERATIONS = 25;
+    private static final int ITERATIONS = 5;
 
     @Test
     public void testSample() throws Exception {
-        testSample(AntlrSampleFiles.SENSORS);
+        testSample(AntlrSampleFiles.RUST);
     }
 
     public void testSample(AntlrSampleFiles sample) throws Exception {

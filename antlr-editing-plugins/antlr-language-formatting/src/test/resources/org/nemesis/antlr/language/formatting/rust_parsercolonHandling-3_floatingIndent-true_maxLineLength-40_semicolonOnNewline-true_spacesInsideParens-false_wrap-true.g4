@@ -1,6 +1,7 @@
 grammar Rust;
 
-@parser::header { import java .util .*;}
+@parser::header { import java.util.*;
+    }
 
 @parser::members {
     Set<String> importedTypes = new HashSet<>();

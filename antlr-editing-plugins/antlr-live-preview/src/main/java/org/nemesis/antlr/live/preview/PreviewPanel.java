@@ -593,6 +593,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         ModelEntry curr = rule;
         Set<String> seen = new HashSet<>();
         JPopupMenu menu = new JPopupMenu();
+        int iters = 0;
         while (curr != null && curr.element() != null && !curr.element().isRoot() && menu.getComponentCount() < 7) {
             String name = curr.element().name(prx);
             if (!seen.contains(name) && !curr.isError()) {
@@ -607,7 +608,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                     }
                 });
                 menu.add(item);
-                curr = syntaxModel.parent(curr);
+            }
+            curr = syntaxModel.parent(curr);
+            if (iters++ >= 14) {
+                break;
             }
         }
         menu.show(target, x, y);
@@ -898,8 +902,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
         long now = System.currentTimeMillis();
         long sinceLastWakeup = now - lastWakeup;
         // Only do this if we may be approaching JFS expiration
-        if (sinceLastWakeup > RebuildSubscriptions.JFS_EXPIRATION / 3) {
-            sinceLastWakeup = now;
+        if (sinceLastWakeup > RebuildSubscriptions.JFS_EXPIRATION / 2) {
+            lastWakeup = now;
             PriorityWakeup.runImmediately(() -> {
                 if (RebuildSubscriptions.touched(grammarEditorClone.getDocument())) {
                     reallyReparseGrammar();
@@ -1015,6 +1019,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     private boolean docPropertySet;
+
     @Override
     public void accept(Document a, EmbeddedAntlrParserResult res) {
         ParseTreeProxy newProxy = res.proxy();

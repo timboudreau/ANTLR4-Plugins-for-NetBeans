@@ -290,8 +290,9 @@ public class AntlrProxies {
         }
 
         private static final Ambiguity[] EMPTY_AMBIGUITIES = new Ambiguity[0];
+
         static Ambiguity[] toArray(Set<Ambiguity> all) {
-            if (all.isEmpty()){
+            if (all.isEmpty()) {
                 return EMPTY_AMBIGUITIES;
             }
             Ambiguity[] ambs = all.toArray(new Ambiguity[all.size()]);
@@ -2060,37 +2061,70 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
     }
 
     /**
-     * An ambiguity reported by the parser.
+     * An ambiguity reported by the parser; IMPORTANT: The bit set Antlr reports
+     * as "ambiguous alternatives" does NOT correspond 1:1 with "alternative"
+     * elements in the grammar; each bit is the index of a Transition in the
+     * ATNState for the rule being processed, with 1 added to it; these MIGHT
+     * correspond 1:1 with alternatives, but FREQUENTLY (as in "blah? foo
+     * (bar)*?" is one alternative in a grammar and two in its ATN.
      */
     public static final class Ambiguity implements Comparable<Ambiguity> {
 
         private final BitSet conflictingAlternatives;
-        private final int decision;
-        private final int ruleIndexAndOuterAlt;
+        private final long decisionAndDFAIndex;
+        private final long stateNumberRuleIndexAndOuterAlt;
         private final long startStop;
 
         public Ambiguity(int decision, int ruleIndex, BitSet conflictingAlternatives,
-                int startIndex, int stopIndex, int outerAlt) {
-            this.decision = decision;
+                int startIndex, int stopIndex, int outerAlt, int dfaIndex,
+                int stateNumber) {
+            this.decisionAndDFAIndex = pack(decision, dfaIndex);
             this.conflictingAlternatives = conflictingAlternatives;
-            ruleIndexAndOuterAlt = packShort(ruleIndex, outerAlt);
+            int ruleIndexAndOuterAlt = packShort(ruleIndex, outerAlt);
+            stateNumberRuleIndexAndOuterAlt = pack(stateNumber, ruleIndexAndOuterAlt);
             startStop = pack(startIndex, stopIndex);
         }
 
+        /**
+         * The bit set of conflicating "alternatives" - which will correspond
+         * 1:1 to |-separated alternatives in a grammar *unless* either
+         * left-recursion or non-greedy optional values are present, in which
+         * case you have a puzzle to solve.
+         *
+         * @return A bit set of alternatives
+         */
         public BitSet conflictingAlternatives() {
             return conflictingAlternatives;
         }
 
+        private int ruleIndexAndOuterAlt() {
+            return unpackRight(stateNumberRuleIndexAndOuterAlt);
+        }
+
+        public int state() {
+            return unpackLeft(stateNumberRuleIndexAndOuterAlt);
+        }
+
         public int ruleIndex() {
-            return unpackShortLeft(ruleIndexAndOuterAlt);
+            return unpackShortLeft(ruleIndexAndOuterAlt());
         }
 
         public int outerAlternative() {
-            return unpackShortRight(ruleIndexAndOuterAlt);
+            return unpackShortRight(ruleIndexAndOuterAlt());
         }
 
         public int decision() {
-            return decision;
+            return unpackLeft(decisionAndDFAIndex);
+        }
+
+        /**
+         * The index into the interpreter's array of DFAs of the DFA at this
+         * ambiguity.
+         *
+         * @return The index into that array
+         */
+        public int dfaIndex() {
+            return unpackRight(decisionAndDFAIndex);
         }
 
         /**
@@ -2100,9 +2134,11 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
          * @return An id
          */
         public String identifier() {
-            return Long.toString(startStop, 36) + ":" + Integer.toString(ruleIndexAndOuterAlt, 36)
-                    + ":" + Integer.toString(decision, 36)
-                    + Arrays.toString(conflictingAlternatives.toLongArray());
+            return Long.toString(startStop, 36) + ":"
+                    + Long.toString(stateNumberRuleIndexAndOuterAlt, 36)
+                    + ":" + Integer.toString(decision(), 36)
+                    + Arrays.toString(conflictingAlternatives.toLongArray())
+                    + unpackRight(decisionAndDFAIndex);
         }
 
         public int start() {
@@ -2125,8 +2161,9 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         @Override
         public int hashCode() {
             int hash = 7;
-            hash = 59 * hash + this.decision;
-            hash = 13171 * hash + this.ruleIndexAndOuterAlt;
+            hash = 59 * hash + this.decision();
+            hash = 13171 * hash + (int) (stateNumberRuleIndexAndOuterAlt
+                    ^ (11 * (stateNumberRuleIndexAndOuterAlt >> 32)));
             hash = 59 * hash + (int) (this.startStop
                     ^ (31891 * (startStop >> 32)));
             hash = 59 * hash + Objects.hashCode(this.conflictingAlternatives);
@@ -2141,17 +2178,18 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                 return false;
             }
             final Ambiguity other = (Ambiguity) obj;
-            return decision == other.decision
+            return decisionAndDFAIndex == other.decisionAndDFAIndex
                     && startStop == other.startStop
-                    && ruleIndexAndOuterAlt == other.ruleIndexAndOuterAlt
+                    && stateNumberRuleIndexAndOuterAlt == other.stateNumberRuleIndexAndOuterAlt
                     && conflictingAlternatives.equals(other.conflictingAlternatives);
         }
 
         @Override
         public String toString() {
-            return "Ambiguity(" + " / " + ruleIndex() + " / " + decision
+            return "Ambiguity(" + " / " + ruleIndex() + " / " + decision()
                     + " @ " + start() + ":" + stop() + " alts: "
-                    + conflictingAlternatives + ")";
+                    + conflictingAlternatives
+                    + " dfaIndex " + dfaIndex() + ")";
         }
     }
 

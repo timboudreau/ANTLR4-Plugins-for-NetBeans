@@ -36,7 +36,7 @@ limitations under the License.
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
         <mastfrog.version>2.7.0</mastfrog.version>
-        <mastfrog.util.collections.version>2.7.0.5</mastfrog.util.collections.version>
+        <mastfrog.util.collections.version>2.7.0.6</mastfrog.util.collections.version>
         <mastfrog.util.graph.version>2.7.0.4</mastfrog.util.graph.version>
         <mastfrog.function.version>2.7.0.3</mastfrog.function.version>
         <mastfrog.subscriptions.version>2.7.0.2</mastfrog.subscriptions.version>

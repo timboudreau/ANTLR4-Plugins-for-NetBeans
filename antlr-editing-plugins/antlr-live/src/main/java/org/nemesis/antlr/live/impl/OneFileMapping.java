@@ -90,24 +90,30 @@ final class OneFileMapping {
     }
 
     void recheckMapping() {
+        LOG.log(Level.FINE, "Recheck mapping {0}", path);
         JFSMappingMode mode = mappingMode();
         JFS jfs = jfsSupplier.get();
         if (jfs == null && mode != JFSMappingMode.UNMAPPED) {
+            LOG.log(Level.FINER, "Null jfs, switch {0} to unmapped", path);
             setMappingMode(JFSMappingMode.UNMAPPED, null);
         } else if (jfs != null) {
             JFSFileObject fo = path.resolve(jfs);
             if (fo == null) {
+                LOG.log(Level.FINER, "Null fileobject, temp switch {0} to unmapped", path);
                 // File was cleaned
                 mapping = JFSMappingMode.UNMAPPED;
             }
             Document doc = document();
             if (doc == null) {
                 if (file.isValid()) {
+                    LOG.log(Level.FINER, "No doc, file valid, switch {0} to file mode", path);
                     setMappingMode(JFSMappingMode.FILE, null);
                 } else {
+                    LOG.log(Level.FINER, "No doc, file NOT valid, switch {0} to unmapped", path);
                     setMappingMode(JFSMappingMode.UNMAPPED, null);
                 }
             } else {
+                LOG.log(Level.FINER, "No doc, file valid, switch {0} mode to document ", path);
                 setMappingMode(JFSMappingMode.DOCUMENT, doc);
             }
         }
@@ -201,10 +207,12 @@ final class OneFileMapping {
                         throw new IllegalStateException("Not a disk file: " + file);
                     }
                     Charset charset = FileEncodingQuery.getEncoding(file);
+                    LOG.log(Level.FINEST, "Masquerade file for {0}", path);
                     jfs.masquerade(f.toPath(), path.location(), path.path(), charset);
                     mappedDocument = null;
                     break;
                 case DOCUMENT:
+                    LOG.log(Level.FINEST, "Masquerade doc for {0}", path);
                     jfs.masquerade(newDocument, path.location(), path.path());
                     mappedDocument = new WeakReference<>(newDocument);
                     break;

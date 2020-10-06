@@ -67,12 +67,12 @@ public final class AntlrGeneratorAndCompiler {
         if (!ANTLR_GENERATOR_VERBOSE_COMPILE) {
             compileBuilder.withMaxErrors(1).setOptions(
                     new JavacOptions()
-                            .withDebugInfo(JavacOptions.DebugInfo.NONE)
+                            .withDebugInfo(JavacOptions.DebugInfo.ALL)
             );
         } else {
             compileBuilder.setOptions(
                     new JavacOptions()
-                            .withDebugInfo(JavacOptions.DebugInfo.LINES)
+                            .withDebugInfo(JavacOptions.DebugInfo.ALL)
                             .onlyRebuildNewerSources(false)
                             .verbose()
                             .withMaxErrors(10)

@@ -123,7 +123,7 @@ public class CompileSingleTest {
                                 .withCharset(jfs.encoding()))
                         .withMaxErrors(1000)
                         .withMaxWarnings(1000)
-                        .withDebugInfo(JavacOptions.DebugInfo.VARS)
+                        .withDebugInfo(JavacOptions.DebugInfo.ALL)
                         .compilerOutput(wr)
                         .runAnnotationProcessors(false)
                         .compileSingle(LATER);

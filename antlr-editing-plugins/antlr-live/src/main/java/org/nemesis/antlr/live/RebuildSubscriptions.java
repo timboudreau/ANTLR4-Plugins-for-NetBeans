@@ -65,6 +65,18 @@ public final class RebuildSubscriptions {
     }
 
     /**
+     * Get the most recent generation result for a file, or create one if
+     * possible.
+     *
+     * @param fo A file object for an antlr grammar
+     * @return A generation result or null if the file is unparsed or
+     * broken
+     */
+    public static AntlrGenerationResult recentGenerationResult(FileObject fo) {
+        return AntlrGenerationSubscriptionsImpl.instance().recentGenerationResult(fo);
+    }
+
+    /**
      * Determine if a given file path + grammar tokens hash combination has been
      * temporarily blacklisted from Antlr in-memory generation because the
      * generation results have been unusable (Antlr generation fails

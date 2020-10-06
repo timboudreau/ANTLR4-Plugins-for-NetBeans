@@ -29,7 +29,7 @@ import javax.tools.JavaCompiler;
  *
  * @author Tim Boudreau
  */
-public class JavacOptions {
+public final class JavacOptions {
 
     private static final Logger LOG = Logger.getLogger(JavacOptions.class.getName());
 
@@ -67,7 +67,7 @@ public class JavacOptions {
 
     public static JavacOptions fastDefaults() {
         return new JavacOptions()
-                .withDebugInfo(JavacOptions.DebugInfo.NONE)
+                .withDebugInfo(JavacOptions.DebugInfo.ALL)
                 .onlyRebuildNewerSources(false)
                 .sourceAndTargetLevel(8)
                 .runAnnotationProcessors(false)
@@ -76,7 +76,7 @@ public class JavacOptions {
 
     public static JavacOptions verboseDefaults() {
         return new JavacOptions()
-                .withDebugInfo(JavacOptions.DebugInfo.LINES)
+                .withDebugInfo(JavacOptions.DebugInfo.ALL)
                 .onlyRebuildNewerSources(false)
                 .sourceAndTargetLevel(8)
                 .runAnnotationProcessors(false)
@@ -182,7 +182,7 @@ public class JavacOptions {
     }
 
     public enum DebugInfo {
-        NONE, LINES, VARS, SOURCE;
+        NONE, LINES, VARS, SOURCE, ALL;
 
         public String toString() {
             return name().toLowerCase();
@@ -225,7 +225,13 @@ public class JavacOptions {
             options.add("-XDsuppressAbortOnBadClassFile");
         }
         // performance - disable debug info
-        options.add("-g:" + debug.toString());
+        switch (debug) {
+            case ALL:
+                options.add("-g");
+                break;
+            default:
+                options.add("-g:" + debug.toString());
+        }
         if (!warn) {
             options.add("-nowarn");
         }

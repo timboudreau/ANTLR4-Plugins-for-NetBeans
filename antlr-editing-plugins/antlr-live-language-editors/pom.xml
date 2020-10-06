@@ -123,6 +123,7 @@ limitations under the License.
                     <trimStackTrace>false</trimStackTrace>
                     <argline>--illegal-access=permit</argline>
                     <systemPropertyVariables>
+                        <java.awt.headless>false</java.awt.headless>
                         <antlr.output.enabled>true</antlr.output.enabled>
                         <unit.test>true</unit.test>
                         <forkNumber>${surefire.forkNumber}</forkNumber>
@@ -141,6 +142,10 @@ limitations under the License.
             <groupId>org.netbeans.api</groupId>
             <artifactId>org-netbeans-api-annotations-common</artifactId>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.netbeans.api</groupId>
+            <artifactId>org-netbeans-api-progress</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -189,6 +194,10 @@ limitations under the License.
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>extraction-data-models</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>swing-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>org.netbeans.api</groupId>

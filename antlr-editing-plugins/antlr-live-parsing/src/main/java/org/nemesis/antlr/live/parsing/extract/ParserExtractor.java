@@ -176,7 +176,7 @@ public final class ParserExtractor {
                                     // would drag in a bunch of dependencies we have
                                     // to load in our lockless isolating classloader,
                                     // so do it the hard way
-                                    if (cursor > lineEnds.length) {
+                                    if (cursor >= lineEnds.length) {
                                         lineEnds = Arrays.copyOf(lineEnds, lineEnds.length * 2);
                                     }
                                     lineEnds[cursor++] = i;
@@ -244,7 +244,7 @@ public final class ParserExtractor {
                     org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeBuilder //parser
                             bldr = proxies.treeBuilder(); //parser
                     RuleTreeVisitor v = new RuleTreeVisitor(bldr, cancelled); //parser
-                    String startRuleMethodName = DummyLanguageParser.ruleNames[ruleIndex].replace("-", "_"); //parser
+                    String startRuleMethodName = DummyLanguageParser.ruleNames[ruleIndex].replace('-', '_'); //parser
                     Method method = DummyLanguageParser.class.getMethod(startRuleMethodName); //parser
                     ParseTree pt = (ParseTree) method.invoke(parser); //parser
                     pt.accept(v); //parser
@@ -387,6 +387,8 @@ public final class ParserExtractor {
             if (!collectAmbiguities) { //parser
                 return; //parser
             } //parser
+            DFA[] dfas = parser.getInterpreter().decisionToDFA; //parser
+            int dfaIndex = Arrays.asList(dfas).indexOf(dfa); //parser
             ParserRuleContext ruleContext = parser.getContext(); //parser
             int alt = -1; //parser
             if (ruleContext != null) { //parser
@@ -394,13 +396,14 @@ public final class ParserExtractor {
             } //parser
             int decision = dfa.decision; //parser
             int ruleIndex = dfa.atnStartState.ruleIndex; //parser
+            int stateNumber = dfa.atnStartState.stateNumber; //parser
             if (conflictingAlternatives == null) { //parser
                 conflictingAlternatives = atncs.getAlts(); //parser
             } //parser
             org.nemesis.antlr.live.parsing.extract.AntlrProxies.Ambiguity ambig //parser
                     = new org.nemesis.antlr.live.parsing.extract.AntlrProxies.Ambiguity( //parser
                             decision, ruleIndex, conflictingAlternatives, //parser
-                            startIndex, stopIndex, alt); //parser
+                            startIndex, stopIndex, alt, dfaIndex, stateNumber); //parser
             proxies.onAmbiguity(ambig); //parser
         }
 

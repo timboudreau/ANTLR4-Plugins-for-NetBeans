@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language;
 
+import org.nemesis.swing.RotatingColors;
 import com.mastfrog.function.TriConsumer;
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.range.IntRange;
@@ -71,6 +72,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.Position;
+import javax.swing.text.Segment;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
@@ -82,6 +84,7 @@ import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.live.language.AdhocHighlighterManager.HighlightingInfo;
 import org.nemesis.antlr.live.language.AlternativesExtractors.AlternativeKey;
 import static org.nemesis.antlr.live.language.AlternativesExtractors.OUTER_ALTERNATIVES_WITH_SIBLINGS;
+import org.nemesis.antlr.live.language.ambig.AmbiguityAnalyzer;
 import org.nemesis.antlr.live.parsing.EmbeddedParserFeatures;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.Ambiguity;
@@ -511,6 +514,10 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
 
                 addHighlightsAvoidingCrossingNewlines(amb, warn, semantics, bag, lineDoc);
 
+                if (fixen.hasFixes()) {
+                    fixen.add(new AnalyzeFix(semantics, doc, amb));
+                }
+
                 Fix fix = fixen.commit();
 
                 if (fix != null) {
@@ -527,6 +534,54 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
             } catch (BadLocationException ble) {
                 Logger.getLogger(AdhocErrorHighlighter.class.getName()).log(
                         Level.INFO, "BLE on ambiguity " + amb, ble);
+            }
+        }
+    }
+
+    @Messages("analyze=Analyze Ambiguities...")
+    final class AnalyzeFix implements Fix, Runnable {
+
+        Path grammarPath;
+        private final Document doc;
+        private final Ambiguity amb;
+
+        private AnalyzeFix(ParseTreeProxy semantics, Document doc, AntlrProxies.Ambiguity amb) {
+            grammarPath = semantics.grammarPath();
+            this.doc = doc;
+            this.amb = amb;
+        }
+
+        @Override
+        public String getText() {
+            return Bundle.analyze();
+        }
+
+        @Override
+        public ChangeInfo implement() throws Exception {
+            System.out.println("analyze fix implement");
+            mgr.threadPool().submit(this);
+            return null;
+        }
+
+        @Override
+        public void run() {
+            System.out.println("begin analysis - grammar file " + grammarPath);
+            FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarPath.toFile()));
+            AmbiguityAnalyzer ana = AmbiguityAnalyzer.create(fo);
+            System.out.println("have an analyzer");
+            Segment seg = new Segment();
+            doc.render(() -> {
+                try {
+                    doc.getText(0, doc.getLength(), seg);
+                } catch (BadLocationException ex) {
+                    Exceptions.printStackTrace(ex);
+                }
+            });
+            System.out.println("  got " + seg.length() + " chars");
+            if (seg.length() > 0) {
+                System.out.println("  send to analyzer");
+                ana.analyze(seg, amb.start(), amb.stop(), amb.conflictingAlternatives(),
+                        amb.decision(), amb.ruleIndex(), amb.state());
             }
         }
     }
@@ -583,6 +638,10 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
 
         public OuterFix(String text) {
             this.text = text;
+        }
+
+        boolean hasFixes() {
+            return fixen != null;
         }
 
         Fix commit() {

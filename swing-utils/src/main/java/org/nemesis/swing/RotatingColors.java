@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.nemesis.antlr.live.language;
+package org.nemesis.swing;
 
 import java.awt.Color;
 import java.util.function.Supplier;
@@ -22,13 +22,23 @@ import java.util.function.Supplier;
 /**
  * Provides continuously shifting, non repeating hues for differentiating
  * different ambiguity markers, using an uneven enough interval not to repeat
- * exactly without many iterations..
+ * exactly without many iterations.
  */
-class RotatingColors implements Supplier<Color> {
+public final class RotatingColors implements Supplier<Color> {
 
     private final float[] hsb = new float[]{0.625F, 0.625F, 0.625F};
-    private final int alpha = 87;
+    private final int alpha;
 
+    public RotatingColors() {
+        this(87);
+    }
+
+    public RotatingColors(int alpha) {
+        assert alpha >= 0 && alpha <= 255;
+        this.alpha = alpha;
+    }
+
+    @Override
     public Color get() {
         float h = hsb[0] + 0.57F;
         if (h > 1) {

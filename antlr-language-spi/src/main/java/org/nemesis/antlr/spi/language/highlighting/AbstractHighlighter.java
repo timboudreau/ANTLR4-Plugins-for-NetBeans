@@ -382,7 +382,7 @@ public abstract class AbstractHighlighter {
         }
 
         void deactivate() {
-            System.out.println( "DEACTIVATE " + identifier() );
+//            System.out.println( "DEACTIVATE " + identifier() );
             Document doc = ctx.getDocument();
             FileObject fo = NbEditorUtilities.getFileObject( doc );
             try {
@@ -404,7 +404,7 @@ public abstract class AbstractHighlighter {
         }
 
         void activate() {
-            System.out.println( "ACTIVATE " + identifier() );
+//            System.out.println( "ACTIVATE " + identifier() );
             Document doc = ctx.getDocument();
             FileObject fo = NbEditorUtilities.getFileObject( doc );
             if ( active ) {

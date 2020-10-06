@@ -40,6 +40,7 @@ import javax.swing.text.Document;
 import javax.swing.text.Segment;
 import javax.swing.text.StyledDocument;
 import org.nemesis.antlr.ANTLRv4Parser;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.extractiontypes.GrammarType;
 import org.nemesis.antlr.common.extractiontypes.RuleTypes;
 import org.nemesis.antlr.error.highlighting.HintsAndErrorsExtractors;
@@ -106,7 +107,7 @@ import org.openide.util.lookup.ServiceProvider;
 @ServiceProvider(service = AntlrHintGenerator.class)
 public final class UnusedRuleHintGenerator extends AntlrHintGenerator {
 
-    private final EditorAttributesFinder finder = new EditorAttributesFinder();
+    private final EditorAttributesFinder finder = EditorAttributesFinder.forMimeType(ANTLR_MIME_TYPE);
     private static final AttributeSet DEFAULT_UNUSED_ATTRIBUTES = AttributesUtilities.createImmutable(WaveUnderlineColor, Color.BLACK);
 
     @Override

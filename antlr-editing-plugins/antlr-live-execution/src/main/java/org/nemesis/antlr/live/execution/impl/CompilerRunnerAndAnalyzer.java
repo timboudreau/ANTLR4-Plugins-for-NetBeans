@@ -215,7 +215,7 @@ public abstract class CompilerRunnerAndAnalyzer<G> {
     protected JFSCompileBuilder configure(JFSCompileBuilder bldr, JFS over) {
         return bldr.withMaxErrors(1).setOptions(
                 JavacOptions.fastDefaults()
-                        .withDebugInfo(JavacOptions.DebugInfo.LINES)
+                        .withDebugInfo(JavacOptions.DebugInfo.ALL)
                         .runAnnotationProcessors(false)
                         .withCharset(over.encoding())
         ).runAnnotationProcessors(false)

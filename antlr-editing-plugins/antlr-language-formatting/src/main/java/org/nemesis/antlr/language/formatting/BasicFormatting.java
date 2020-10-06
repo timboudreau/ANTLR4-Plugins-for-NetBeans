@@ -154,8 +154,13 @@ public class BasicFormatting extends AbstractFormatter {
                 .format(spaceOrWrap.and(APPEND_SPACE));
 
         rules.onTokenType(ANTLRv4Lexer.NOT, DOT, LEXER_CHAR_SET)
-                .wherePreviousTokenTypeNot(LPAREN, LBRACE, NOT)
+                .wherePreviousTokenTypeNot(LPAREN, LBRACE, NOT, HDR_IMPRT_CONTENT, HDR_IMPRT_STATIC, IMPORT)
+                .whereModeNot(ANTLRv4Lexer.HeaderPrelude, ANTLRv4Lexer.HeaderImport, ANTLRv4Lexer.HeaderPackage, ANTLRv4Lexer.HeaderAction)
                 .format(spaceOrWrap);
+
+        rules.onTokenType(ANTLRv4Lexer.SEMI)
+                .whereMode(ANTLRv4Lexer.HeaderImport, ANTLRv4Lexer.HeaderPrelude, ANTLRv4Lexer.HeaderPackage, ANTLRv4Lexer.HeaderAction)
+                .format(APPEND_NEWLINE_AND_INDENT);
 
         rules.onTokenType(LEXCOM_PUSHMODE, LEXCOM_MORE, LEXCOM_POPMODE, LEXCOM_CHANNEL, LEXCOM_TYPE, LEXCOM_SKIP)
                 .wherePreviousTokenType(COMMA)

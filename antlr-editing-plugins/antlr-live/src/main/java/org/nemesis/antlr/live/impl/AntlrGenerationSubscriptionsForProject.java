@@ -27,6 +27,7 @@ import com.mastfrog.util.cache.MapCache;
 import com.mastfrog.util.collections.MapFactories;
 import com.mastfrog.util.collections.SetFactories;
 import com.mastfrog.util.path.UnixPath;
+import com.mastfrog.util.streams.Streams;
 import java.awt.EventQueue;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -55,6 +56,7 @@ import org.nemesis.antlr.ANTLRv4Lexer;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.ANTLRv4Parser.GrammarFileContext;
 import org.nemesis.antlr.common.AntlrConstants;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.common.ShutdownHooks;
 import org.nemesis.antlr.live.BrokenSourceThrottle;
 import org.nemesis.antlr.live.ParsingUtils;
@@ -483,8 +485,45 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         return jfsMappedGrammarFilePath;
     }
 
+    /**
+     * Get or create a generation result for a grammar.
+     *
+     * @param fo A grammar
+     * @return
+     */
+    public AntlrGenerationResult recentGenerationResult(FileObject fo) {
+        assert fo != null;
+        assert ANTLR_MIME_TYPE.equals(fo.getMIMEType());
+        AntlrGenerationResult result = resultCache.get(fo);
+        if (result != null) {
+            if (!result.isUsable() || result.mainGrammar == null) {
+                result = null;
+            }
+        }
+        if (result == null) {
+            Optional<AntlrGenerator> genOpt = generatorCache.cachedValue(fo);
+            if (!genOpt.isPresent()) {
+                JFSCoordinates jfsMappedGrammarFilePath = coordinatesFor(fo);
+                if (jfsMappedGrammarFilePath == null) {
+                    LOG.log(Level.WARNING, "Cannot figure out any reasonable mapping for {0}.  Giving up.", fo.getPath());
+                    return null;
+                }
+                Path originalFile = ParsingUtils.toPath(fo);
+                Extraction extraction = NbAntlrUtils.extractionFor(fo);
+                AntlrGenerator generator = getOrCreateGenerator(fo, jfsMappedGrammarFilePath,
+                        originalFile, extraction);
+                generatorCache.put(fo, generator);
+                genOpt = Optional.of(generator);
+            }
+            result = genOpt.get().run(fo.getName(), Streams.nullPrintStream(), true);
+            if (result != null && result.isUsable()) {
+                resultCache.put(fo, result);
+            }
+        }
+        return result;
+    }
+
     private final ThrashChecker<String> thrashChecker = new ThrashChecker<>(40, 40000);
-    private AntlrGenerator generator;
 
     @Override
     protected void onReparse(ANTLRv4Parser.GrammarFileContext tree, String mimeType, Extraction extraction, ParseResultContents populate, Fixes fixes) throws Exception {
@@ -550,44 +589,11 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                     return;
                 }
                 UnixPath grammarPath = jfsMappedGrammarFilePath.path();
-                // Get all the files other than this one which are mapped into the JFS
+
+                AntlrGenerator generator = getOrCreateGenerator(fo, jfsMappedGrammarFilePath,
+                        originalFile, extraction);
+
                 Set<FileObject> siblings = mappingManager.siblingsOf(fo);
-                UnixPath parentPath = parentPath(jfsMappedGrammarFilePath.path());
-                // Run Antlr generation
-
-                Optional<AntlrGenerator> gen = generatorCache.cachedValue(fo);
-//                Optional<AntlrGenerator> gen = Optional.ofNullable(this.generator);
-                AntlrGenerator generator;
-                // We need to cache the generator, because it remembers the timestamps
-                // and hashes of the previous build and can detect when it doesn't need
-                // to run again
-                if (!gen.isPresent()) {
-                    AntlrGeneratorBuilder<AntlrGenerator> bldr = AntlrGenerator
-                            .builder(mappingManager::jfs)
-                            .withOriginalFile(originalFile)
-                            .withTokensHash(extraction.tokensHash())
-                            .grammarSourceInputLocation(jfsMappedGrammarFilePath.location())
-                            .withPathHints(mappingManager.mappings)
-                            .generateAllGrammars(true)
-                            .withInterceptor(this)
-                            .generateDependencies(true);
-                    if (!parentPath.isEmpty()) {
-                        bldr.generateIntoJavaPackage(parentPath.toString('.'));
-                    }
-                    generator = bldr.building(parentPath, AntlrGenerationSubscriptionsImpl.IMPORTS);
-                    generatorCache.put(fo, generator);
-                    this.generator = generator;
-                } else {
-                    generator = gen.get();
-//                    String pkg = parentPath.toString('.');
-//                    if (!pkg.equals(generator.packageName())) {
-//                        AntlrGenerator g = generator.toBuilder().generateIntoJavaPackage(pkg)
-//
-//                                ;
-//                        this.generator = generator = g;
-//                    }
-                }
-
                 String grammarName = jfsMappedGrammarFilePath.path().getFileName().toString();
                 FileObject foFinal = fo;
                 try {
@@ -708,6 +714,43 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                 LOG.log(Level.FINE, "No original file for {0}", fo);
             }
         });
+    }
+
+    private AntlrGenerator getOrCreateGenerator(FileObject fo, JFSCoordinates jfsMappedGrammarFilePath, Path originalFile, Extraction extraction) {
+        AntlrGenerator generator;
+        Optional<AntlrGenerator> gen = generatorCache.cachedValue(fo);
+        // Get all the files other than this one which are mapped into the JFS
+        UnixPath parentPath = parentPath(jfsMappedGrammarFilePath.path());
+        // Run Antlr generation
+        // We need to cache the generator, because it remembers the timestamps
+        // and hashes of the previous build and can detect when it doesn't need
+        // to run again
+        if (!gen.isPresent()) {
+            AntlrGeneratorBuilder<AntlrGenerator> bldr = AntlrGenerator
+                    .builder(mappingManager::jfs)
+                    .withOriginalFile(originalFile)
+                    .withTokensHash(extraction.tokensHash())
+                    .grammarSourceInputLocation(jfsMappedGrammarFilePath.location())
+                    .withPathHints(mappingManager.mappings)
+                    .generateAllGrammars(true)
+                    .withInterceptor(this)
+                    .generateDependencies(true);
+            if (!parentPath.isEmpty()) {
+                bldr.generateIntoJavaPackage(parentPath.toString('.'));
+            }
+            generator = bldr.building(parentPath, AntlrGenerationSubscriptionsImpl.IMPORTS);
+            generatorCache.put(fo, generator);
+        } else {
+            generator = gen.get();
+//                    String pkg = parentPath.toString('.');
+//                    if (!pkg.equals(generator.packageName())) {
+//                        AntlrGenerator g = generator.toBuilder().generateIntoJavaPackage(pkg)
+//
+//                                ;
+//                        this.generator = generator = g;
+//                    }
+        }
+        return generator;
     }
     private final ThreadLocal<ReentrantAntlrGenerationContext> ctx = new ThreadLocal();
 

@@ -84,8 +84,7 @@ OpenHr
 mode PREFORMATTED;
 
 PreformattedContent
-    :
-    ~[`]+
+    : ~[`]+
     | (BACKTICK BACKTICK ~[`]?)+;
 
 ClosePreformattedContent
@@ -307,24 +306,19 @@ fragment WORD_OR_NUMBER_LIKE
     : (LETTER | DIGIT | PUNCTUATION)+;
 
 fragment SAFE_PUNCTUATION
-    :
-    [><{}/\\:;,+!@.,$%^&\-='"?¿¡];
+    : [><{}/\\:;,+!@.,$%^&\-='"?¿¡];
 
 fragment PUNCTUATION
-    :
-    [\p{Punctuation}];
+    : [\p{Punctuation}];
 
 fragment LETTER
-    :
-    [\p{Alphabetic}];
+    : [\p{Alphabetic}];
 
 fragment DIGIT
-    :
-    [\p{Digit}];
+    : [\p{Digit}];
 
 fragment NON_HR
-    :
-    ~[ -*];
+    : ~[ -*];
 
 //    : '0'..'9';
 fragment ALL_WS
@@ -349,13 +343,11 @@ fragment SPECIAL_CHARS
     | STRIKE;
 
 fragment NON_WHITESPACE
-    :
-    ~[ \r\n\t];
+    : ~[ \r\n\t];
 
 //    :~[\p{White_Space}];
 fragment LINK_TEXT
-    :
-    [a-zA-Z0-9\-_$/\\\\.!?+=&^%#];
+    : [a-zA-Z0-9\-_$/\\\\.!?+=&^%#];
 
 fragment PRE
     :

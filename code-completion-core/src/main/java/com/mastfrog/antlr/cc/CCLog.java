@@ -63,12 +63,17 @@ final class CCLog {
         }
     }
 
+    private static Path outFile(String name) {
+        String tmp = System.getProperty("java.io.tmpdir");
+        return Paths.get(tmp, name);
+    }
+
     static void clear() {
         if (enabled) {
             lines.clear();
-            Path aFile = Paths.get("/tmp/a.log");
-            Path bFile = Paths.get("/tmp/b.log");
-            Path diffFile = Paths.get("/tmp/ab.diff");
+            Path aFile = outFile("a.log");
+            Path bFile = outFile("b.log");
+            Path diffFile = outFile("ab.diff");
             try {
                 FileUtils.deleteIfExists(aFile, bFile, diffFile);
             } catch (IOException ex) {

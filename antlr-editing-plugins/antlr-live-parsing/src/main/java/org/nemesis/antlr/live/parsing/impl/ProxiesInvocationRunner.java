@@ -70,6 +70,7 @@ import org.nemesis.jfs.isolation.IsolationClassLoader;
 import org.nemesis.jfs.isolation.IsolationClassLoaderBuilder;
 import org.nemesis.jfs.javac.CompileResult;
 import org.nemesis.jfs.javac.JFSCompileBuilder;
+import org.nemesis.jfs.javac.JavacOptions;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
@@ -150,6 +151,8 @@ public class ProxiesInvocationRunner extends InvocationRunner<EmbeddedParser, Ge
                     sb.append(err).append("\n");
                 }
             }
+            bldr.setOptions(
+                    new JavacOptions().sourceLevel(8).targetLevel(8).withCharset(jfs.encoding()).withDebugInfo(JavacOptions.DebugInfo.LINES));
             if (res.allGrammars != null && !res.allGrammars.isEmpty()) {
                 sb.append("\nGrammars:\n");
                 for (Grammar g : res.allGrammars) {

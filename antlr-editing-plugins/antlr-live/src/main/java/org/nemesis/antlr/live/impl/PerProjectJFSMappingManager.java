@@ -63,6 +63,7 @@ final class PerProjectJFSMappingManager {
     private volatile boolean dead;
     private final Runnable onProjectDeleted;
     private final BiConsumer<FileObject, FileObject> onFileReplaced;
+    private boolean inRecheck;
 
     PerProjectJFSMappingManager(Project project, JFSManager jfses, Runnable onProjectDeleted, BiConsumer<FileObject, FileObject> onFileReplaced) {
         this.project = project;
@@ -84,8 +85,13 @@ final class PerProjectJFSMappingManager {
     }
 
     void recheckMappings() {
-        for (Map.Entry<FileObject, OneFileMapping> e : mappingForFile.entrySet()) {
-            e.getValue().recheckMapping();
+        inRecheck = true;
+        try {
+            for (Map.Entry<FileObject, OneFileMapping> e : mappingForFile.entrySet()) {
+                e.getValue().recheckMapping();
+            }
+        } finally {
+            inRecheck = false;
         }
     }
 
@@ -297,7 +303,7 @@ final class PerProjectJFSMappingManager {
 
     boolean touch() {
         String oldId;
-        synchronized(this) {
+        synchronized (this) {
             oldId = lastJFS;
         }
         if (dead) {
@@ -326,6 +332,8 @@ final class PerProjectJFSMappingManager {
         }
         if (needInit) {
             initMappings();
+        } else if (!inRecheck) {
+            recheckMappings();
         }
         return result;
     }

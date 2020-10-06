@@ -54,7 +54,7 @@ import org.openide.util.RequestProcessor;
 public class AntlrImportedItemsHiglighter extends AbstractHighlighter implements Subscriber, Runnable {
 
     private Runnable unsubscriber;
-    private final EditorAttributesFinder attrsFinder = new EditorAttributesFinder();
+    private final EditorAttributesFinder attrsFinder = EditorAttributesFinder.forMimeType(ANTLR_MIME_TYPE);
     private final AtomicReference<Extraction> lastExtraction = new AtomicReference<>();
     private final RequestProcessor.Task task;
 

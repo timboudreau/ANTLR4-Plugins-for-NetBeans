@@ -21,6 +21,7 @@ import java.util.logging.Logger;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import org.nemesis.antlr.ANTLRv4Parser;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.error.highlighting.hints.util.EditorAttributesFinder;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.spi.language.ParseResultContents;
@@ -66,7 +67,7 @@ public abstract class AntlrHintGenerator {
      */
     protected final EditorAttributesFinder colorings() {
         if (attrsFinder == null) {
-            attrsFinder = new EditorAttributesFinder();
+            attrsFinder = EditorAttributesFinder.forMimeType(ANTLR_MIME_TYPE);
         }
         return attrsFinder;
     }

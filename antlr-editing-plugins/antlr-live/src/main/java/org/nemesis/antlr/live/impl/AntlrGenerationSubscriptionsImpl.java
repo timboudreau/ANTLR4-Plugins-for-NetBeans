@@ -27,6 +27,7 @@ import javax.swing.text.Document;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.live.BrokenSourceThrottle;
 import org.nemesis.antlr.live.Subscriber;
+import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.project.Folders;
 import org.nemesis.jfs.JFS;
 import org.nemesis.misc.utils.CachingSupplier;
@@ -62,6 +63,17 @@ public final class AntlrGenerationSubscriptionsImpl {
 
     public static AntlrGenerationSubscriptionsImpl instance() {
         return INSTANCE_SUPPLIER.get();
+    }
+
+    public AntlrGenerationResult recentGenerationResult(FileObject fo) {
+        Project p = FileOwnerQuery.getOwner(fo);
+        if (p != null && p != FileOwnerQuery.UNOWNED) {
+            Optional<AntlrGenerationSubscriptionsForProject> subs = subscribersByProject.cachedValue(p);
+            if (subs.isPresent()) {
+                return subs.get().recentGenerationResult(fo);
+            }
+        }
+        return null;
     }
 
     public static BrokenSourceThrottle throttle() {

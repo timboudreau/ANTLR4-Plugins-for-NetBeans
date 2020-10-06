@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.error.highlighting.hints.util;
+package org.nemesis.antlr.spi.language.highlighting;
 
 import java.awt.Color;
 import java.util.Collection;
@@ -35,6 +35,8 @@ import org.openide.util.LookupEvent;
 import org.openide.util.LookupListener;
 
 /**
+ * Utility for fetching font colorings, which tracks and updates itself if the colorings
+ * change, to simplify writing highlighters that need to consumer colorings.
  *
  * @author Tim Boudreau
  */
