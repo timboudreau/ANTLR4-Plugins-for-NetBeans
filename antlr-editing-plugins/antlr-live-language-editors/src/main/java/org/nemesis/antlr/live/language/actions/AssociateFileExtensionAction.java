@@ -17,12 +17,14 @@ package org.nemesis.antlr.live.language.actions;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import org.openide.awt.ActionID;
-import org.openide.awt.ActionReference;
-import org.openide.awt.ActionReferences;
-import org.openide.awt.ActionRegistration;
 import org.openide.loaders.DataObject;
 import org.openide.util.NbBundle;
+
+/*
+
+For mysterious reasons, the continuous build claims this class does not implement
+ActionListener, so manually adding the generated entries to the layer file
+and removing the annotation.
 
 @ActionID(
         category = "File",
@@ -36,6 +38,7 @@ import org.openide.util.NbBundle;
     @ActionReference(path = "Loaders/text/x-g4/Actions", position = 1250),
     @ActionReference(path = "Editors/text/x-g4/Popup", position = 990, separatorBefore = 885, separatorAfter = 1095)
 })
+*/
 @NbBundle.Messages({"associationsDialog=Add File Extension",
     "CTL_AssociateFileExtensionAction=Associate File Extension",
     "fileExtension=&File Name Extension",

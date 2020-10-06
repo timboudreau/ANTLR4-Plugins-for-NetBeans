@@ -1,3 +1,4 @@
 Manifest-Version: 1.0
+OpenIDE-Module-Layer: org/nemesis/antlr/live/language/editors/layer.xml
 OpenIDE-Module-Localizing-Bundle: org/nemesis/antlr/live/language/editors/Bundle.properties
 

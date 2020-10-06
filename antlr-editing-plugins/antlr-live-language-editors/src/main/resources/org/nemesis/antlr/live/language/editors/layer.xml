@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE filesystem PUBLIC "-//NetBeans//DTD Filesystem 1.2//EN" "http://www.netbeans.org/dtds/filesystem-1_2.dtd">
+<filesystem>
+    <folder name="Actions">
+        <folder name="File">
+            <file name="org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction.instance">
+                <!--org.nemesis.antlr.live.language.actions.AssociateFileExtensionAction-->
+                <attr bundlevalue="org.nemesis.antlr.live.language.actions.Bundle#CTL_AssociateFileExtensionAction" name="displayName"/>
+                <attr methodvalue="org.openide.awt.Actions.context" name="instanceCreate"/>
+                <attr name="type" stringvalue="org.openide.loaders.DataObject"/>
+                <attr methodvalue="org.openide.awt.Actions.inject" name="delegate"/>
+                <attr name="injectable" stringvalue="org.nemesis.antlr.live.language.actions.AssociateFileExtensionAction"/>
+                <attr name="selectionType" stringvalue="EXACTLY_ONE"/>
+                <attr boolvalue="false" name="noIconInMenu"/>
+            </file>
+        </folder>
+    </folder>
+    <folder name="Menu">
+        <folder name="File">
+            <file name="org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction.shadow">
+                <!--org.nemesis.antlr.live.language.actions.AssociateFileExtensionAction-->
+                <attr name="originalFile" stringvalue="Actions/File/org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction.instance"/>
+                <attr intvalue="1950" name="position"/>
+            </file>
+            <file name="org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction-separatorAfter.instance">
+                <!--org.nemesis.antlr.live.language.actions.AssociateFileExtensionAction-->
+                <attr name="instanceCreate" newvalue="javax.swing.JSeparator"/>
+                <attr intvalue="2025" name="position"/>
+            </file>
+            <file name="org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction-separatorBefore.instance">
+                <!--org.nemesis.antlr.live.language.actions.AssociateFileExtensionAction-->
+                <attr name="instanceCreate" newvalue="javax.swing.JSeparator"/>
+                <attr intvalue="1875" name="position"/>
+            </file>
+        </folder>
+    </folder>
+    <folder name="Loaders">
+        <folder name="text">
+            <folder name="x-g4">
+                <folder name="Actions">
+                    <file name="org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction.shadow">
+                        <!--org.nemesis.antlr.live.language.actions.AssociateFileExtensionAction-->
+                        <attr name="originalFile" stringvalue="Actions/File/org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction.instance"/>
+                        <attr intvalue="1250" name="position"/>
+                    </file>
+                </folder>
+            </folder>
+        </folder>
+    </folder>
+    <folder name="Editors">
+        <folder name="text">
+            <folder name="x-g4">
+                <folder name="Popup">
+                    <file name="org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction.shadow">
+                        <!--org.nemesis.antlr.live.language.actions.AssociateFileExtensionAction-->
+                        <attr name="originalFile" stringvalue="Actions/File/org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction.instance"/>
+                        <attr intvalue="990" name="position"/>
+                    </file>
+                    <file name="org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction-separatorAfter.instance">
+                        <!--org.nemesis.antlr.live.language.actions.AssociateFileExtensionAction-->
+                        <attr name="instanceCreate" newvalue="javax.swing.JSeparator"/>
+                        <attr intvalue="1095" name="position"/>
+                    </file>
+                    <file name="org-nemesis-antlr-live-language-actions-AssociateFileExtensionAction-separatorBefore.instance">
+                        <!--org.nemesis.antlr.live.language.actions.AssociateFileExtensionAction-->
+                        <attr name="instanceCreate" newvalue="javax.swing.JSeparator"/>
+                        <attr intvalue="885" name="position"/>
+                    </file>
+                </folder>
+            </folder>
+        </folder>
+    </folder>
+</filesystem>
