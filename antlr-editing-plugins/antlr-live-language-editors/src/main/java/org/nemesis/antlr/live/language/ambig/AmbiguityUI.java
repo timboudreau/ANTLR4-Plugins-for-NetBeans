@@ -16,6 +16,7 @@
 package org.nemesis.antlr.live.language.ambig;
 
 import com.mastfrog.util.collections.AtomicLinkedQueue;
+import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
 import java.awt.BorderLayout;
@@ -26,6 +27,7 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
@@ -45,8 +47,11 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
+import javax.swing.text.Position;
+import javax.swing.text.StyledDocument;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
+import org.antlr.runtime.CommonToken;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
@@ -57,13 +62,15 @@ import org.antlr.v4.tool.Grammar;
 import org.antlr.v4.tool.GrammarParserInterpreter;
 import org.nemesis.antlr.live.language.ambig.AmbiguityAnalyzer.STV;
 import org.nemesis.antlr.live.language.ambig.AmbiguityAnalyzer.STVProvider;
+import org.nemesis.editor.position.PositionFactory;
+import org.nemesis.editor.position.PositionRange;
 import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
-import org.openide.loaders.DataObjectNotFoundException;
 import org.openide.text.Line;
+import org.openide.text.PositionBounds;
 import org.openide.util.Exceptions;
 import org.openide.windows.Mode;
 import org.openide.windows.TopComponent;
@@ -96,7 +103,7 @@ public class AmbiguityUI implements STVProvider {
 
     @Override
     public AmbiguityAnalyzer.STV stv(FileObject grammarFile, Grammar grammar, int startIndex, int stopIndex,
-            BitSet bits, int ruleIndex, String ruleName, CharSequence offendingText) {
+            BitSet bits, int ruleIndex, String ruleName, CharSequence offendingText, IntMap<PositionRange> editSafeRegions) {
         PanelProvider pp = new PanelProvider(grammarFile, grammar, pnl -> {
             if (panel == null) {
                 panel = new JPanel(new GridBagLayout());
@@ -109,7 +116,7 @@ public class AmbiguityUI implements STVProvider {
             } else {
                 ensureVisible("Ambiguities - " + grammar.name);
             }
-        }, ruleName, offendingText, bits, startIndex, stopIndex);
+        }, ruleName, offendingText, bits, startIndex, stopIndex, editSafeRegions);
         return pp;
     }
 
@@ -166,9 +173,10 @@ public class AmbiguityUI implements STVProvider {
         private final int startToken;
         private final int stopToken;
         private final String targetRule;
+        private final IntMap<PositionRange> editSafeRegions;
 
         PanelProvider(FileObject grammarFile, Grammar grammar, Consumer<? super Container> onInit, String ruleName, CharSequence offendingText,
-                BitSet alternatives, int startToken, int stopToken) {
+                BitSet alternatives, int startToken, int stopToken, IntMap<PositionRange> editSafeRegions) {
             titleText = "<html>Ambiguity in <b>" + ruleName + "</b>  in <i>"
                     + Strings.elide(offendingText, 40) + "</i>";
             this.targetRule = ruleName;
@@ -179,6 +187,7 @@ public class AmbiguityUI implements STVProvider {
             rootNode.setUserObject(ruleName);
             this.startToken = startToken;
             this.stopToken = stopToken;
+            this.editSafeRegions = editSafeRegions;
             EventQueue.invokeLater(this::init);
         }
 
@@ -260,42 +269,69 @@ public class AmbiguityUI implements STVProvider {
             if (!t.isPopupTrigger() && t.getClickCount() == 1) {
                 ParseTree tree = clicked.tree();
                 if (tree instanceof ParserRuleContext) {
-                    Interval ival = grammar.getStateToGrammarRegion(((ParserRuleContext) tree).invokingState);
+                    PositionRange range = rangefor(clicked);
+                    if (range != null) {
+                        openRange(range);
+                    }
+                }
+            }
+        }
+
+        private PositionRange rangefor(PT pt) {
+            ParseTree tree = pt.tree();
+            if (tree instanceof ParserRuleContext) {
+                int invokingState = ((ParserRuleContext) tree).invokingState;
+                PositionRange range = editSafeRegions.get(invokingState);
+                if (range != null) {
+                    return range;
+                } else {
+                    // WTF
+                    System.out.println("NO RANGE FOR INVOKING STATE " + invokingState + " for " + tree);
+                    Interval ival = grammar.getStateToGrammarRegion(invokingState);
                     if (ival != null) {
-                        org.antlr.runtime.CommonToken start = (org.antlr.runtime.CommonToken) grammar.originalTokenStream.get(ival.a);
-                        org.antlr.runtime.CommonToken stop = (org.antlr.runtime.CommonToken) grammar.originalTokenStream.get(ival.b);
-                        if (stop == null) {
-                            stop = start;
-                        }
-                        int startOffset = start.getStartIndex();
-                        int endOffset = stop.getStopIndex() + 1;
                         try {
                             DataObject dob = DataObject.find(grammarFile);
-                            EditorCookie ck = dob.getLookup().lookup(EditorCookie.class);
-                            if (ck != null) {
-                                Document doc = ck.getDocument();
-
-                                JTextComponent jtc = EditorRegistry.findComponent(doc);
-                                if (jtc != null && jtc.isShowing()) {
-                                    jtc.setSelectionStart(startOffset);
-                                    jtc.setSelectionEnd(endOffset);
-                                    TopComponent tc = (TopComponent) NbEditorUtilities.getOuterTopComponent(jtc);
-                                    if (tc != null) {
-                                        tc.requestActive();
-                                        jtc.requestFocus();
-                                        return;
-                                    }
-                                }
-
-                                Line ln = NbEditorUtilities.getLine(doc, startOffset, false);
-                                ln.show(Line.ShowOpenType.REUSE_NEW, Line.ShowVisibilityType.FOCUS);
+                            EditorCookie ec = dob.getLookup().lookup(EditorCookie.class);
+                            if (ec != null) {
+                                StyledDocument doc = ec.openDocument();
+                                PositionFactory pf = PositionFactory.forDocument(doc);
+                                CommonToken first = (CommonToken) grammar.originalTokenStream.get(ival.a);
+                                CommonToken second = ival.a == ival.b ? first : (CommonToken) grammar.originalTokenStream.get(ival.a);
+                                int start = first.getStartIndex();
+                                int end = second.getStopIndex() + 1;
+                                PositionRange rng = pf.range(start, Position.Bias.Forward, end, Position.Bias.Forward);
+                                editSafeRegions.put(invokingState, rng);
+                                return rng;
                             }
-                        } catch (DataObjectNotFoundException ex) {
+                        } catch (IOException | BadLocationException | Error ex) {
                             Exceptions.printStackTrace(ex);
                         }
                     }
                 }
             }
+            return null;
+        }
+
+        private void openRange(PositionRange range) {
+            int startOffset = range.start();
+            int endOffset = range.end();
+            Document doc = range.document();
+            JTextComponent jtc = EditorRegistry.findComponent(doc);
+            if (jtc != null && jtc.isShowing()) {
+                jtc.setSelectionStart(startOffset);
+                jtc.setSelectionEnd(endOffset);
+                TopComponent tc = (TopComponent) NbEditorUtilities.getOuterTopComponent(jtc);
+                if (tc != null) {
+                    tc.requestActive();
+                    jtc.requestFocus();
+                    return;
+                }
+            }
+            // No editor for the grammar opened?  Ensure it is opened.
+            // Should only happen when a file extension has been associated
+            // and a file is being edited for it
+            Line ln = NbEditorUtilities.getLine(doc, startOffset, false);
+            ln.show(Line.ShowOpenType.REUSE_NEW, Line.ShowVisibilityType.FOCUS);
         }
 
         private void init() {
@@ -317,7 +353,7 @@ public class AmbiguityUI implements STVProvider {
                     }
                 } else {
                     components.bar.setIndeterminate(true);
-                    components.bar.setString("");
+                    components.bar.setString("Running");
                 }
             });
         }
@@ -420,12 +456,32 @@ public class AmbiguityUI implements STVProvider {
             doc.accept("\nDone.");
             EventQueue.invokeLater(() -> {
                 for (Map.Entry<PT, List<List<PT>>> e : pathsByTail.entrySet()) {
-                    CellsPanel cp = new CellsPanel(targetRule, e.getKey(), e.getValue(), this);
+                    CellsPanel cp = new CellsPanel(targetRule, e.getKey(), e.getValue(), this, this::tooltipForPT);
                     components.add(cp);
                 }
                 components.bar.setVisible(false);
                 components.status.setText("Done.");
             });
+        }
+
+        String tooltipForPT(PT pt) {
+            if (pt.isRuleTree()) {
+                int state = pt.invokingState();
+                if (state >= 0) {
+                    PositionRange rng = rangefor(pt);
+                    if (rng != null) {
+                        PositionBounds bds = PositionFactory.toPositionBounds(rng);
+                        if (bds != null) {
+                            try {
+                                return bds.getText();
+                            } catch (BadLocationException | IOException ex) {
+                                Exceptions.printStackTrace(ex);
+                            }
+                        }
+                    }
+                }
+            }
+            return null;
         }
     }
 

@@ -29,8 +29,8 @@ import org.openide.text.PositionBounds;
 
 /**
  * Abstracts away whether we're dealing with PositionRefs from
- * CloneableEditorSupport or Positions from NbDocument or document;
- * PositionRef preferred when available.
+ * CloneableEditorSupport or Positions from NbDocument or document; PositionRef
+ * preferred when available.
  *
  * @author Tim Boudreau
  */
@@ -114,5 +114,9 @@ public interface PositionFactory {
             return ((RefPositionIntRange) range).positionBounds();
         }
         return null;
+    }
+
+    public static PositionRange toPositionRange(PositionBounds bounds) {
+        return new RefPositionIntRange(bounds.getBegin(), bounds.getEnd());
     }
 }

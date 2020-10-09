@@ -28,6 +28,7 @@ import java.awt.event.MouseListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.Serializable;
+import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
@@ -64,7 +65,7 @@ import org.openide.util.NbBundle.Messages;
 })
 public final class AdhocColoringPanel extends JPanel implements ActionListener, PropertyChangeListener, MouseListener {
 
-    private final JButton toggle1 = new JButton(toggleHighlightAmbiguitiesAction());
+    private final JButton toggle1 = new JButton((Action) toggleHighlightAmbiguitiesAction());
     private final JButton toggle2 = new JButton(toggleHighlightParserErrorsAction());
     private final JButton toggle3 = new JButton(toggleHighlightLexerErrorsAction());
     private final JLabel label = new JLabel("<rule name>");

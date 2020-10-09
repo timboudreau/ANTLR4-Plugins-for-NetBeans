@@ -60,6 +60,7 @@ import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.compilation.AntlrGenerationAndCompilationResult;
 import org.nemesis.antlr.compilation.GrammarRunResult;
 import org.nemesis.antlr.live.ParsingUtils;
+import org.nemesis.antlr.live.RebuildSubscriptions;
 import static org.nemesis.antlr.live.language.AdhocErrorHighlighter.toggleHighlightAmbiguitiesAction;
 import static org.nemesis.antlr.live.language.AdhocErrorHighlighter.toggleHighlightLexerErrorsAction;
 import static org.nemesis.antlr.live.language.AdhocErrorHighlighter.toggleHighlightParserErrorsAction;
@@ -655,6 +656,7 @@ final class ErrorUpdater implements BiConsumer<Document, EmbeddedAntlrParserResu
                 NbAntlrUtils.invalidateSource(sampleFile);
                 DataObject grammarDob = DataObject.find(grammarFileObject);
                 EditorCookie ck = grammarDob.getLookup().lookup(EditorCookie.class);
+                RebuildSubscriptions.touched(editorPane.getDocument());
                 ParsingUtils.parse(ck.openDocument(), res -> {
                     ParsingUtils.parse(editorPane.getDocument());
                     AdhocMimeDataProvider.getDefault().gooseLanguage(editorPane.getContentType());

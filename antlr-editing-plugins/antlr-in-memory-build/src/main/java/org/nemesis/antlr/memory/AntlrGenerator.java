@@ -358,22 +358,14 @@ public final class AntlrGenerator {
     }
 
     private AntlrGenerationResult internalRun(String grammarFileName, PrintStream logStream, boolean generate) {
-//        System.out.println("RUN " + grammarFileName);
-//        System.out.println(listJFS());
         return Debug.runObject(this, "Generate " + grammarFileName + " - " + generate, () -> {
             logStream.println("Begin generation of '" + grammarFileName + "' generated=" + generate
                     + " generateAll? " + generateAll);
             List<ParsedAntlrError> errors = new ArrayList<>();
             Throwable thrown = null;
             int code = -1;
-//            Map<JFSFileObject, Long> modificationDates = new HashMap<>();
-//            Set<JFSCoordinates.Resolvable> files = new HashSet<>();
-//            JFSFileObject[] grammarFile = new JFSFileObject[1];
-//            long[] grammarFileLastModified = new long[]{0};
             Set<Grammar> grammars = new HashSet<>(12);
             Obj<Grammar> mainGrammar = Obj.create();
-//            Grammar[] mainGrammar = new Grammar[1];
-//            boolean[] success = new boolean[]{true};
             Bool success = Bool.create(true);
             Lng grammarFileLastModified = Lng.create();
             Obj<Map<JFSCoordinates, Set<JFSCoordinates>>> outputFiles = Obj.of(Collections.emptyMap());
@@ -402,7 +394,7 @@ public final class AntlrGenerator {
                             if (grammarFilePath == null) {
                                 success.set(false);
                                 throw new IOException("Could not resolve grammar file " + grammarFileName
-                                    + " in " + jfs.list(SOURCE_PATH, SOURCE_OUTPUT, CLASS_OUTPUT));
+                                    + " in JFS " + jfs.id() + " containing " + jfs.list(SOURCE_PATH, SOURCE_OUTPUT, CLASS_OUTPUT));
                             }
                             String grammarName = "--";
                             tool.generate_ATN_dot = opts.contains(AntlrGenerationOption.GENERATE_ATN);

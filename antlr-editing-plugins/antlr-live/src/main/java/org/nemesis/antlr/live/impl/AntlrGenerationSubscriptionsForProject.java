@@ -102,6 +102,9 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
 
     private static final Logger LOG = Logger.getLogger(AntlrGenerationSubscriptionsForProject.class.getName());
     private static final RequestProcessor svc = new RequestProcessor("antlr-project-events", 5);
+    private static final RequestProcessor generationSubscriptionsCleanup
+            = new RequestProcessor("generation-subscriptions-cleanup", 1, true);
+
     private final Subscribable<FileObject, Subscriber> subscribableDelegate;
     private final SubscribableNotifier<? super FileObject, ? super AntlrRegenerationEvent> dispatcher;
     private final SubscribersStore<FileObject, Subscriber> subscribersStore;
@@ -313,7 +316,9 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
 
     Project die() {
         mappingManager.die();
-        return mappingManager.project;
+        Project proj =  mappingManager.project;
+        AntlrGenerationSubscriptionsImpl.onDeath(proj, this);
+        return proj;
     }
 
     private void forceParse(FileObject file, String reason) {
@@ -393,25 +398,16 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
 
     @Override
     public void subscribe(FileObject key, Subscriber consumer) {
+        notDying();
         boolean isNew = !subscribersStore.subscribedKeys().contains(key);
         subscribableDelegate.subscribe(key, consumer);
-
         if (isNew) {
             ParseResultHook.register(key, this);
         }
-//        if (isNew) {
-//            ParseResultHook.register(key, this);
-//            svc.submit(() -> {
         if (ActivityPriority.get().isRealtime() || IS_TEST) {
             NbAntlrUtils.invalidateSource(key);
             forceParse(key, "Subscribe " + consumer);
         }
-//            });
-//        } else {
-//            svc.submit(() -> {
-//                doFakeOnSubscribeParse(key);
-//            });
-//        }
     }
 
     @Override
@@ -905,4 +901,34 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         }
     }
 
+    /**
+     * Called when the last subscriber is removed; since it is not uncommon for
+     * subscribers to be removed and re-added when switching tabs, we do not
+     * immediately nuke the JFS mappings of all of our files, but rather do so
+     * on a delay so we can be sure we're not nuking mappings another caller is
+     * about to use.
+     */
+    void prepareToDie() {
+        dieChecker.schedule(60000);
+    }
+
+    /**
+     * Called when anything susbcribes to abort killing off the JFS mappings.
+     */
+    void notDying() {
+        dieChecker.cancel();
+    }
+
+    private final RequestProcessor.Task dieChecker = generationSubscriptionsCleanup.create(new DieChecker());
+    class DieChecker implements Runnable {
+
+        @Override
+        public void run() {
+            if (hasNoSubscribers() & !Thread.interrupted()) {
+                System.out.println("Still no subscribers on " + AntlrGenerationSubscriptionsForProject.this
+                        + "; calling die() to remove mappings.");
+                die();
+            }
+        }
+    }
 }

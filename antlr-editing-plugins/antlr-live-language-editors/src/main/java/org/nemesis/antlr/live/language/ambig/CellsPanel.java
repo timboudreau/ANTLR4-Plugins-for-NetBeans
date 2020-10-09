@@ -15,8 +15,11 @@
  */
 package org.nemesis.antlr.live.language.ambig;
 
+import com.mastfrog.function.state.Obj;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
@@ -34,16 +37,22 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.swing.BorderFactory;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
-import org.antlr.v4.runtime.ParserRuleContext;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.StyleConstants;
+import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
+import org.nemesis.antlr.spi.language.highlighting.EditorAttributesFinder;
 import org.nemesis.swing.RotatingColors;
 import org.nemesis.swing.cell.TextCell;
 import org.nemesis.swing.cell.TextCellLabel;
+import org.netbeans.api.editor.settings.FontColorNames;
 import org.openide.util.NbBundle;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.Pair;
@@ -66,10 +75,10 @@ public class CellsPanel extends JPanel {
         "reachableMultiple=<html><b>{0}</b> can be reached multiple ways from <i>{1}</i>:"
     })
     public CellsPanel(String ruleName, PT target, List<List<PT>> paths) {
-        this(ruleName, target, paths, null);
+        this(ruleName, target, paths, null, null);
     }
 
-    public CellsPanel(String ruleName, PT target, List<List<PT>> paths, BiConsumer<MouseEvent, PT> onClick) {
+    public CellsPanel(String ruleName, PT target, List<List<PT>> paths, BiConsumer<MouseEvent, PT> onClick, Function<PT, String> toolTipSupplier) {
         super(new GridBagLayout());
         this.onClick = onClick;
         GridBagConstraints gbc = new GridBagConstraints();
@@ -82,6 +91,7 @@ public class CellsPanel extends JPanel {
         c1.weightx = 1;
         c1.weighty = 0;
         title.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, UIManager.getColor("controlDkShadow")));
+        innerPanel.setBorder(BorderFactory.createEmptyBorder(12, 5, 5, 5));
         add(title, c1);
 
         c1.gridy++;
@@ -102,16 +112,17 @@ public class CellsPanel extends JPanel {
         gbc.fill = GridBagConstraints.NONE;
         gbc.weighty = 1;
         gbc.weightx = 0;
-        addCellsFor(paths, 0, max, gbc, 0, new RotatingColors());
+        addCellsFor(paths, 0, max, gbc, 0, new RotatingColors(), toolTipSupplier);
     }
 
-    private void addCellsFor(List<List<PT>> paths, int start, int max, GridBagConstraints gbc, int depth, Supplier<Color> colors) {
+    private void addCellsFor(List<List<PT>> paths, int start, int max, GridBagConstraints gbc, int depth, Supplier<Color> colors, Function<PT, String> tooltips) {
         int ct = paths.size();
-        int startY = gbc.gridy;
-        gbc.gridx = start;
         gbc.fill = GridBagConstraints.NONE;
         gbc.weightx = 0;
+        Obj<TextCellLabel> firstTailCell = Obj.create();
         PT.commonalities(paths, (List<PT> commonHead, List<List<PT>> differences, List<PT> commonTail) -> {
+            int startY = gbc.gridy;
+            gbc.gridx = start;
             System.out.println("HEAD: " + commonHead);
             System.out.println("TAIL: " + commonTail);
             System.out.println("DIFFS SIZE " + differences.size());
@@ -125,7 +136,7 @@ public class CellsPanel extends JPanel {
             Color col = colors.get();
             if (diffItems == 0 && (commonHead.equals(commonTail))) {
                 for (PT pt : commonHead) {
-                    TextCellLabel lbl = cellFor(pt, true, col, true);
+                    JComponent lbl = cellFor(pt, true, col, true, tooltips);
                     innerPanel.add(lbl, gbc);
                     gbc.gridx++;
                 }
@@ -137,7 +148,10 @@ public class CellsPanel extends JPanel {
 
             TextCellLabel lastHeadCell = null;
             for (PT pt : commonHead) {
-                TextCellLabel lbl = lastHeadCell = cellFor(pt, true, col, true);
+                JComponent lbl = cellFor(pt, true, col, true, tooltips);
+                if (lbl instanceof TextCellLabel) {
+                    lastHeadCell = (TextCellLabel) lbl;
+                }
                 innerPanel.add(lbl, gbc);
                 gbc.gridx++;
             }
@@ -187,16 +201,16 @@ public class CellsPanel extends JPanel {
                     gbc.gridx = x + j;
                     Color c = colors.get();
                     PT p = differences.get(i).get(j);
-                    TextCellLabel lbl = cellFor(p, false, c, false);
+                    JComponent lbl = cellFor(p, false, c, false, tooltips);
                     if (j == 0 && containsEmpty) {
                         gbc.gridy++;
                     }
                     innerPanel.add(lbl, gbc);
-                    if (j == differences.get(i).size() - 1) {
-                        lastDiffCells.add(lbl);
+                    if (lbl instanceof TextCellLabel && j == differences.get(i).size() - 1) {
+                        lastDiffCells.add((TextCellLabel) lbl);
                     }
-                    if (j == 0) {
-                        firstDiffCells.add(lbl);
+                    if (j == 0 && lbl instanceof TextCellLabel) {
+                        firstDiffCells.add((TextCellLabel) lbl);
                     }
                 }
             }
@@ -205,32 +219,72 @@ public class CellsPanel extends JPanel {
                     connections.add(Pair.of(lastHeadCell, lb));
                 }
             }
-            TextCellLabel firstTailCell = null;
-            for (int i = 0; i < commonTail.size(); i++) {
-                int right = max - i;
-                PT pt = commonTail.get(commonTail.size() - (i + 1));
-                gbc.gridy = startY;
-                gbc.gridx = right;
-                TextCellLabel lbl = cellFor(pt, true, col, false);
-                innerPanel.add(lbl, gbc);
-                if (i == commonTail.size() - 1) {
-                    firstTailCell = lbl;
+            TextCellLabel tailCellOne = firstTailCell.get();
+            if (tailCellOne == null) {
+                for (int i = 0; i < commonTail.size(); i++) {
+                    int right = max - i;
+                    PT pt = commonTail.get(commonTail.size() - (i + 1));
+                    gbc.gridy = startY;
+                    gbc.gridx = right;
+                    JComponent lbl = cellFor(pt, true, col, false, tooltips);
+                    innerPanel.add(lbl, gbc);
+                    if (i == commonTail.size() - 1 && lbl instanceof TextCellLabel) {
+                        if (tailCellOne == null) {
+                            tailCellOne = (TextCellLabel) lbl;
+                            firstTailCell.set(tailCellOne);
+                        }
+                    }
                 }
             }
-            if (firstTailCell != null) {
+            if (tailCellOne != null) {
                 for (TextCellLabel lb : lastDiffCells) {
-                    connections.add(Pair.of(lb, firstTailCell));
+                    connections.add(Pair.of(lb, tailCellOne));
                 }
             }
-            if (containsEmpty && firstTailCell != null && lastHeadCell != null) {
-                connections.add(Pair.of(lastHeadCell, firstTailCell));
+            if (containsEmpty && tailCellOne != null && lastHeadCell != null) {
+                connections.add(Pair.of(lastHeadCell, tailCellOne));
             }
+            gbc.gridy = startY + differences.size() + 1;
         });
     }
 
+    private Font font;
+
+    private Font font() {
+        if (font == null) {
+            EditorAttributesFinder finder = EditorAttributesFinder.forMimeType(ANTLR_MIME_TYPE);
+            AttributeSet attrs = finder.apply(FontColorNames.DEFAULT_COLORING);
+            String fontName = null;
+            int size = 12;
+            if (attrs != null) {
+                fontName = StyleConstants.getFontFamily(attrs);
+                size = StyleConstants.getFontSize(attrs);
+                if (size == 12 || size == 13) {
+                    Font f = UIManager.getFont("controlFont");
+                    if (f != null) {
+                        size = f.getSize();
+                    }
+                }
+            }
+            System.out.println("ATTRS " + attrs);
+            font = new Font(fontName == null ? "Courier New" : fontName, Font.PLAIN, size);
+        }
+        return font;
+    }
+
+    private void applyFont(TextCell cell) {
+        cell.withFont(font());
+    }
+
     @Messages({"# {0} - altNumber", "alternativeNumber=Alternative {0}"})
-    private TextCellLabel cellFor(PT pt, boolean common, Color bg, boolean isHead) {
-        TextCell cell = new TextCell(pt.toString()).monospaced().pad(3);
+    private JComponent cellFor(PT pt, boolean common, Color bg, boolean isHead, Function<PT, String> toolTipSupplier) {
+        if (pt == null) {
+            return new JLabel("");
+        }
+        TextCell cell = new TextCell(pt.toString()).pad(3).topMargin(3);
+
+        applyFont(cell);
+
         if (!common) {
             cell.bold();
         }
@@ -242,12 +296,15 @@ public class CellsPanel extends JPanel {
             RectangularShape ell = new SHP();  //new RoundRectangle2D.Float(0, 0, 10, 10, 9, 9);
             cell.withBackground(bg, ell);
         }
+        cell.scaleFont(0.875);
         TextCellLabel lbl = new TextCellLabel(cell);
-        if (pt.tree() instanceof ParserRuleContext) {
-            ParserRuleContext prc = (ParserRuleContext) pt.tree();
-            lbl.setToolTipText(Bundle.alternativeNumber(prc.getAltNumber()));
+        if (toolTipSupplier != null) {
+            lbl.setToolTipText(toolTipSupplier.apply(pt));
+        } else if (pt.isRuleTree()) {
+            lbl.setToolTipText(Bundle.alternativeNumber(pt.altNumber()));
         }
         if (onClick != null) {
+            lbl.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
             lbl.addMouseListener(new PTLis(pt));
         }
         return lbl;
@@ -490,18 +547,29 @@ public class CellsPanel extends JPanel {
                     double dist = (abds.y + abds.height) - (bbds.y + bbds.height);
                     path.quadTo(abds.x + (abds.width / 2) + 3, bbds.y + bbds.height + (dist / 2),
                             bbds.x + 3, bbds.y + (bbds.height / 2) - voff);
+//                    path.curveTo(
+//                            abds.x + (abds.width) + 3, bbds.y + bbds.height + (dist),
+//                            abds.x + (abds.width / 2) + 3, bbds.y + bbds.height + (dist / 2),
+//                            bbds.x + 3, bbds.y + (bbds.height / 2) - voff);
                     break;
                 case BELOW:
-                    double dist2 = (bbds.y + bbds.height) - (abds.y + abds.height);
+                    double dist2 = (bbds.y + bbds.height) - (abds.y + (abds.height / 2));
                     if (bbds.x - (abds.width + abds.x) < 10) {
                         path.moveTo(abds.x + (abds.width / 2), abds.y + 2);
-                        path.curveTo(abds.x + (abds.width / 2), abds.y + (dist2 / 4),
-                                abds.x + (abds.width / 2) + 5, bbds.y + bbds.height + (dist2 / 4),
+                        path.curveTo(
+                                abds.x + (abds.width / 2) + 5, bbds.y + bbds.height,
+                                //                                abds.x + (abds.width / 2), abds.y + (dist2 / 4),
+                                bbds.x - ((bbds.x - abds.x) / 2), bbds.y + (bbds.height / 2),
                                 bbds.x + 3, bbds.y + (bbds.height / 2) - voff);
                         break;
                     } else {
                         path.moveTo(abds.x + abds.width, abds.y + (abds.height / 2) - voff);
-                        path.quadTo(bbds.x, bbds.y + bbds.height - (dist2 / 2), bbds.x + 3, bbds.y + (bbds.height / 2) - voff);
+//                        int of = 20;
+                        int of = ((abds.y - bbds.y) / 4);
+                        path.curveTo(
+                                bbds.x - ((abds.x + abds.width) / 10), abds.y + (abds.height / 2) - voff,
+                                bbds.x + of, bbds.y + bbds.height - (dist2),
+                                bbds.x + 3, bbds.y + (bbds.height / 2) - voff);
                         break;
                     }
                 default:

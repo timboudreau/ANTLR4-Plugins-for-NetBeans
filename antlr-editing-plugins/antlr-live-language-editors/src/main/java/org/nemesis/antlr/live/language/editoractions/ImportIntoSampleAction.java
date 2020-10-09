@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.live.language;
+package org.nemesis.antlr.live.language.editoractions;
 
 import com.mastfrog.function.state.Bool;
 import java.awt.Cursor;
@@ -38,6 +38,7 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.StyledDocument;
+import org.nemesis.antlr.live.language.PriorityWakeup;
 import org.nemesis.editor.ops.CaretInformation;
 import org.nemesis.editor.ops.CaretPositionCalculator;
 import org.nemesis.editor.ops.DocumentOperator;
@@ -58,9 +59,9 @@ import org.openide.util.NbPreferences;
  * @author Tim Boudreau
  */
 @Messages("import=Import File...")
-final class ImportIntoSampleAction extends AbstractAction implements ContextAwareAction {
+public final class ImportIntoSampleAction extends AbstractAction implements ContextAwareAction {
 
-    ImportIntoSampleAction() {
+    public ImportIntoSampleAction() {
         putValue("hideWhenDisabled", true);
         putValue(NAME, Bundle._import());
     }

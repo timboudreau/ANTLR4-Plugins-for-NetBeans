@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.nemesis.antlr.live.language;
+package org.nemesis.antlr.live.language.editoractions;
 
 import java.awt.event.ActionEvent;
 import javax.swing.AbstractAction;
@@ -21,6 +21,7 @@ import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.nemesis.antlr.live.language.AdhocErrorHighlighter;
 import org.nemesis.antlr.live.parsing.EmbeddedParserFeatures;
 import org.openide.util.NbBundle;
 import org.openide.util.NbBundle.Messages;
@@ -35,12 +36,12 @@ import org.openide.util.NbBundle.Messages;
     "SLL=Ignore Parser Context (SLL - fast, sometimes wrong)",
     "LL_EXACT_AMBIG_DETECTION=Exact Ambiguity Detection (slower but provides correct details)"
 })
-final class SetPredictionModeAction extends AbstractAction {
+public final class SetPredictionModeAction extends AbstractAction {
 
     private final PredictionMode mode;
 
     @SuppressWarnings("OverridableMethodCallInConstructor")
-    SetPredictionModeAction(PredictionMode mode) {
+    public SetPredictionModeAction(PredictionMode mode) {
         this.mode = mode;
         putValue(NAME, NbBundle.getMessage(SetPredictionModeAction.class, mode.name()));
         putValue(SELECTED_KEY, "_sel");

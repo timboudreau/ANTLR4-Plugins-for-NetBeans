@@ -17,6 +17,7 @@ package org.nemesis.antlr.live.preview;
 
 import org.nemesis.antlr.live.language.PriorityWakeup;
 import com.mastfrog.function.state.Int;
+import com.mastfrog.range.Range;
 import com.mastfrog.util.strings.Strings;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -115,6 +116,7 @@ import org.nemesis.data.SemanticRegions;
 import org.nemesis.data.named.NamedSemanticRegion;
 import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.debug.api.Debug;
+import org.nemesis.editor.util.EditorSelectionUtils;
 import org.nemesis.extraction.AttributedForeignNameReference;
 import org.nemesis.extraction.Attributions;
 import org.nemesis.extraction.Extraction;
@@ -777,22 +779,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     @SuppressWarnings("deprecation")
     private void centerRect(JTextComponent comp, int charOffset) {
-        try {
-            // XXX JDK9 use modelToView2D
-            Rectangle bds = comp.modelToView(charOffset);
-            Rectangle vis = comp.getVisibleRect();
-            int remainder = (bds.height - vis.height) / 2;
-            bds.y -= remainder;
-            bds.height += remainder;
-            bds.y = Math.max(0, bds.y);
-            bds.x = 0;
-            if (bds.y + bds.height > comp.getHeight()) {
-                bds.height = comp.getHeight() - bds.y;
-            }
-            comp.scrollRectToVisible(bds);
-        } catch (BadLocationException ex) {
-            Exceptions.printStackTrace(ex);
-        }
+        EditorSelectionUtils.centerTextRegion(comp, Range.of(charOffset, charOffset));
     }
 
     private void navigateToNearestExampleOf(String rule, boolean focus) {
@@ -998,11 +985,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 editorPane.setSelectionStart(Math.max(range[0], range[1] - 1));
                 editorPane.setSelectionEnd(range[0]);
             }
-            // XXX can't use modelToView2D until we can depend on JDK 10
-            Rectangle a = editorPane.getUI().modelToView(editorPane, range[0]);
-            Rectangle b = editorPane.getUI().modelToView(editorPane, range[1]);
-            a.add(b);
-            editorPane.scrollRectToVisible(a);
+            EditorSelectionUtils.centerTextRegion(editorPane,
+                    Range.of(range[0], range[1]));
             editorPane.requestFocusInWindow();
         } catch (BadLocationException ex) {
             LOG.log(Level.INFO, null, ex);

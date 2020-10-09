@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language;
 
+import org.nemesis.antlr.live.language.editoractions.ImportIntoSampleAction;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import java.io.IOException;

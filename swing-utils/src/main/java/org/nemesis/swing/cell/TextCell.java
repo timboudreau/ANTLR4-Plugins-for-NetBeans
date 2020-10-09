@@ -76,8 +76,10 @@ public class TextCell {
             return monospacedFont;
         }
         Font f = UIManager.getFont("EditorPane.font");
+
+        Font ctrl = UIManager.getFont("controlFont");
         // in a bare swing application, this happens
-        if ("Dialog".equals(f.getName())) {
+        if ("Dialog".equals(f.getName()) || ctrl != null && ctrl.getName().equals(f.getName())) {
             f = null;
         }
         if (f == null) {

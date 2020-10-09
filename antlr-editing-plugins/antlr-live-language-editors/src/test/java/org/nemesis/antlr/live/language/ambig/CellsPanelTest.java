@@ -66,6 +66,12 @@ public class CellsPanelTest {
                 p.add(PT.of(nm));
             }
         }
+
+        List<PT> last;
+        paths.add(last = new ArrayList<>());
+//        last.add(null);
+        last.add(PT.of("one"));
+
         paths.get(0).add(PT.of("this"));
         paths.get(0).add(PT.of("here"));
         paths.get(0).add(PT.of("thing"));
@@ -84,6 +90,27 @@ public class CellsPanelTest {
         paths.get(2).add(PT.of("thing"));
         paths.get(2).add(PT.of("is"));
         paths.get(2).add(PT.of("entirely"));
+
+        List<PT> more = new ArrayList<>();
+        paths.add(more);
+        more.add(PT.of("four"));
+        more.add(PT.of("five"));
+
+        more.add(PT.of("some"));
+        more.add(PT.of("stuff"));
+        more.add(PT.of("here"));
+
+        List<PT> moreMore = new ArrayList<>();
+        paths.add(moreMore);
+        moreMore.add(PT.of("four"));
+        moreMore.add(PT.of("five"));
+        moreMore.add(PT.of("woohoo"));
+
+        List<PT> moreMoreMore = new ArrayList<>();
+        paths.add(moreMoreMore);
+        moreMoreMore.add(PT.of("four"));
+        moreMoreMore.add(PT.of("five"));
+
 
         for (int i = 0; i < 3; i++) {
             String nm;

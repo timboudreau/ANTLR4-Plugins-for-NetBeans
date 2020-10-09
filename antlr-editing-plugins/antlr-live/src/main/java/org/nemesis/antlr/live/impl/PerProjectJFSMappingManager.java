@@ -68,6 +68,8 @@ final class PerProjectJFSMappingManager {
     PerProjectJFSMappingManager(Project project, JFSManager jfses, Runnable onProjectDeleted, BiConsumer<FileObject, FileObject> onFileReplaced) {
         this.project = project;
         this.jfses = jfses;
+        // Not read but need to hold a reference for listening to continue
+        // happening
         listenForProjectDeletion = new ProjectDeletionListener(project, this::deleted);
         this.onProjectDeleted = onProjectDeleted;
         this.onFileReplaced = onFileReplaced;
@@ -81,6 +83,12 @@ final class PerProjectJFSMappingManager {
         } finally {
             jfses.kill(project);
             dead = true;
+        }
+    }
+
+    void doubleCheckMapping(JFS jfs) {
+        for (Map.Entry<FileObject, OneFileMapping> e : mappingForFile.entrySet()) {
+            e.getValue().doubleCheckMapping(jfs);
         }
     }
 
@@ -315,6 +323,7 @@ final class PerProjectJFSMappingManager {
 
     JFS jfs() {
         if (dead) {
+            System.out.println("DEAD.");
             try {
                 return JFS.builder().build();
             } catch (IOException ex) {
@@ -332,8 +341,10 @@ final class PerProjectJFSMappingManager {
         }
         if (needInit) {
             initMappings();
-        } else if (!inRecheck) {
-            recheckMappings();
+        } else {
+            doubleCheckMapping(result);
+//        } else if (!inRecheck) {
+//            recheckMappings();
         }
         return result;
     }

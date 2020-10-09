@@ -43,8 +43,8 @@ import javax.swing.WindowConstants;
 
 /**
  * A label which can display "cells" of text that have different
- * font/color/background shape attributes.  For use as a Swing cell renderer,
- * use the subclass TextCellCellRenderer.
+ * font/color/background shape attributes. For use as a Swing cell renderer, use
+ * the subclass TextCellCellRenderer.
  *
  * @author Tim Boudreau
  */
@@ -142,7 +142,7 @@ public class TextCellLabel extends JComponent {
     @Override
     public void addNotify() {
         super.addNotify();
-        ensureNotRegisteredWithTooltipManagerIfNeeded();
+        ensureRegisteredWithTooltipManager();
     }
 
     @Override
@@ -172,7 +172,9 @@ public class TextCellLabel extends JComponent {
 
     private void ensureRegisteredWithTooltipManager() {
         if (!isCellRenderer() && isDisplayable()) {
-            ToolTipManager.sharedInstance().registerComponent(this);
+            if (useFullTextAsToolTip || getToolTipText() != null) {
+                ToolTipManager.sharedInstance().registerComponent(this);
+            }
         }
     }
 
@@ -301,9 +303,9 @@ public class TextCellLabel extends JComponent {
     }
 
     /**
-     * Set the displayed text.  This replaces the cell with one which
-     * retains color, shape, margin, padding and font settings, but not
-     * any child cells, with the text set to the passed text.
+     * Set the displayed text. This replaces the cell with one which retains
+     * color, shape, margin, padding and font settings, but not any child cells,
+     * with the text set to the passed text.
      *
      * @param text
      */
@@ -322,10 +324,10 @@ public class TextCellLabel extends JComponent {
     }
 
     /**
-     * Get the cell, resetting its coloring and all attributes of it -
-     * use this method when replacing the entire contents which may
-     * involve a sequence of child cells, to remove previously painted
-     * state (particularly useful in cell renderers).
+     * Get the cell, resetting its coloring and all attributes of it - use this
+     * method when replacing the entire contents which may involve a sequence of
+     * child cells, to remove previously painted state (particularly useful in
+     * cell renderers).
      *
      * @return The cell, with its contents and state cleared
      */
@@ -384,8 +386,7 @@ public class TextCellLabel extends JComponent {
                     .strikethrough();
         });
         cell.append("Wonderful", tx -> {
-            tx.scaleFont(0.5F).withBackground(Color.ORANGE, new RoundRectangle2D.Float(0, 0, 0, 0, 17, 14)).indent(10)
-                    ;
+            tx.scaleFont(0.5F).withBackground(Color.ORANGE, new RoundRectangle2D.Float(0, 0, 0, 0, 17, 14)).indent(10);
         });
         cell.append("plain", tx -> {
             tx.leftMargin(12).withBackground(Color.LIGHT_GRAY, new RoundRectangle2D.Float(0, 0, 0, 0, 17, 14));

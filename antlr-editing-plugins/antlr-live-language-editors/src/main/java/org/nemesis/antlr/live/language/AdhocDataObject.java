@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.language;
 
+import org.nemesis.antlr.live.language.editoractions.ImportIntoSampleAction;
 import java.awt.Image;
 import java.awt.event.ActionEvent;
 import java.beans.PropertyChangeEvent;

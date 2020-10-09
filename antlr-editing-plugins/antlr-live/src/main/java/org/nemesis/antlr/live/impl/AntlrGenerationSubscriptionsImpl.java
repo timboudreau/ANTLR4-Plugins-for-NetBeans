@@ -65,6 +65,17 @@ public final class AntlrGenerationSubscriptionsImpl {
         return INSTANCE_SUPPLIER.get();
     }
 
+    static void onDeath(Project proj, AntlrGenerationSubscriptionsForProject subs) {
+        instance()._onDeath(proj, subs);
+    }
+
+    private void _onDeath(Project proj, AntlrGenerationSubscriptionsForProject subs) {
+        Optional<AntlrGenerationSubscriptionsForProject> current = subscribersByProject.cachedValue(proj);
+        if (current.isPresent() && current.get() == subs) {
+            subscribersByProject.remove(proj);
+        }
+    }
+
     public AntlrGenerationResult recentGenerationResult(FileObject fo) {
         Project p = FileOwnerQuery.getOwner(fo);
         if (p != null && p != FileOwnerQuery.UNOWNED) {
@@ -160,15 +171,16 @@ public final class AntlrGenerationSubscriptionsImpl {
         AntlrGenerationSubscriptionsForProject subscribers = subscribersByProject.get(proj);
         subscribers.unsubscribe(grammarFile, reb);
         if (subscribers.hasNoSubscribers()) {
-            subscribersByProject.remove(subscribers.die());
+//            subscribersByProject.remove(subscribers.die());
+            subscribers.prepareToDie();
         }
     }
 
     private boolean _touched(Document doc) {
         FileObject fo = NbEditorUtilities.getFileObject(doc);
-        if (fo != null && fo.getMIMEType().equals(ANTLR_MIME_TYPE) ) {
+        if (fo != null && fo.getMIMEType().equals(ANTLR_MIME_TYPE)) {
             Project proj = FileOwnerQuery.getOwner(fo);
-            if (proj!= null && proj != FileOwnerQuery.UNOWNED) {
+            if (proj != null && proj != FileOwnerQuery.UNOWNED) {
                 AntlrGenerationSubscriptionsForProject subscribers = subscribersByProject.get(proj);
                 return subscribers.touched(fo, doc);
             }

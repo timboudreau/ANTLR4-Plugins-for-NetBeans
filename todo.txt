@@ -1,5 +1,7 @@
 
-Formatting disasterously reformats contextSuperClass options.
+Need to collect type(Foo) instances when extracting in lexer grammars, so we can hide those
+token ids (which will never really appear as such) in the grammar preview's syntax highlighting
+list.
 
 Preview sometimes sets its preferred size to wider than the main window.
 

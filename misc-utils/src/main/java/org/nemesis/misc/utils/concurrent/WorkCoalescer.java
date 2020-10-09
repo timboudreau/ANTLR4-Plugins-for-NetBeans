@@ -1,7 +1,17 @@
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+ * Copyright 2016-2019 Tim Boudreau, Frédéric Yvon Vinet
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.nemesis.misc.utils.concurrent;
 
@@ -38,10 +48,12 @@ public final class WorkCoalescer<T> {
         this(name, 20, 5);
     }
 
+    @SuppressWarnings("LeakingThisInConstructor")
     public WorkCoalescer(String name, int spins, int spinSleep) {
         this.spins = spins;
         this.spinSleep = spinSleep;
         mutricia = new Mutrix(name);
+        CoaWatchdog.register(this);
     }
 
     public String toString() {
@@ -187,6 +199,17 @@ public final class WorkCoalescer<T> {
 
         public boolean isOriginatingThread() {
             return Thread.currentThread().getId() == threadId;
+        }
+    }
+
+    boolean hasWaiters() {
+        return !mutricia.waiters.isEmpty();
+    }
+
+    void shake() {
+        if (hasWaiters() && idleMillis() > 30000) {
+            System.out.println("Release waiters on " + mutricia);
+            mutricia.releaseWaiters();
         }
     }
 
@@ -351,7 +374,8 @@ public final class WorkCoalescer<T> {
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder("Mutrix(");
+            StringBuilder sb = new StringBuilder("Mutrix(")
+                    .append(name).append(' ');
             int state = this.state;
             switch (state) {
                 case DISABLED:

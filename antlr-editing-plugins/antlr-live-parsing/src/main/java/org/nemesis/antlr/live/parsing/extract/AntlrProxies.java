@@ -60,6 +60,11 @@ import static org.nemesis.adhoc.mime.types.AdhocMimeTypes.loggableMimeType;
  * classloader find their way into an instance of ParseTreeProxy. But when
  * maintaining this class, the safe way is to add no methods that take Antlr
  * classes - just pass the primitive values of their fields.
+ * </p><p>
+ * Since there can be hundreds of thousands of instances of some of the types
+ * within this class (notably tokens and rule tree elements), they go to fairly
+ * extreme lengths not to hold any data that is present elsewhere, and to
+ * coalesce multiple numeric fields into single fields of larger types.
  * </p>
  *
  * @author Tim Boudreau
@@ -182,7 +187,7 @@ public class AntlrProxies {
 
         ProxyToken eof = new ProxyToken(-1, 0, 0, 0, 1, text.length(), text.length(), 0);
         ParseTreeElement root = new ParseTreeElement(ParseTreeElementKind.ROOT);
-        ParseTreeElement child = new RuleNodeTreeElement(0, 0, 0, 1, 1);
+        ParseTreeElement child = new RuleNodeTreeElement(0, 0, 0, 0, 1, 1);
         ProxyTokenType EOF_TYPE = new ProxyTokenType(-1, "EOF", "", "EOF");
         root.add(child);
         List<ProxyTokenType> tokenTypes = Arrays.asList(EOF_TYPE, textType, errorType);
@@ -758,6 +763,10 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
          */
         public ProxyTokenType tokenTypeForInt(int value) {
             return tokenTypes.get(value + 1);
+        }
+
+        public ProxyTokenType typeOf(ProxyToken tok) {
+            return tokenTypeForInt(tok.getType());
         }
 
         /**
@@ -1413,6 +1422,20 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         }
     }
 
+    /**
+     * Captures complete information about an Antlr token encountered while
+     * parsing, without directly referencing any Antlr classes, so it can be
+     * used in an isolating classloader that loads its own copy of Antlr
+     * without leaking classes and keeping the classloader alive, or causing
+     * ClassCastExceptions when touched by the parent classloader that has its
+     * own copy of the Antlr classes.
+     * <p>
+     * These can also be used to reconstruct a TokenSource from a ParseTreeProxy,
+     * in order to have a token stream which has had all semantic predicates
+     * invoked, which is impossible when running a lexer generated directly from
+     * a Grammar, since the predicates have not been compiled at that point.
+     * </p>
+     */
     public static final class ProxyToken implements Comparable<ProxyToken>, Serializable {
 
         static final long serialVersionUID = 2;
@@ -1486,10 +1509,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
                 return false;
             }
             int cp = getCharPositionInLine();
-            if (charOffset >= cp && charOffset < cp + length()) {
-                return true;
-            }
-            return false;
+            return charOffset >= cp && charOffset < cp + length();
         }
 
         public boolean contains(int position) {
@@ -1619,11 +1639,12 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             this.proxies = proxies;
         }
 
-        public ParseTreeBuilder addRuleNode(int ruleIndex, int alternative,
+        public ParseTreeBuilder addRuleNode(int ruleIndex, int alternative, int state,
                 int firstToken, int lastToken, int depth, Runnable run) {
             ParseTreeElement old = element;
             try {
-                element = new RuleNodeTreeElement(ruleIndex, alternative, firstToken, lastToken, depth);
+                element = new RuleNodeTreeElement(ruleIndex, alternative, state,
+                        firstToken, lastToken, depth);
                 proxies.addElement(element);
                 old.add(element);
                 run.run();
@@ -1784,37 +1805,79 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
         }
     }
 
+    /**
+     * Represents a single rule node in a tree of called rules to parse a
+     * document.
+     */
     public final static class RuleNodeTreeElement extends ParseTreeElement implements TokenAssociated {
 
         private final long startStop;
         private final int altDepth;
-        private final int ruleIndex;
+        private final long ruleIndexAndState;
 
-        public RuleNodeTreeElement(int ruleIndex, int alternative,
+        public RuleNodeTreeElement(int ruleIndex, int alternative, int state,
                 int startTokenIndex, int stopTokenIndex, int depth) {
             super(ParseTreeElementKind.RULE);
             altDepth = packShort(alternative, depth);
             this.startStop = pack(startTokenIndex, stopTokenIndex);
-            this.ruleIndex = ruleIndex;
+            this.ruleIndexAndState = pack(ruleIndex, state);
         }
 
+        /**
+         * Get the ATN state this rule node was invoked under - using the
+         * interval map in a Grammar, this can be mapped back to the exact
+         * character region in the grammar file that cause this rule to be
+         * triggered.
+         *
+         * @return
+         */
+        public int invokingState() {
+            return unpackRight(ruleIndexAndState);
+        }
+
+        /**
+         * Get the name of this rule; in order to minimize memory usage, it is
+         * stored once in the passed ParseTreeProxy.
+         *
+         * @param prx A proxy
+         * @return The name
+         */
         public String name(ParseTreeProxy prx) {
             return prx.ruleNameFor(this);
         }
 
+        /**
+         * The depth of this rule node up to the top of the parse tree.
+         *
+         * @return The depth, greater than or equal to 0
+         */
         @Override
         public int depth() {
             return unpackShortRight(altDepth);
         }
 
         public int ruleIndex() {
-            return ruleIndex;
+            return unpackLeft(ruleIndexAndState);
         }
 
+        /**
+         * Get the alternative the ParserRuleContext returned - this may be
+         * a meaningless value if the contextSuperClass option was not set
+         * to one which captures this value in the grammar (MemoryTool
+         * automatically injects this into grammars it generates).
+         *
+         * @return The alternative
+         */
         public int alternative() {
             return unpackShortLeft(altDepth);
         }
 
+        /**
+         * Get the index of the token (NOT the character position, the index
+         * into the tokens array) of a given token.
+         *
+         * @return A token index
+         */
         @Override
         public int startTokenIndex() {
             return unpackLeft(startStop);
@@ -1832,10 +1895,10 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
 
         @Override
         public int hashCode() {
+            long val = (11107L * startStop) ^ (ruleIndexAndState >>> 13);
             int hash = 7;
-            hash = 11107 * hash + ruleIndex;
-            hash += 73 * (startStop ^ (startStop << 32));
-            hash += 111 * altDepth;
+            hash += (startStop ^ (val << 32));
+            hash *= altDepth + 1;
             return hash;
         }
 
@@ -1848,7 +1911,7 @@ java.lang.ArrayIndexOutOfBoundsException: 2441
             }
             final RuleNodeTreeElement other = (RuleNodeTreeElement) obj;
             return startStop == other.startStop && altDepth == other.altDepth
-                    && ruleIndex == other.ruleIndex;
+                    && ruleIndexAndState == other.ruleIndexAndState;
         }
     }
 

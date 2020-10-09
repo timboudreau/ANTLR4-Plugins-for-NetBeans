@@ -89,6 +89,16 @@ final class OneFileMapping {
         return mappedDocument == null ? null : mappedDocument.get();
     }
 
+    synchronized void doubleCheckMapping(JFS jfs) {
+        JFSMappingMode mode = mappingMode();
+        JFSFileObject fo = path.resolve(jfs);
+        if (fo == null && mode != JFSMappingMode.UNMAPPED) {
+            Document doc = document();
+            mapping = JFSMappingMode.UNMAPPED;
+            setMappingMode(doc == null ? JFSMappingMode.FILE : JFSMappingMode.DOCUMENT, doc);
+        }
+    }
+
     void recheckMapping() {
         LOG.log(Level.FINE, "Recheck mapping {0}", path);
         JFSMappingMode mode = mappingMode();

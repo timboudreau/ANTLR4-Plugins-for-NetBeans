@@ -160,8 +160,11 @@ final class CaretTracker implements ChangeListener, PropertyChangeListener {
     }
 
     private void scrollTo(IndexAddressable.IndexAddressableItem region) {
+        if (!list.isDisplayable()) {
+            return;
+        }
         AWTEvent evt = EventQueue.getCurrentEvent();
-        if (evt.getSource() != list) {
+        if (evt == null || evt.getSource() != list) {
             ListModel<?> lm = list.getModel();
             int max = lm.getSize();
             int index = -1;
@@ -181,5 +184,4 @@ final class CaretTracker implements ChangeListener, PropertyChangeListener {
             }
         }
     }
-
 }

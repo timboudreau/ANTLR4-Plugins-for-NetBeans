@@ -26,20 +26,7 @@ import com.mastfrog.util.collections.IntMap;
 import com.mastfrog.util.collections.SetFactories;
 import com.mastfrog.util.strings.Escaper;
 import com.mastfrog.util.strings.Strings;
-import java.awt.BasicStroke;
 import java.awt.Color;
-import java.awt.Component;
-import java.awt.EventQueue;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Insets;
-import java.awt.Rectangle;
-import java.awt.RenderingHints;
-import java.awt.event.ActionEvent;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Line2D;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
@@ -57,20 +44,11 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.prefs.Preferences;
-import javax.swing.AbstractAction;
 import javax.swing.Action;
-import static javax.swing.Action.NAME;
-import static javax.swing.Action.SHORT_DESCRIPTION;
-import static javax.swing.Action.SMALL_ICON;
-import javax.swing.Icon;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JComponent;
-import javax.swing.JMenuItem;
 import javax.swing.UIManager;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-import javax.swing.text.JTextComponent;
 import javax.swing.text.Position;
 import javax.swing.text.Segment;
 import javax.swing.text.SimpleAttributeSet;
@@ -84,6 +62,7 @@ import org.nemesis.antlr.file.AntlrKeys;
 import org.nemesis.antlr.live.language.AdhocHighlighterManager.HighlightingInfo;
 import org.nemesis.antlr.live.language.AlternativesExtractors.AlternativeKey;
 import static org.nemesis.antlr.live.language.AlternativesExtractors.OUTER_ALTERNATIVES_WITH_SIBLINGS;
+import static org.nemesis.editor.util.EditorSelectionUtils.openAndSelectRange;
 import org.nemesis.antlr.live.language.ambig.AmbiguityAnalyzer;
 import org.nemesis.antlr.live.parsing.EmbeddedParserFeatures;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
@@ -102,7 +81,6 @@ import org.nemesis.data.named.NamedSemanticRegions;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.editor.position.PositionRange;
 import org.nemesis.extraction.Extraction;
-import org.netbeans.api.editor.EditorRegistry;
 import org.netbeans.api.editor.document.LineDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
 import org.netbeans.api.editor.mimelookup.MimeLookup;
@@ -110,6 +88,7 @@ import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.editor.settings.AttributesUtilities;
 import org.netbeans.api.editor.settings.EditorStyleConstants;
 import org.netbeans.api.editor.settings.FontColorSettings;
+import org.netbeans.api.progress.ProgressHandle;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.ZOrder;
@@ -125,15 +104,12 @@ import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
 import org.openide.loaders.DataObject;
-import org.openide.text.Line;
 import org.openide.util.Exceptions;
 import org.openide.util.Mutex;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.NbPreferences;
 import org.openide.util.RequestProcessor;
 import org.openide.util.WeakSet;
-import org.openide.util.actions.Presenter;
-import org.openide.windows.TopComponent;
 
 /**
  *
@@ -492,7 +468,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
                 alts.append(bit);
             }
             try {
-                if (startChar < 0 || startChar >= endChar) {
+                if (startChar < 0 || startChar >= endChar || endChar < 0) {
                     // eof or similar
                     continue;
                 }
@@ -544,11 +520,14 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         Path grammarPath;
         private final Document doc;
         private final Ambiguity amb;
+        private volatile ProgressHandle progress;
+        private final ParseTreeProxy proxy;
 
         private AnalyzeFix(ParseTreeProxy semantics, Document doc, AntlrProxies.Ambiguity amb) {
             grammarPath = semantics.grammarPath();
             this.doc = doc;
             this.amb = amb;
+            this.proxy = semantics;
         }
 
         @Override
@@ -557,31 +536,47 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         }
 
         @Override
+        @Messages({"analyzing=Analyzing ambiguity...", "noText=No text to analyze"})
         public ChangeInfo implement() throws Exception {
-            System.out.println("analyze fix implement");
+            if (progress != null) {
+                return null;
+            }
+            progress = ProgressHandle.createHandle(Bundle.analyzing());
+            progress.setInitialDelay(10);
+            progress.start();
             mgr.threadPool().submit(this);
             return null;
         }
 
         @Override
         public void run() {
-            System.out.println("begin analysis - grammar file " + grammarPath);
-            FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarPath.toFile()));
-            AmbiguityAnalyzer ana = AmbiguityAnalyzer.create(fo);
-            System.out.println("have an analyzer");
-            Segment seg = new Segment();
-            doc.render(() -> {
-                try {
-                    doc.getText(0, doc.getLength(), seg);
-                } catch (BadLocationException ex) {
-                    Exceptions.printStackTrace(ex);
+            ProgressHandle prog = progress;
+            try {
+                FileObject fo = FileUtil.toFileObject(FileUtil.normalizeFile(grammarPath.toFile()));
+                AmbiguityAnalyzer ana = AmbiguityAnalyzer.create(fo, proxy);
+                Segment seg = new Segment();
+                doc.render(() -> {
+                    try {
+                        doc.getText(0, doc.getLength(), seg);
+                    } catch (BadLocationException ex) {
+                        Exceptions.printStackTrace(ex);
+                    }
+                });
+                if (seg.length() > 0) {
+                    ana.analyze(prog, seg, amb.start(), amb.stop(), amb.conflictingAlternatives(),
+                            amb.decision(), amb.ruleIndex(), amb.state());
+                } else {
+                    StatusDisplayer.getDefault().setStatusText(Bundle.noText());
+                    prog.finish();
                 }
-            });
-            System.out.println("  got " + seg.length() + " chars");
-            if (seg.length() > 0) {
-                System.out.println("  send to analyzer");
-                ana.analyze(seg, amb.start(), amb.stop(), amb.conflictingAlternatives(),
-                        amb.decision(), amb.ruleIndex(), amb.state());
+            } catch (Exception | Error erx) { // RequestProcessor silently swallows thrown Errors
+                Exceptions.printStackTrace(erx);
+                if (erx instanceof Error) {
+                    Error err = (Error) erx;
+                    throw err;
+                }
+            } finally {
+                progress = null;
             }
         }
     }
@@ -932,7 +927,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
     })
     private boolean goToAlternativeInGrammar(String ruleName, BitSet rec, int alternative,
             DataObject grammarDO,
-            Map<String, IntMap<LabelAndRange>> map) {
+            Map<String, IntMap<LabelAndRange>> map) throws BadLocationException {
 
         IntMap<LabelAndRange> targets = map.get(ruleName);
         if (targets == null || targets.isEmpty()) {
@@ -962,55 +957,8 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
             return false;
         }
 
-        // Use EditorRegistry, as it includes the preview editor and
-        // we don't want to open a separate document if we don't have to
-        JTextComponent editor = EditorRegistry.findComponent(range.range.document());
-        TopComponent tc = null;
-        if (editor != null) {
-            tc = NbEditorUtilities.getOuterTopComponent(editor);
-        }
-        if (editor == null || tc == null) {
-            openUsingNewEditor(range.range.document(), range.range);
-        } else {
-            openUsingComponent(editor, tc, range.range);
-        }
+        openAndSelectRange(range.range.document(), range.range);
         return true;
-    }
-
-    private void openUsingComponent(JTextComponent comp, TopComponent outermost, PositionRange range) {
-        comp.setSelectionStart(range.start());
-        comp.setSelectionEnd(range.end());
-        if (TopComponent.getRegistry().getActivated() != outermost) {
-            outermost.requestActive();
-        }
-        try {
-            // Center the rectangle, or it can wind up half way
-            // off the bottom of the screen.
-            Rectangle visibleBounds = comp.getVisibleRect();
-            int cy = visibleBounds.height / 2;
-            Rectangle characterBounds = comp.getUI().modelToView(comp, range.start());
-            characterBounds.add(comp.getUI().modelToView(comp, range.end()));
-            characterBounds.x = 0;
-            cy -= characterBounds.height;
-            characterBounds.y -= cy;
-            characterBounds.height += cy;
-            // Swing components *will* do negative scroll, and the
-            // effect is not a good one
-            characterBounds.y = Math.max(0, characterBounds.y);
-
-            comp.scrollRectToVisible(characterBounds);
-        } catch (BadLocationException ex) {
-            Exceptions.printStackTrace(ex);
-        }
-        comp.requestFocus();
-    }
-
-    private void openUsingNewEditor(Document doc, PositionRange select) {
-        LineDocument ld = LineDocumentUtils.asRequired(doc, LineDocument.class);
-        int lineStart = LineDocumentUtils.getLineStart(ld, select.start());
-        int column = select.start() - lineStart;
-        Line ln = NbEditorUtilities.getLine(doc, select.start(), false);
-        ln.show(Line.ShowOpenType.REUSE_NEW, Line.ShowVisibilityType.FOCUS, column);
     }
 
     private boolean invalidateGrammarSource(boolean reparse) {
@@ -1067,11 +1015,11 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         }
     }
 
-    static boolean highlightAmbiguities() {
+    public static boolean highlightAmbiguities() {
         return prefs().getBoolean(PREFS_KEY_HIGHLIGHT_AMBIGUITIES, false);
     }
 
-    static boolean highlightAmbiguities(boolean val) {
+    public static boolean highlightAmbiguities(boolean val) {
         boolean old = highlightAmbiguities();
         if (val != old) {
             prefs().putBoolean(PREFS_KEY_HIGHLIGHT_AMBIGUITIES, val);
@@ -1132,11 +1080,11 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
     @Messages({"highlightAmbiguities=Highlight Ambiguities",
         "highlightAmbiguitiesDesc=Enables highlighting of cases of ambiguity in the lexer; "
         + " disabled by default because it can create a lot of visual noise."})
-    public static Action toggleHighlightAmbiguitiesAction() {
+    public static AbstractPrefsKeyToggleAction toggleHighlightAmbiguitiesAction() {
         return toggleHighlightAmbiguitiesAction(true);
     }
 
-    static ToggleHighlightAmbiguitiesAction toggleHighlightAmbiguitiesAction(boolean icon) {
+    public static AbstractPrefsKeyToggleAction toggleHighlightAmbiguitiesAction(boolean icon) {
         // Actions.checkbox() returns an action that never has an icon, even using
         // putValue(), so IOWindow will throw an exception (and there will be no
         // indication in the toolbar button whether it is selected or not). So,
@@ -1148,7 +1096,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         return toggleHighlightParserErrorsAction(true);
     }
 
-    static ToggleHighlightParserErrorsAction toggleHighlightParserErrorsAction(boolean icon) {
+    public static AbstractPrefsKeyToggleAction toggleHighlightParserErrorsAction(boolean icon) {
         // Actions.checkbox() returns an action that never has an icon, even using
         // putValue(), so IOWindow will throw an exception (and there will be no
         // indication in the toolbar button whether it is selected or not). So,
@@ -1160,7 +1108,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         return toggleHighlightLexerErrorsAction(true);
     }
 
-    public static ToggleHighlightLexerErrorsAction toggleHighlightLexerErrorsAction(boolean icon) {
+    public static AbstractPrefsKeyToggleAction toggleHighlightLexerErrorsAction(boolean icon) {
         // Actions.checkbox() returns an action that never has an icon, even using
         // putValue(), so IOWindow will throw an exception (and there will be no
         // indication in the toolbar button whether it is selected or not). So,
@@ -1168,15 +1116,7 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
         return new ToggleHighlightLexerErrorsAction(icon);
     }
 
-//    subs = SubscribableBuilder.withKeys(String.class)
-//            .<PropertyChangeEvent, PropertyChangeListener>withEventApplier((String changed, PropertyChangeEvent ce, Collection<? extends PropertyChangeListener> listeners) -> {
-//                for (PropertyChangeListener l : listeners) {
-//                    l.propertyChange(ce);
-//                }
-//            }).storingSubscribersIn(SetFactories.CONCURRENT_EQUALITY)
-//            .withSets(SetFactories.WEAK_HASH).threadSafe()
-//            .withSynchronousEventDelivery().build();
-    private static final SubscribableBuilder.SubscribableContents<String, String, PropertyChangeListener, PropertyChangeEvent> subs = SubscribableBuilder.withKeys(String.class)
+    static final SubscribableBuilder.SubscribableContents<String, String, PropertyChangeListener, PropertyChangeEvent> subs = SubscribableBuilder.withKeys(String.class)
             .<PropertyChangeEvent, PropertyChangeListener>withEventApplier((String changed, PropertyChangeEvent ce, Collection<? extends PropertyChangeListener> listeners) -> {
                 for (PropertyChangeListener l : listeners) {
                     l.propertyChange(ce);
@@ -1184,292 +1124,6 @@ public class AdhocErrorHighlighter extends AbstractAntlrHighlighter implements R
             }).storingSubscribersIn(SetFactories.CONCURRENT_EQUALITY)
             .withSets(SetFactories.WEAK_HASH).threadSafe()
             .withSynchronousEventDelivery().build();
-
-    static abstract class AbstractPrefsKeyToggleAction extends AbstractAction implements Icon, Presenter.Popup, PropertyChangeListener, Runnable {
-
-        private final String key;
-        private JCheckBoxMenuItem presenter;
-
-        @SuppressWarnings({"OverridableMethodCallInConstructor", "LeakingThisInConstructor"})
-        AbstractPrefsKeyToggleAction(boolean icon, String key, String displayName, String description) {
-            this.key = key;
-            putValue(NAME, displayName);
-            if (icon) {
-                putValue(SMALL_ICON, this);
-            }
-            putValue(SELECTED_KEY, key);
-            if (description != null) {
-                putValue(SHORT_DESCRIPTION, description);
-            }
-            subs.subscribable.subscribe(key, this);
-        }
-
-        protected abstract boolean currentValue();
-
-        protected abstract boolean updateValue(boolean val);
-
-        private void setValue(boolean val) {
-            if (updateValue(val)) {
-                firePropertyChange(key, !val, val);
-            }
-        }
-
-        protected void toggleValue() {
-            setValue(!currentValue());
-        }
-
-        @Override
-        public Object getValue(String key) {
-            if (this.key.equals(key)) {
-                return currentValue();
-            }
-            return super.getValue(key);
-        }
-
-        @Override
-        public JMenuItem getPopupPresenter() {
-            if (presenter == null) {
-                presenter = new JCheckBoxMenuItem((Action) this);
-                presenter.setSelected(currentValue());
-                String desc = (String) getValue(SHORT_DESCRIPTION);
-                if (desc != null) {
-                    presenter.setToolTipText(desc);
-                }
-                PropertyChangeListener pcl = evt -> {
-                    presenter.repaint();
-                };
-                subs.subscribable.subscribe(key, pcl);
-                // hold a reference
-                presenter.putClientProperty("_pcl", pcl);
-            }
-            return presenter;
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            toggleValue();
-        }
-
-        @Override
-        public void propertyChange(PropertyChangeEvent evt) {
-            // triger a repaint in presenters
-            EventQueue.invokeLater(this);
-        }
-
-        public void run() {
-            setEnabled(false);
-            setEnabled(true);
-        }
-    }
-
-    static final class ToggleHighlightAmbiguitiesAction extends AbstractPrefsKeyToggleAction {
-
-        ToggleHighlightAmbiguitiesAction(boolean icon) {
-            super(icon, PREFS_KEY_HIGHLIGHT_AMBIGUITIES, Bundle.highlightAmbiguities(), Bundle.highlightAmbiguitiesDesc());
-        }
-
-        @Override
-        protected boolean currentValue() {
-            return highlightAmbiguities();
-        }
-
-        @Override
-        protected boolean updateValue(boolean val) {
-            return highlightAmbiguities(val);
-        }
-
-        @Override
-        public void paintIcon(Component c, Graphics g, int x, int y) {
-            String txt = "a|?";
-            Graphics2D gg = (Graphics2D) g;
-            Font f = c.getFont();
-            FontMetrics fm = gg.getFontMetrics(f);
-            float ht = fm.getAscent();
-            float w = fm.stringWidth(txt);
-            Insets ins = ((JComponent) c).getInsets();
-            float availH = Math.max(4, (c.getHeight() - y) - ins.bottom);
-            float availW = Math.max(4, ((c.getWidth() - x)) - ins.right);
-            float scaleX = 1;
-            float scaleY = 1;
-            if (availW < w) {
-                scaleX = w / availW;
-            }
-            if (availH < ht) {
-                scaleY = ht / availH;
-            }
-            AffineTransform xform = AffineTransform.getScaleInstance(scaleX, scaleY);
-            f = f.deriveFont(xform);
-            gg.setFont(f);
-            fm = gg.getFontMetrics();
-            float left = x;
-            float top = y;
-            ht = fm.getAscent();
-            w = fm.stringWidth(txt);
-            if (ht < availH) {
-                top += (availH / 2) - (ht / 2);
-            }
-            if (w < availW) {
-                left += (availW / 2) - (w / 2);
-            }
-            if (highlightAmbiguities()) {
-                g.setColor(c.getForeground());
-            } else {
-                g.setColor(UIManager.getColor("ScrollBar.thumbShadow"));
-            }
-            gg.drawString(txt, left, top + fm.getAscent());
-        }
-
-        @Override
-        public int getIconWidth() {
-            return 24;
-        }
-
-        @Override
-        public int getIconHeight() {
-            return 24;
-        }
-    }
-
-    @Messages({
-        "highlightLexerErrors=Highlight Lexer Syntax Errors",
-        "highlightLexerErrorsDesc=Highlight syntax errors from the lexer"
-    })
-    static final class ToggleHighlightLexerErrorsAction extends AbstractPrefsKeyToggleAction {
-
-        ToggleHighlightLexerErrorsAction(boolean icon) {
-            super(icon, PREFS_KEY_HIGHLIGHT_LEXER_ERRORS, Bundle.highlightLexerErrors(), Bundle.highlightLexerErrorsDesc());
-        }
-
-        @Override
-        protected boolean currentValue() {
-            return highlightLexerErrors();
-        }
-
-        @Override
-        protected boolean updateValue(boolean val) {
-            return highlightLexerErrors(val);
-        }
-
-        @Override
-        public void paintIcon(Component c, Graphics g, int x, int y) {
-            String txt = "<?>";
-            Graphics2D gg = (Graphics2D) g;
-            Font f = c.getFont();
-            FontMetrics fm = gg.getFontMetrics(f);
-            float ht = fm.getAscent();
-            float w = fm.stringWidth(txt);
-            Insets ins = ((JComponent) c).getInsets();
-            float availH = Math.max(4, (c.getHeight() - y) - ins.bottom);
-            float availW = Math.max(4, ((c.getWidth() - x)) - ins.right);
-            float scaleX = 1;
-            float scaleY = 1;
-            if (availW < w) {
-                scaleX = w / availW;
-            }
-            if (availH < ht) {
-                scaleY = ht / availH;
-            }
-            AffineTransform xform = AffineTransform.getScaleInstance(scaleX, scaleY);
-            f = f.deriveFont(xform);
-            gg.setFont(f);
-            fm = gg.getFontMetrics();
-            float left = x;
-            float top = y;
-            ht = fm.getAscent();
-            w = fm.stringWidth(txt);
-            top += (availH / 2) - (ht / 2);
-            left += (availW / 2) - (w / 2);
-            if (highlightLexerErrors()) {
-                g.setColor(c.getForeground());
-            } else {
-                g.setColor(UIManager.getColor("ScrollBar.thumbHighlight"));
-            }
-            gg.drawString(txt, left, top + fm.getAscent());
-        }
-
-        @Override
-        public int getIconWidth() {
-            return 24;
-        }
-
-        @Override
-        public int getIconHeight() {
-            return 24;
-        }
-    }
-
-    @Messages({
-        "highlightParserErrors=Highlight Parse Errors",
-        "highlightParserErrorsDesc=Highlight error nodes generated when parsing the document; "
-        + "these are errors where the lexer recognized the tokens, but they did not "
-        + "come in a sequence that made sense to the parser."
-    })
-    static final class ToggleHighlightParserErrorsAction extends AbstractPrefsKeyToggleAction {
-
-        private final Line2D.Float line = new Line2D.Float();
-
-        ToggleHighlightParserErrorsAction(boolean icon) {
-            super(icon, PREFS_KEY_HIGHLIGHT_PARSER_ERRORS, Bundle.highlightParserErrors(), Bundle.highlightParserErrorsDesc());
-        }
-
-        @Override
-        protected boolean currentValue() {
-            return highlightParserErrors();
-        }
-
-        @Override
-        protected boolean updateValue(boolean val) {
-            return highlightParserErrors(val);
-        }
-
-        @Override
-        public void paintIcon(Component c, Graphics g, int x, int y) {
-            Graphics2D gg = (Graphics2D) g;
-            Font f = c.getFont();
-            FontMetrics fm = gg.getFontMetrics(f);
-            float ht = fm.getAscent();
-            Insets ins = ((JComponent) c).getInsets();
-            float availH = Math.max(4, (c.getHeight() - y) - ins.bottom);
-            float availW = Math.max(4, ((c.getWidth() - x)) - ins.right);
-            float w = (availW - 2) / 4F;
-
-            gg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            float top = availH / 4F;
-
-            float sw = fm.stringWidth("x");
-            float sh = fm.getAscent();
-            float scale = top / sh;
-            f = f.deriveFont(AffineTransform.getScaleInstance(scale, scale));
-            gg.setFont(f);
-
-            if (highlightParserErrors()) {
-                g.setColor(c.getForeground());
-            } else {
-                g.setColor(UIManager.getColor("ScrollBar.thumbHighlight"));
-            }
-            fm = gg.getFontMetrics();
-            float sl = (x + (availW / 2F)) - sw / 2F;
-            gg.drawString("x", sl, y + top + fm.getAscent());
-            gg.setStroke(new BasicStroke(1.5F, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1));
-            float xoff = x + (availW / 2) - (w / 2);
-            line.setLine(xoff, y + top, xoff + w, y + top);
-            gg.draw(line);
-            line.setLine(x + 1, y + top + top, x + w + 1, y + top + top);
-            gg.draw(line);
-            line.setLine((x + availW - 1) - w, y + top + top, (x + availW - (w + 1)), y + top + top);
-            gg.draw(line);
-        }
-
-        @Override
-        public int getIconWidth() {
-            return 24;
-        }
-
-        @Override
-        public int getIconHeight() {
-            return 24;
-        }
-    }
 
     private static Preferences prefs() {
         return NbPreferences.forModule(AdhocErrorHighlighter.class);

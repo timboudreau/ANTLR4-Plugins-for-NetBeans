@@ -450,8 +450,10 @@ public final class ParserExtractor {
         @Override //parser
         public Void visitChildren(RuleNode node) { //parser
             int alt = node.getRuleContext().getAltNumber(); //parser
+            int state = node.getRuleContext().invokingState; //parser
             Interval ival = node.getSourceInterval(); //parser
-            builder.addRuleNode(node.getRuleContext().getRuleIndex(), alt, ival.a, ival.b, currentDepth, () -> { //parser
+            builder.addRuleNode(node.getRuleContext().getRuleIndex(), alt, state, //parser
+                    ival.a, ival.b, currentDepth, () -> { //parser
                 if (checkCancelled()) { //parser
                     return; //parser
                 } //parser
