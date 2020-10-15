@@ -20,7 +20,7 @@ limitations under the License.
     <parent>
         <groupId>com.mastfrog</groupId>
         <artifactId>antlr-editor-plugins-parent</artifactId>
-        <version>2.0.82</version>
+        <version>2.0.83</version>
     </parent>
     <artifactId>antlr-project-extensions</artifactId>
     <scm>
