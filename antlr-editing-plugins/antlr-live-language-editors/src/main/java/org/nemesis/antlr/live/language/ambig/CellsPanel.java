@@ -35,7 +35,10 @@ import java.awt.geom.Rectangle2D;
 import java.awt.geom.RectangularShape;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -115,12 +118,37 @@ public class CellsPanel extends JPanel {
         addCellsFor(paths, 0, max, gbc, 0, new RotatingColors(), toolTipSupplier);
     }
 
+    private void postMerge(List<List<PT>> diffs) {
+        for (int i = 1; i < diffs.size(); i++) {
+            List<PT> prev = diffs.get(i - 1);
+            List<PT> curr = diffs.get(i);
+            if (curr.size() != prev.size()) {
+                int insertPoint = -1;
+                for (int j = 0; j < Math.min(prev.size(), curr.size()); j++) {
+                    int pix = prev.size() - (j + 1);
+                    PT ppt = prev.get(pix);
+                    int cix = curr.size() - (j + 1);
+                    PT cpt = curr.get(cix);
+                    if (cpt != null && Objects.equals(ppt, cpt)) {
+                        insertPoint = cix;
+                    } else {
+//                        break;
+                    }
+                }
+                if (insertPoint >= 0) {
+                    curr.add(insertPoint, null);
+                }
+            }
+        }
+    }
+
     private void addCellsFor(List<List<PT>> paths, int start, int max, GridBagConstraints gbc, int depth, Supplier<Color> colors, Function<PT, String> tooltips) {
         int ct = paths.size();
         gbc.fill = GridBagConstraints.NONE;
         gbc.weightx = 0;
         Obj<TextCellLabel> firstTailCell = Obj.create();
         PT.commonalities(paths, (List<PT> commonHead, List<List<PT>> differences, List<PT> commonTail) -> {
+            postMerge(differences);
             int startY = gbc.gridy;
             gbc.gridx = start;
             System.out.println("HEAD: " + commonHead);
@@ -158,54 +186,45 @@ public class CellsPanel extends JPanel {
             List<TextCellLabel> firstDiffCells = new ArrayList<>();
             List<TextCellLabel> lastDiffCells = new ArrayList<>();
             int x = gbc.gridx;
+            Map<PT, TextCellLabel> m = new HashMap<>();
             for (int i = 0; i < differences.size(); i++) {
                 gbc.gridy = startY + i;
                 gbc.gridx = x;
-                /*
-                // XXX recursively lay out common items
-                if (i > 0) {
-                    List<List<PT>> subpaths = new ArrayList<>();
-                    int submax = 0;
-                    for (List<PT> l : differences) {
-                        subpaths.add(l.subList(i, l.size()));
-                        submax = Math.max(submax, l.size()-i);
-                    }
-                    submax++;
-                    System.out.println("TEST COMMON TAIL:");
-                    for (List<PT> l : subpaths) {
-                        System.out.println(" - " + l);
-                    }
-                    if (PT.hasCommonalities(subpaths)) {
-                        System.out.println("DO SUB LEFT");
-                        addCellsFor(subpaths, start + i , max - submax, gbc, depth + 1, colors);
-                        break;
-                    } else {
-                        subpaths.clear();
-                        for (List<PT> l : differences) {
-                            subpaths.add(l.subList(0, l.size() - i));
-                        }
-                        System.out.println("TEST COMMON HEAD:");
-                        for (List<PT> l : subpaths) {
-                            System.out.println(" - " + l);
-                        }
-                        if (PT.hasCommonalities(subpaths)) {
-                            System.out.println("DO SUB RIGHT");
-                            addCellsFor(subpaths, start + i, max - submax, gbc, depth + 1, colors);
-                            break;
-                        }
-                    }
-                }
-                 */
                 List<PT> d = differences.get(i);
+                TextCellLabel lastLabel = null;
                 for (int j = 0; j < d.size(); j++) {
                     gbc.gridx = x + j;
+                    if (j < d.size() - 1 && d.get(j+1) == null) {
+                        gbc.gridwidth = 2;
+                    }
                     Color c = colors.get();
                     PT p = differences.get(i).get(j);
+                    if (i > 0) {
+                        List<PT> prevList = differences.get(i - 1);
+                        int endOff = j;// d.size() - (j + 1);
+                        if (endOff < prevList.size() && Objects.equals(prevList.get(endOff), p) && lastLabel != null) {
+                            TextCellLabel prev = m.get(p);
+                            if (prev != null) {
+                                connections.add(Pair.of(lastLabel, prev));
+                                gbc.gridwidth = 1;
+                                continue;
+                            }
+                        }
+                    }
                     JComponent lbl = cellFor(p, false, c, false, tooltips);
+                    if (lbl instanceof TextCellLabel) {
+                        TextCellLabel ll = (TextCellLabel) lbl;
+                        if (lastLabel != null) {
+                            connections.add(Pair.of(lastLabel, ll));
+                        }
+                        lastLabel = ll;
+                        m.put(p, ll);
+                    }
                     if (j == 0 && containsEmpty) {
                         gbc.gridy++;
                     }
                     innerPanel.add(lbl, gbc);
+                    gbc.gridwidth = 1;
                     if (lbl instanceof TextCellLabel && j == differences.get(i).size() - 1) {
                         lastDiffCells.add((TextCellLabel) lbl);
                     }
@@ -324,7 +343,7 @@ public class CellsPanel extends JPanel {
         }
     }
 
-    private enum HorizRelation {
+    enum HorizRelation {
         BEFORE,
         SAME_COLUMN,
         AFTER;
@@ -340,7 +359,7 @@ public class CellsPanel extends JPanel {
         }
     }
 
-    private enum VertRelation {
+    enum VertRelation {
         BELOW,
         SAME_ROW,
         ABOVE;

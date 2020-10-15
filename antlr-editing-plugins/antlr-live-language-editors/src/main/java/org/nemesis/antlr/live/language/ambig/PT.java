@@ -16,8 +16,17 @@
 package org.nemesis.antlr.live.language.ambig;
 
 import com.mastfrog.function.TriConsumer;
+import com.mastfrog.graph.IntGraph;
+import com.mastfrog.graph.IntGraphBuilder;
+import com.mastfrog.graph.ObjectGraph;
+import com.mastfrog.util.collections.IntIntMap;
+import com.mastfrog.util.collections.IntMap;
+import com.mastfrog.util.collections.IntSet;
+import com.mastfrog.util.strings.AlignedText;
 import com.mastfrog.util.strings.Strings;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -26,7 +35,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
+import java.util.function.Predicate;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
@@ -443,24 +455,31 @@ final class PT implements Comparable<PT> {
         }
         list.add(pt);
     }
-    /*
+
     static ObjectGraph<PT> graph(List<List<PT>> pts) {
-        SortedSet<PT> all = new TreeSet<>();
+        Set<PT> all = new HashSet<>();
         for (List<PT> l : pts) {
             all.addAll(l);
+            System.out.println("Add " + l);
         }
         List<PT> sorted = new ArrayList<>(all);
+        Collections.sort(sorted);
         IntGraphBuilder igb = IntGraph.builder(sorted.size());
         for (List<PT> l : pts) {
             for (int i = 1; i < l.size(); i++) {
                 PT prev = l.get(i - 1);
                 PT curr = l.get(i);
-                igb.addEdge(sorted.indexOf(prev), sorted.indexOf(curr));
+                int ixp = sorted.indexOf(prev);
+                int ixc = sorted.indexOf(curr);
+                assert ixp >= 0 : "Absent: " + prev + " from " + sorted + " all " + all + " pts " + pts;
+                assert ixc >= 0 : "Absent: " + curr + " from " + sorted + " all " + all + " pts " + pts;
+                igb.addEdge(ixp, ixc);
             }
         }
         return igb.build().toObjectGraph(sorted);
     }
 
+    /*
     public static void commonalities2(List<List<PT>> paths, TriConsumer<List<PT>, List<List<PT>>, List<PT>> c) {
         Set<PT> all = new TreeSet<>();
         int maxLen = 0;
@@ -534,7 +553,6 @@ final class PT implements Comparable<PT> {
         int len = from - to;
         System.arraycopy(row, from, row, to, len);
         Arrays.fill(row, to, to + len, -1);
-
     }
 //    public static void commonalities2(List<List<PT>> paths, TriConsumer<List<PT>, List<List<PT>>, List<PT>> c) {
 //        ObjectGraph<PT> graph = graph(paths);
@@ -557,7 +575,159 @@ final class PT implements Comparable<PT> {
 //    }
 
     private static void populateWithParents() {
-
-
 }*/
+    public static void commonalities2(List<List<PT>> paths, TriConsumer<List<PT>, List<List<PT>>, List<PT>> c) {
+        ObjectGraph<PT> graph = graph(paths);
+        int maxClosure = 0;
+        Set<PT> tops = new TreeSet<>(graph.topLevelOrOrphanNodes());
+        Map<PT, Set<PT>> closures = new HashMap<>();
+        for (PT pt : tops) {
+            Set<PT> closure = graph.closureOf(pt);
+            maxClosure = Math.max(maxClosure, closure.size());
+            closures.put(pt, closure);
+        }
+        int width = maxClosure * tops.size() * 2;
+        int[][] grid = new int[maxClosure][maxClosure * 2];
+        List<PT> topList = new ArrayList<>(tops);
+        Map<PT, List<List<PT>>> descendantsForNode = new HashMap<>();
+        for (int i = 0; i < topList.size(); i++) {
+            PT pt = topList.get(i);
+            Arrays.fill(grid[i], -1);
+            visitChildren(descendantsForNode, pt, graph);
+        }
+        PT[][] g = new PT[maxClosure][maxClosure * 2];
+
+        sortit(graph, paths);
+        for (int i = 0; i < paths.size(); i++) {
+            List<PT> onePath = paths.get(i);
+            int sz = onePath.size();
+            for (int j = 0; j < onePath.size(); j++) {
+                g[i][j] = onePath.get(j);
+            }
+        }
+        for (int i = 0; i < 100; i++) {
+            if (!jiggle(g)) {
+                break;
+            }
+        }
+        System.out.println(gridString(g));
+    }
+
+    private static String gridString(PT[][] pts) {
+        StringBuilder sb = new StringBuilder();
+        int maxOccupied = 0;
+        int lastOccupied = 0;
+        for (int i = 0; i < pts.length; i++) {
+            PT[] currentRow = pts[i];
+            boolean empty = true;
+            for (int j = 0; j < currentRow.length; j++) {
+                if (currentRow[j] != null) {
+                    maxOccupied = Math.max(maxOccupied, j);
+                    empty = false;
+                }
+            }
+            if (!empty) {
+                lastOccupied = i;
+            }
+        }
+        for (int i = 0; i <= lastOccupied; i++) {
+            PT[] currentRow = pts[i];
+            for (int j = 0; j < maxOccupied + 1; j++) {
+                if (j > 0) {
+                    sb.append(" |\t");
+                }
+                sb.append(currentRow[j]);
+            }
+            sb.append("\n");
+        }
+        return AlignedText.formatTabbed(sb);
+    }
+
+    private static boolean jiggle(PT[][] pts) {
+        if (pts.length == 0) {
+            return false;
+        }
+        boolean result = false;
+        boolean[] occupiedColumns = new boolean[pts[0].length];
+        for (int i = 1; i < pts.length; i++) {
+            PT[] currentRow = pts[i];
+            PT[] prevRow = pts[i - 1];
+            for (int j = 0; j < currentRow.length; j++) {
+                PT pta = currentRow[j];
+                PT ptb = prevRow[j];
+                if (pta != null || ptb != null) {
+                    occupiedColumns[j] = true;
+                }
+                if (pta == null || ptb == null || pta.equals(ptb)) {
+                    continue;
+                }
+                shiftRight(currentRow, j, j + 1);
+
+                j++;
+                result = true;
+            }
+        }
+        for (int i = pts.length - 1; i >= 1; i++) {
+            PT[] currentRow = pts[i];
+            PT[] prevRow = pts[i - 1];
+            for (int j = currentRow.length - 1; i >= 0; i--) {
+                PT pta = currentRow[j];
+                PT ptb = prevRow[j];
+                if (pta == null || ptb == null || pta.equals(ptb)) {
+                    continue;
+                }
+                shiftRight(currentRow, j, j + 1);
+            }
+        }
+        return result;
+    }
+
+    private static void shiftRight(PT[] row, int from, int to) {
+        if (from == to) {
+            return;
+        }
+        int len = to - from;
+        System.arraycopy(row, from, row, to, len);
+        for (int i = from; i < to; i++) {
+            row[i] = null;
+        }
+    }
+
+    private static void shiftLeft(PT[] row, int from, int to) {
+        if (from == to) {
+            return;
+        }
+        int len = from - to;
+        System.arraycopy(row, from, row, to, len);
+        Arrays.fill(row, to, to + len, -1);
+    }
+
+    private static void sortit(ObjectGraph<PT> g, List<List<PT>> l) {
+        Collections.sort(l, (la, lb) -> {
+            if (la.equals(lb)) {
+                return 0;
+            }
+            int max = Math.min(la.size(), lb.size());
+            for (int i = 0; i < max; i++) {
+                PT pta = la.get(i);
+                PT ptb = lb.get(i);
+                int result = Integer.compare(g.toNodeId(pta), g.toNodeId(ptb));
+                if (result != 0) {
+                    return result;
+                }
+            }
+            return -Integer.compare(la.size(), lb.size());
+        });
+    }
+
+    private static void visitChildren(Map<PT, List<List<PT>>> descendantsForNode, PT pt, ObjectGraph<PT> graph) {
+        List<List<PT>> kids = descendantsForNode.computeIfAbsent(pt, p -> new ArrayList<>());
+        graph.children(pt).forEach(kid -> {
+            List<PT> l = new ArrayList<>();
+            l.add(kid);
+            kids.add(l);
+            visitChildren(descendantsForNode, kid, graph);
+        });
+    }
+
 }

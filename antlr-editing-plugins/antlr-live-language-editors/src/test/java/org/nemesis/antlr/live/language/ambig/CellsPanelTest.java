@@ -33,6 +33,11 @@ import org.junit.jupiter.api.Test;
 public class CellsPanelTest {
 
     @Test
+    public void hoober() throws Exception {
+        PT.commonalities2(makePaths(), (a, b, c) -> {});
+    }
+
+    @Test
     public void testSomeMethod() throws InterruptedException {
         if (true) {
             return;
@@ -41,6 +46,51 @@ public class CellsPanelTest {
         UIManager.put("controlFont", new Font("Arial", Font.PLAIN, 24));
         UIManager.put("Label.font", new Font("Arial", Font.PLAIN, 24));
 
+        List<List<PT>> paths = makePaths();
+
+        for (int i = 0; i < 3; i++) {
+            String nm;
+            switch (i) {
+                case 0:
+                    nm = "tailOne";
+                    break;
+                case 1:
+                    nm = "tailTwo";
+                    break;
+                case 2:
+                    nm = "tailThree";
+                    break;
+                default:
+                    throw new AssertionError(i);
+            }
+
+            for (List<PT> p : paths) {
+                p.add(PT.of(nm));
+            }
+        }
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        EventQueue.invokeLater(() -> {
+            CellsPanel cells = new CellsPanel("stuff", PT.of("whatevs"), paths);
+            JPanel pnl = new JPanel(new BorderLayout());
+            pnl.add(new JLabel("And here is the stuff"), BorderLayout.NORTH);
+            pnl.add(cells, BorderLayout.CENTER);
+            JFrame jf = new JFrame();
+            jf.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosed(WindowEvent e) {
+                    latch.countDown();
+                    System.exit(0);
+                }
+            });
+            jf.setContentPane(pnl);
+            jf.pack();
+            jf.setVisible(true);
+        });
+        latch.await(60, TimeUnit.SECONDS);
+    }
+
+    static List<List<PT>> makePaths() throws AssertionError {
         List<List<PT>> paths = new ArrayList<>();
         paths.add(new ArrayList<>());
         paths.add(new ArrayList<>());
@@ -110,46 +160,6 @@ public class CellsPanelTest {
         paths.add(moreMoreMore);
         moreMoreMore.add(PT.of("four"));
         moreMoreMore.add(PT.of("five"));
-
-
-        for (int i = 0; i < 3; i++) {
-            String nm;
-            switch (i) {
-                case 0:
-                    nm = "tailOne";
-                    break;
-                case 1:
-                    nm = "tailTwo";
-                    break;
-                case 2:
-                    nm = "tailThree";
-                    break;
-                default:
-                    throw new AssertionError(i);
-            }
-
-            for (List<PT> p : paths) {
-                p.add(PT.of(nm));
-            }
-        }
-        final CountDownLatch latch = new CountDownLatch(1);
-
-        EventQueue.invokeLater(() -> {
-            CellsPanel cells = new CellsPanel("stuff", PT.of("whatevs"), paths);
-            JPanel pnl = new JPanel(new BorderLayout());
-            pnl.add(new JLabel("And here is the stuff"), BorderLayout.NORTH);
-            pnl.add(cells, BorderLayout.CENTER);
-            JFrame jf = new JFrame();
-            jf.addWindowListener(new WindowAdapter() {
-                @Override
-                public void windowClosed(WindowEvent e) {
-                    latch.countDown();
-                }
-            });
-            jf.setContentPane(pnl);
-            jf.pack();
-            jf.setVisible(true);
-        });
-        latch.await(60, TimeUnit.SECONDS);
+        return paths;
     }
 }
