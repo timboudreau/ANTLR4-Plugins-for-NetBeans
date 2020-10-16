@@ -982,11 +982,11 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                     }
                 });
             } else {
-                editorPane.setSelectionStart(Math.max(range[0], range[1] - 1));
+                editorPane.setSelectionStart(Math.min(range[0], range[1] - 1));
                 editorPane.setSelectionEnd(range[0]);
             }
             EditorSelectionUtils.centerTextRegion(editorPane,
-                    Range.of(range[0], range[1]));
+                    Range.ofCoordinates(range[0], range[1]));
             editorPane.requestFocusInWindow();
         } catch (BadLocationException ex) {
             LOG.log(Level.INFO, null, ex);
