@@ -35,14 +35,14 @@ limitations under the License.
         <module.display.category>Antlr</module.display.category>
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
-        <mastfrog.version>2.7.0</mastfrog.version>
-        <mastfrog.util.collections.version>2.7.0.6</mastfrog.util.collections.version>
-        <mastfrog.util.graph.version>2.7.0.4</mastfrog.util.graph.version>
-        <mastfrog.function.version>2.7.0.4</mastfrog.function.version>
-        <mastfrog.subscriptions.version>2.7.0.2</mastfrog.subscriptions.version>
-        <mastfrog.converters.version>2.7.0.1</mastfrog.converters.version>
-        <mastfrog.strings.version>2.7.0.2</mastfrog.strings.version>
-        <java.vogon.version>2.7.0.3</java.vogon.version>
+        <mastfrog.version>2.7.1</mastfrog.version>
+        <mastfrog.util.collections.version>${mastfrog.version}</mastfrog.util.collections.version>
+        <mastfrog.util.graph.version>${mastfrog.version}</mastfrog.util.graph.version>
+        <mastfrog.function.version>${mastfrog.version}</mastfrog.function.version>
+        <mastfrog.subscriptions.version>${mastfrog.version}</mastfrog.subscriptions.version>
+        <mastfrog.converters.version>${mastfrog.version}</mastfrog.converters.version>
+        <mastfrog.strings.version>${mastfrog.version}</mastfrog.strings.version>
+        <java.vogon.version>${mastfrog.version}</java.vogon.version>
         <antlr.message.format>gnu</antlr.message.format>
         <old.junit.version>4.12</old.junit.version>
         <new.junit.version>5.5.2</new.junit.version>
