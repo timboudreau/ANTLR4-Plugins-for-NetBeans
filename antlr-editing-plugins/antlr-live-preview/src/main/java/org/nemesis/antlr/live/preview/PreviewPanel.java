@@ -147,7 +147,6 @@ import org.openide.cookies.SaveCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 import org.openide.text.CloneableEditorSupport;
-import org.openide.text.Line;
 import org.openide.text.NbDocument;
 import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
@@ -551,7 +550,7 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
         @Override
         public void mouseClicked(MouseEvent e) {
-            if (e.getClickCount() == 2 && !e.isPopupTrigger()) {
+            if (e.getClickCount() == 1 && !e.isPopupTrigger()) {
                 String text = breadcrumb.textAt(e.getPoint());
                 if (text != null) {
                     navigateToRuleInGrammarOrImport(text, true);
@@ -711,10 +710,11 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                 // The requested rule is in the document we are showing - use the preview
                 // editor
                 Int offset = Int.of(region.end());
-                grammarEditorClone.getDocument().render(() -> {
+                Document doc = grammarEditorClone.getDocument();
+                doc.render(() -> {
                     Segment seg = new Segment();
                     try {
-                        grammarEditorClone.getDocument().getText(bounds.start(), bounds.end());
+                        doc.getText(bounds.start(), bounds.end());
                         int ix = seg.toString().indexOf(':');
                         if (ix > 0) {
                             while (ix + 1 < seg.length()) {
@@ -725,9 +725,6 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                             }
                             offset.set(bounds.start() + ix);
                         }
-                        int charPos = offset.getAsInt();
-                        this.positionCaret(grammarEditorClone.getCaret(), charPos, grammarEditorClone.getDocument());
-                        centerRect(grammarEditorClone, charPos);
                         if (focus) {
                             grammarEditorClone.requestFocus();
                         }
@@ -735,6 +732,9 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                         LOG.log(Level.INFO, "Navigating to " + rule, ex);
                     }
                 });
+                int charPos = offset.getAsInt();
+                this.positionCaret(grammarEditorClone.getCaret(), charPos, doc);
+                centerRect(grammarEditorClone, charPos);
             } else {
                 Attributions<GrammarSource<?>, NamedSemanticRegions<RuleTypes>, NamedSemanticRegion<RuleTypes>, RuleTypes> resolved = ext.resolveAll(AntlrKeys.RULE_NAME_REFERENCES);
                 if (resolved != null && resolved.hasResolved()) {
@@ -765,10 +765,10 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
                             return null;
                         });
                         if (doc != null) {
-                            int offset = found.key().element().start();
-                            Line ln = NbEditorUtilities.getLine(doc, offset, false);
-                            if (ln != null) {
-                                ln.show(Line.ShowOpenType.REUSE_NEW, Line.ShowVisibilityType.FOCUS);
+                            try {
+                                EditorSelectionUtils.openAndSelectRange(doc, found);
+                            } catch (BadLocationException ex) {
+                                Exceptions.printStackTrace(ex);
                             }
                         }
                     }
@@ -779,7 +779,8 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
 
     @SuppressWarnings("deprecation")
     private void centerRect(JTextComponent comp, int charOffset) {
-        EditorSelectionUtils.centerTextRegion(comp, Range.of(charOffset, charOffset));
+        EditorSelectionUtils.centerTextRegion(comp, Range.ofCoordinates(Math.max(0, charOffset),
+                charOffset));
     }
 
     private void navigateToNearestExampleOf(String rule, boolean focus) {
@@ -1486,6 +1487,28 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
     }
 
     @Override
+    public Dimension getPreferredSize() {
+        Dimension splitPref = split.getPreferredSize();
+        Dimension sidePref = listsSplit.getPreferredSize();
+        Dimension bc = breadcrumb.getPreferredSize();
+        Dimension tool = customizer.getPreferredSize();
+        Insets ins = getInsets();
+        return new Dimension(
+                splitPref.width + sidePref.width + ins.left + ins.right,
+                Math.max(splitPref.height, sidePref.height) + bc.height + tool.height + ins.top + ins.bottom);
+    }
+
+    @Override
+    public Dimension getMinimumSize() {
+        return getPreferredSize();
+    }
+
+    @Override
+    public Dimension getMaximumSize() {
+        return getPreferredSize();
+    }
+
+    @Override
     public void doLayout() {
         // If we want to honor the previously saved size so the UI doesn't jump once
         // the model loads and the rules tree needs more width, there is no nice way
@@ -1502,32 +1525,55 @@ public final class PreviewPanel extends JPanel implements ChangeListener,
             }
         }
         Dimension leftSideSize;
+        int myCurrentWidth = getWidth();
         if (syntaxTreeList.getModel().getSize() == 0 && previousSideComponentSize.width > 0 && previousSideComponentSize.height > 0) {
             leftSideSize = previousSideComponentSize;
         } else {
             leftSideSize = listsSplit.getPreferredSize();
-            int myCurrentWidth = getWidth();
-            if (myCurrentWidth > 0) {
-                // Ensure that having one really wide element in the
-                // parse tree doesn't make the window change sizes
-                leftSideSize.width = Math.min(
-                        Math.max(10, leftSideSize.width), myCurrentWidth / 3);
-            }
         }
+        if (myCurrentWidth > 0) {
+            // Ensure that having one really wide element in the
+            // parse tree doesn't make the window change sizes
+            leftSideSize.width = Math.min(
+                    Math.max(40, leftSideSize.width), myCurrentWidth / 3);
+        }
+        Insets ins = getInsets();
+        int fullWidth = getWidth() - (ins.left + ins.right);
+        int myCurrentHeight = getHeight();
+
         Dimension topSize = customizer.getPreferredSize();
         Dimension bottomSize = breadcrumb.getPreferredSize();
-//        Dimension centerSize = split.getPreferredSize();
 
-        Insets ins = getInsets();
-        customizer.setBounds(ins.left, ins.top, getWidth() - (ins.left + ins.right), topSize.height);
-        listsSplit.setBounds(getWidth() - (ins.right + leftSideSize.width), ins.top + topSize.height, leftSideSize.width, getHeight() - (ins.top + ins.bottom + topSize.height));
-        breadcrumb.setBounds(ins.left, getHeight() - (ins.bottom + bottomSize.height), getWidth() - (ins.left + ins.right + leftSideSize.width), bottomSize.height);
-        split.setBounds(ins.left,
-                ins.top + topSize.height,
-                getWidth() - (ins.left + ins.right + leftSideSize.width),
-                getHeight() - (ins.top + ins.bottom + topSize.height + bottomSize.height));
+        bottomSize.width = Math.min(fullWidth, bottomSize.width);
 
-//        super.doLayout(); //To change body of generated methods, choose Tools | Templates.
+        customizer.setBounds(
+                ins.left,
+                ins.top,
+                fullWidth,
+                topSize.height);
+
+        int editorRight = myCurrentWidth - (ins.right + leftSideSize.width);
+
+        int mainTop = ins.top + topSize.height;
+        int mainHeight = myCurrentHeight - (ins.top + ins.bottom + topSize.height + bottomSize.height);
+
+        listsSplit.setBounds(
+                editorRight,
+                mainTop,
+                leftSideSize.width,
+                mainHeight);
+
+        breadcrumb.setBounds(
+                ins.left,
+                myCurrentHeight - (ins.bottom + bottomSize.height),
+                fullWidth,
+                bottomSize.height);
+
+        split.setBounds(
+                ins.left,
+                mainTop,
+                editorRight,
+                mainHeight);
     }
 
     class CL extends ComponentAdapter {

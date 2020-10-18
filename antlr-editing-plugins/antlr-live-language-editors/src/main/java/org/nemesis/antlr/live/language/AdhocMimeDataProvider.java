@@ -20,8 +20,10 @@ import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AdhocColoringsRegistry;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
@@ -38,6 +40,10 @@ import org.netbeans.api.editor.mimelookup.MimePath;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.netbeans.spi.editor.mimelookup.MimeDataProvider;
+import org.openide.cookies.InstanceCookie;
+import org.openide.filesystems.FileObject;
+import org.openide.filesystems.FileUtil;
+import org.openide.loaders.DataObject;
 import org.openide.util.Lookup;
 import org.openide.util.lookup.AbstractLookup;
 import org.openide.util.lookup.InstanceContent;
@@ -209,12 +215,15 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
     }
 
     void addMimeType(String mimeType) {
-        MimeEntry en = new MimeEntry(mimeType, lang, fcic, reparseIc);
-        LOG.log(Level.FINER, "Add mime entries for {0}", AdhocMimeTypes.loggableMimeType(en.mimeType));
-        lookups.put(en.mimeType, en);
+
+        lookups.computeIfAbsent(mimeType, mt -> {
+            LOG.log(Level.FINER, "Add mime entries for {0}", AdhocMimeTypes.loggableMimeType(mt));
+            MimeEntry en = new MimeEntry(mimeType, lang, fcic, reparseIc);
 //        Path path = AdhocMimeTypes.grammarFilePathForMimeType(mimeType);
 //        ParseResultHook.register(FileUtil.toFileObject(FileUtil.normalizeFile(path.toFile())), hook);
-        AdhocLanguageHierarchy.onNewEnvironment(mimeType, hook);
+            AdhocLanguageHierarchy.onNewEnvironment(mimeType, hook);
+            return en;
+        });
     }
 
     void updateMimeType(String mime) {
@@ -280,6 +289,7 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
         private final String mimeType;
         private final AdhocParserFactory pf;
         private final FontColorsIC fcic;
+        private final Set<Object> sidebarItems = new HashSet<>();
 //        private final TaskFactory errorHighlighter;
 //        private final ReparseIC reparseIc;
 
@@ -292,12 +302,45 @@ public class AdhocMimeDataProvider implements MimeDataProvider {
             content.add(mimeType, cvt);
             content.add(pf = new AdhocParserFactory(mimeType));
             content.add(mimeType, layers = new HighlightsIC());
-//            content.add(errorHighlighter = AdhocErrorsHighlighter.create());
-//            content.add(mimeType, this.reparseIc = reparseIc);
             content.add(new AdhocReparseListeners(mimeType));
             content.add(new ImportIntoSampleAction());
 //            this.lookup = new DebugLookup(new AbstractLookup(content), mimeType);
             this.lookup = new AbstractLookup(content);
+            addSidebars(content);
+        }
+
+        void addSidebars(InstanceContent content) {
+            if (!sidebarItems.isEmpty()) {
+                for (Object o : sidebarItems) {
+                    content.add(o);
+                }
+                return;
+            }
+            FileObject fo = FileUtil.getConfigFile("Editors/SideBar");
+            if (fo != null) {
+                for (FileObject kid : fo.getChildren()) {
+                    try {
+                        DataObject dob = DataObject.find(kid);
+                        InstanceCookie ck = dob.getLookup().lookup(InstanceCookie.class);
+                        if (ck != null) {
+                            Object o = ck.instanceCreate();
+                            if (o != null) {
+                                String typeName = o.getClass().getName();
+                                if (typeName.contains("AnnotationViewFactory")
+                                        || typeName.contains("GlyphGutter")
+                                        ) {
+                                    content.add(o);
+                                }
+                            }
+                        }
+                    } catch (Exception | Error ex) {
+                        LOG.log(Level.INFO, null, ex);
+                    }
+                }
+                for (Object o : sidebarItems) {
+                    content.add(o);
+                }
+            }
         }
 
         void goose() {

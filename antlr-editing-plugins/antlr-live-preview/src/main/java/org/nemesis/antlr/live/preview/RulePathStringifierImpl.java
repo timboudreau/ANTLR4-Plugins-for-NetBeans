@@ -17,6 +17,7 @@ package org.nemesis.antlr.live.preview;
 
 import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.FontMetrics;
 import java.util.HashMap;
 import java.util.List;
@@ -66,6 +67,7 @@ public class RulePathStringifierImpl implements RulePathStringifier {
 
     @Override
     public void configureTextCell(TextCellLabel lbl, ParseTreeProxy prx, ProxyToken tok, JComponent colorSource) {
+        lbl.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
         AntlrProxies.ProxyTokenType type = prx.tokenTypeForInt(tok.getType());
         int count = prx.referencesCount(tok) - 1;
         if (count <= 0) {

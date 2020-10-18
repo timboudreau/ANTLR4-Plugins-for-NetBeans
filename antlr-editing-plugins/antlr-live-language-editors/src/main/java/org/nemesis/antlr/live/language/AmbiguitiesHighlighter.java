@@ -274,8 +274,8 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
         + "<b>Alternatives</b></p>{3}<p>Ambiguities can slow down parsing.</p>"
     })
     private void refreshItems(Collection<? extends AmbiguityRecord> set) {
-        System.out.println("REFRESH AMBIGUITIES for " + ctx.getComponent().isShowing() + " with " + set.size()
-                + " comp " + ctx.getComponent().getName());
+//        System.out.println("REFRESH AMBIGUITIES for " + ctx.getComponent().isShowing() + " with " + set.size()
+//                + " comp " + ctx.getComponent().getName());
         if (!set.isEmpty()) {
             Extraction ext = NbAntlrUtils.extractionFor(ctx.getDocument());
             if (ext != null && !ext.isPlaceholder()) {
@@ -283,9 +283,9 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
                     NamedSemanticRegions<RuleTypes> ruleBounds = ext.namedRegions(AntlrKeys.RULE_BOUNDS);
                     SemanticRegions<AlternativeKey> alterns = ext.regions(OUTER_ALTERNATIVES_WITH_SIBLINGS);
                     if (!ruleBounds.isEmpty() && !alterns.isEmpty()) {
-                        System.out.println("  some to update");
+//                        System.out.println("  some to update");
                         updateHighlights((HighlightConsumer bag) -> {
-                            System.out.println("  enter update highlights");
+//                            System.out.println("  enter update highlights");
                             RotatingColors colors = new RotatingColors();
                             boolean any = false;
                             Map<String, IntMap<CharSequence>> ruleFragments;
@@ -325,7 +325,7 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
                                     }
                                 }
                             }
-                            System.out.println("  any updated? " + any + " count " + ct);
+//                            System.out.println("  any updated? " + any + " count " + ct);
                             return any;
                         });
                     }
@@ -334,7 +334,7 @@ public class AmbiguitiesHighlighter extends AbstractHighlighter implements Runna
                 }
             }
         } else {
-            System.out.println("no ambs to highlight");
+//            System.out.println("no ambs to highlight");
             updateHighlights(ignored -> false);
         }
     }

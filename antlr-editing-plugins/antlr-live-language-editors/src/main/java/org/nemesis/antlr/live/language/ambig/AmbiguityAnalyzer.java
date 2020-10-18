@@ -47,7 +47,6 @@ import org.antlr.v4.tool.Grammar;
 import org.antlr.v4.tool.GrammarParserInterpreter;
 import org.nemesis.antlr.live.RebuildSubscriptions;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
-import org.nemesis.antlr.live.parsing.extract.ParserExtractor.CharSequenceCharStream;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.editor.ops.DocumentOperator;
 import org.nemesis.editor.position.PositionFactory;
@@ -111,9 +110,6 @@ public class AmbiguityAnalyzer {
                                     }
                                     if (end > start && end <= len) {
                                         result.put(state, pf.range(start, Position.Bias.Forward, end, Position.Bias.Forward));
-                                    } else {
-                                        System.out.println("Can't create region for tokens " + firstTokenOffset + ":" + lastTokenOffset
-                                                + " start end " + start + ":" + end);
                                     }
                                 }
                             }
@@ -138,26 +134,20 @@ public class AmbiguityAnalyzer {
     })
     public void analyze(ProgressHandle progress, CharSequence seq, int start, int stop, BitSet conflictingAlternatives,
             int decision, int ruleIndex, int targetState) {
-        System.out.println("Parse the text:\n");
-        System.out.println(seq);
         AE ae = null;
         try {
             progress.switchToDeterminate(4);
             AntlrGenerationResult res = RebuildSubscriptions.recentGenerationResult(grammar);
             if (res == null) {
-                System.out.println("no generation result");
                 StatusDisplayer.getDefault().setStatusText(Bundle.noGenerationResult(), StatusDisplayer.IMPORTANCE_ERROR_HIGHLIGHT);
                 return;
             }
             progress.progress(1);
             Grammar g = res.mainGrammar;
             if (g == null) {
-                System.out.println("no grammar");
                 StatusDisplayer.getDefault().setStatusText(Bundle.noGrammar(), StatusDisplayer.IMPORTANCE_ERROR_HIGHLIGHT);
                 return;
             }
-            System.out.println("  have gen result and grammar " + g.name + "  " + g.fileName);
-            CharSequenceCharStream chars = new CharSequenceCharStream(seq);
             progress.setDisplayName(Bundle.preparing());
             TokenSource lexer = new ProxyTokenSource(proxy);
             /*
@@ -207,7 +197,7 @@ public class AmbiguityAnalyzer {
             gpi.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
             gpi.setBuildParseTree(true);
             gpi.setProfile(true);
-            System.out.println(" parser configured");
+//            System.out.println(" parser configured");
             ae = new AE(g, gpi, this, seq, start, stop, conflictingAlternatives,
                     decision, ruleIndex, targetState, editSafeRegions);
             gpi.removeErrorListeners();
@@ -218,7 +208,7 @@ public class AmbiguityAnalyzer {
             ParserRuleContext ctx = gpi.parse(0);
 
             if (ctx == null) {
-                System.out.println("GOT NULL RULE CONTEXT");
+//                System.out.println("GOT NULL RULE CONTEXT");
                 StatusDisplayer.getDefault().setStatusText(Bundle.noParse(), StatusDisplayer.IMPORTANCE_ERROR_HIGHLIGHT);
                 return;
             }
@@ -230,7 +220,7 @@ public class AmbiguityAnalyzer {
             if (ae != null && !ae.hitTarget) {
                 StatusDisplayer.getDefault().setStatusText(Bundle.ambiguityNotDetected(), StatusDisplayer.IMPORTANCE_ERROR_HIGHLIGHT);
             }
-            System.out.println("exit - hit target ? " + (ae == null ? "null" : ae.hitTarget));
+//            System.out.println("exit - hit target ? " + (ae == null ? "null" : ae.hitTarget));
         }
     }
 
@@ -263,7 +253,7 @@ public class AmbiguityAnalyzer {
                 List<ParserRuleContext> all = GrammarParserInterpreter.getAllPossibleParseTrees(
                         grammar, recognizer, recognizer.getTokenStream(),
                         dfa.decision, ambigAlts, startIndex, stopIndex, 0);
-                System.out.println("GOT " + all.size() + " possible parse trees");
+//                System.out.println("GOT " + all.size() + " possible parse trees");
                 stv.status("Have " + all.size() + " parse trees", -1, -1);
                 int of = all.size() + 2;
                 for (int i = 0; i < all.size(); i++) {
@@ -298,10 +288,10 @@ public class AmbiguityAnalyzer {
                 stv.status("Computing diffs", of - 1, of);
             }
 
-            System.out.println("ALLPATHS: " + allPaths.size());
+//            System.out.println("ALLPATHS: " + allPaths.size());
             if (!allPaths.isEmpty()) {
                 Map<PT, List<List<PT>>> diff = PT.diffPaths(allPaths, stv);
-                System.out.println("DIFF SIZE " + diff.size());
+//                System.out.println("DIFF SIZE " + diff.size());
                 stv.visitPaths(gpi, grammar, diff, vocab, rules);
             }
         } finally {
@@ -408,14 +398,14 @@ public class AmbiguityAnalyzer {
             ;
             if (isTarget) {
                 hitTarget = true;
-                System.out.println("AMBIGUITY " + recognizer.getRuleNames()[dfa.atnStartState.ruleIndex]);
+//                System.out.println("AMBIGUITY " + recognizer.getRuleNames()[dfa.atnStartState.ruleIndex]);
                 aa.handleAmbiguity(gpi, grammar, recognizer, stopIndex, ambigAlts, startIndex, dfa, configs, parsing,
                         editSafeRegions);
-            } else {
-                System.out.println("wrong ambig " + startIndex + " / " + stopIndex + " dec " + dfa.decision
-                        + " state " + dfa.atnStartState.stateNumber);
-                System.out.println("looking for " + targetStart + " / " + targetStop + " dec " + expectedDecision
-                        + " state " + targetState);
+//            } else {
+//                System.out.println("wrong ambig " + startIndex + " / " + stopIndex + " dec " + dfa.decision
+//                        + " state " + dfa.atnStartState.stateNumber);
+//                System.out.println("looking for " + targetStart + " / " + targetStop + " dec " + expectedDecision
+//                        + " state " + targetState);
             }
         }
 
@@ -426,7 +416,7 @@ public class AmbiguityAnalyzer {
 
         @Override
         public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
-            System.out.println("Syntax error " + msg);
+//            System.out.println("Syntax error " + msg);
         }
 
         @Override

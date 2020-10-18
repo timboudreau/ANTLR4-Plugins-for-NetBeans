@@ -19,9 +19,6 @@ import com.mastfrog.function.TriConsumer;
 import com.mastfrog.graph.IntGraph;
 import com.mastfrog.graph.IntGraphBuilder;
 import com.mastfrog.graph.ObjectGraph;
-import com.mastfrog.util.collections.IntIntMap;
-import com.mastfrog.util.collections.IntMap;
-import com.mastfrog.util.collections.IntSet;
 import com.mastfrog.util.strings.AlignedText;
 import com.mastfrog.util.strings.Strings;
 import java.util.ArrayList;
@@ -37,8 +34,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
-import java.util.function.IntConsumer;
-import java.util.function.Predicate;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
@@ -181,9 +176,9 @@ final class PT implements Comparable<PT> {
     static Map<PT, List<List<PT>>> diffPaths(List<List<List<PT>>> all, AmbiguityAnalyzer.STV stv) {
         Set<List<PT>> joined = new HashSet<>();
         all.forEach(oneAltSets -> {
-            System.out.println(" SETS A: " + oneAltSets);
+//            System.out.println(" SETS A: " + oneAltSets);
             oneAltSets.forEach(subs -> {
-                System.out.println("  SETS B " + subs);
+//                System.out.println("  SETS B " + subs);
                 joined.add(subs);
             });
         });
@@ -193,21 +188,21 @@ final class PT implements Comparable<PT> {
             List<List<PT>> l = byTail.computeIfAbsent(ptl.get(ptl.size() - 1), _ignored -> new ArrayList<>());
             l.add(ptl);
         }
-        System.out.println("  by tail " + byTail.size());
+//        System.out.println("  by tail " + byTail.size());
         Set<PT> toRemove = new HashSet<>();
         for (Map.Entry<PT, List<List<PT>>> e : byTail.entrySet()) {
             if (e.getValue().size() <= 1) {
                 toRemove.add(e.getKey());
             } else {
                 stv.status("\n\nPaths to " + e.getKey(), -1, -1);
-                System.out.println("PATHS TO " + e.getKey());
+//                System.out.println("PATHS TO " + e.getKey());
                 for (List<PT> lp : e.getValue()) {
-                    System.out.println(" * " + Strings.join(" -> ", lp));
+//                    System.out.println(" * " + Strings.join(" -> ", lp));
                     stv.status("\n" + " * " + Strings.join(" -> ", lp), -1, -1);
                 }
             }
         }
-        System.out.println("  will remove " + toRemove);
+//        System.out.println("  will remove " + toRemove);
         if (toRemove.size() < byTail.size()) {
             for (PT rem : toRemove) {
                 byTail.remove(rem);
@@ -340,7 +335,7 @@ final class PT implements Comparable<PT> {
                     }
                     uniqueHeads.add(head);
                 }
-                System.out.println("HAVE " + uniqueHeads.size() + " heads: " + uniqueHeads);
+//                System.out.println("HAVE " + uniqueHeads.size() + " heads: " + uniqueHeads);
                 if (uniqueHeads.size() > 1) {
                     for (List<PT> uh : uniqueHeads) {
                         List<List<PT>> nue = new LinkedList<>();
@@ -460,7 +455,7 @@ final class PT implements Comparable<PT> {
         Set<PT> all = new HashSet<>();
         for (List<PT> l : pts) {
             all.addAll(l);
-            System.out.println("Add " + l);
+//            System.out.println("Add " + l);
         }
         List<PT> sorted = new ArrayList<>(all);
         Collections.sort(sorted);

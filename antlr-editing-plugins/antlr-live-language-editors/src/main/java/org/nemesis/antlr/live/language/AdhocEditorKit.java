@@ -30,6 +30,7 @@ import org.netbeans.editor.ext.ExtKit;
 import org.netbeans.api.lexer.InputAttributes;
 import org.netbeans.api.lexer.Language;
 import org.netbeans.editor.BaseTextUI;
+import org.netbeans.editor.EditorUI;
 import org.netbeans.modules.editor.NbEditorKit;
 import org.netbeans.modules.editor.NbEditorUtilities;
 import org.openide.filesystems.FileObject;
@@ -40,7 +41,7 @@ import org.openide.util.RequestProcessor;
  *
  * @author Tim Boudreau
  */
-public class AdhocEditorKit extends ExtKit {
+public class AdhocEditorKit extends NbEditorKit {
 
     private final String mimeType;
     private static final ThreadLocal<Doc> RENDERING_DOCUMENT = new ThreadLocal<>();
@@ -84,6 +85,14 @@ public class AdhocEditorKit extends ExtKit {
     @Override
     protected BaseTextUI createTextUI() {
         return super.createTextUI();
+    }
+
+    @Override
+    protected EditorUI createEditorUI() {
+        EditorUI result = super.createEditorUI();
+        result.setLineNumberEnabled(true);
+        
+        return result;
     }
 
 

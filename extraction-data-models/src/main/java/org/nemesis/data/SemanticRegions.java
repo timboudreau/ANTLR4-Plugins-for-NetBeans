@@ -860,11 +860,9 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
                     "Bad key type: " + key + " (" + key.getClass() + ")";
             if (!starts.isEmpty()) {
                 if (key == objs.get(objs.size() - 1) && start == starts.last() && end == starts.last()) {
-                    System.out.println("append dup " + start + ":" + end + "  " + key);
                     return this;
                 }
             }
-//            System.out.println("ADD " + start + ":" + end + " " + key);
             starts.add(start);
             ends.add(end);
             objs.add(key);
@@ -1251,9 +1249,6 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
                 }
             }
             int sz = temp.size();
-//            if (sz < size) {
-//                System.err.println("Duplicate keys encountered - index will omit them");
-//            }
             T[] sortedKeys = (T[]) Array.newInstance(SemanticRegions.this.keys.getClass().getComponentType(), sz);
             keysSorted = sortedKeys;
 

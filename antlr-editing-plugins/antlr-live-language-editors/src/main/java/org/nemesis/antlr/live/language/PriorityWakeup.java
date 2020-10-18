@@ -58,15 +58,12 @@ public final class PriorityWakeup {
 
     public static void runImmediately(Runnable r) {
         if (ShutdownHooks.isShuttingDown()) {
-            System.out.println("Shutting down, do nothing");
             return;
         }
         if (INSTANCE.started.compareAndSet(false, true)) {
-            System.out.println("START PRIO THREAD");
             INSTANCE.thread.start();
             try {
                 INSTANCE.r.latch.await(10, TimeUnit.SECONDS);
-                System.out.println("  latch released");
                 // Give it a chance to start slurping on the queue
                 Thread.sleep(20);
 
@@ -78,10 +75,8 @@ public final class PriorityWakeup {
             r.run();
             return;
         }
-        System.out.println(" offer " + r);
         Job job = new Job(r, Lookup.getDefault());
         boolean accepted = INSTANCE.q.offer(job);
-        System.out.println("  accepted " + accepted + " for job " + job);
         if (!accepted) {
             try {
                 Thread.sleep(20);
@@ -90,7 +85,6 @@ public final class PriorityWakeup {
             }
             accepted = INSTANCE.q.offer(job);
             if (!accepted) {
-                System.out.println("Still not accepted, run directly.");
                 r.run();
             }
         }
@@ -122,49 +116,42 @@ public final class PriorityWakeup {
 
         @Override
         public void run() {
-            System.out.println("PIO ENTER");
             List<Runnable> toRun = new ArrayList<>(3);
-            try {
-                latch.countDown();
-                Runnable r = null;
-                for (;;) {
-                    try {
-                        r = q.take();
-                        System.out.println("  PRIO JOB " + r);
-                        if (r != null) {
-                            ActivityPriority.REALTIME.wrap(r);
-                        }
-                        r = null;
-                        q.drainTo(toRun);
-                        if (!toRun.isEmpty()) {
-                            try {
-                                for (Runnable r1 : toRun) {
-                                    try {
-                                        ActivityPriority.REALTIME.wrap(r1);;
-                                    } catch (Error | Exception e1) {
-                                        if (e1 instanceof OutOfMemoryError) {
-                                            e1.printStackTrace();
-                                            return;
-                                        }
-                                        Exceptions.printStackTrace(e1);
-                                    }
-                                }
-                            } finally {
-                                toRun.clear();
-                            }
-                        }
-                    } catch (Exception | Error ex) {
-                        if (ex instanceof OutOfMemoryError) {
-                            ex.printStackTrace();
-                            return;
-                        }
-                        Exceptions.printStackTrace(ex);
+            latch.countDown();
+            Runnable r = null;
+            for (;;) {
+                try {
+                    r = q.take();
+                    if (r != null) {
+                        ActivityPriority.REALTIME.wrap(r);
                     }
+                    r = null;
+                    q.drainTo(toRun);
+                    if (!toRun.isEmpty()) {
+                        try {
+                            for (Runnable r1 : toRun) {
+                                try {
+                                    ActivityPriority.REALTIME.wrap(r1);;
+                                } catch (Error | Exception e1) {
+                                    if (e1 instanceof OutOfMemoryError) {
+                                        e1.printStackTrace();
+                                        return;
+                                    }
+                                    Exceptions.printStackTrace(e1);
+                                }
+                            }
+                        } finally {
+                            toRun.clear();
+                        }
+                    }
+                } catch (Exception | Error ex) {
+                    if (ex instanceof OutOfMemoryError) {
+                        ex.printStackTrace();
+                        return;
+                    }
+                    Exceptions.printStackTrace(ex);
                 }
-            } finally {
-                System.out.println("PIO EXIT");
             }
         }
     }
-
 }

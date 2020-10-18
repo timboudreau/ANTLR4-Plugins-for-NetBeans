@@ -340,7 +340,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                     }
                     return Boolean.TRUE;
                 }, fpRef);
-                System.out.println("Gen subscription coalescence " + PCT.format(coa.coalescence() * 100) + "%");
+//                System.out.println("Gen subscription coalescence " + PCT.format(coa.coalescence() * 100) + "%");
             }
         } catch (Exception ex) {
             LOG.log(Level.SEVERE, file + "", ex);

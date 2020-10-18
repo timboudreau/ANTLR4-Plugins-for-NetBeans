@@ -161,15 +161,12 @@ public final class ImportIntoSampleAction extends AbstractAction implements Cont
             // out of our way that might otherwise try to start chewing on the
             // document
             PriorityWakeup.runImmediately(() -> {
-                System.out.println("PW START");
                 replaceDocumentContentsFromFile(path, fo, oldCursor, target, allPaths);
-                System.out.println("PW REPARSE");
 //                try {
 //                    NbAntlrUtils.parseImmediately(target.getDocument());
 //                } catch (Exception ex) {
 //                    Exceptions.printStackTrace(ex);
 //                }
-                System.out.println("PW DONE");
             });
         }
     }
@@ -202,15 +199,12 @@ public final class ImportIntoSampleAction extends AbstractAction implements Cont
                     // out of our way that might otherwise try to start chewing on the
                     // document
                     PriorityWakeup.runImmediately(() -> {
-                        System.out.println("PW START");
                         replaceDocumentContentsFromFile(file.toPath(), fo, cursor, target, recentPaths());
-                        System.out.println("PW REPARSE");
 //                        try {
 //                            NbAntlrUtils.parseImmediately(target.getDocument());
 //                        } catch (Exception ex) {
 //                            Exceptions.printStackTrace(ex);
 //                        }
-                        System.out.println("PW DONE");
                     });
                 }
             }

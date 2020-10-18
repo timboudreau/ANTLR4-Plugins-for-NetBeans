@@ -682,7 +682,6 @@ public final class MemoryTool extends Tool {
         GrammarRootAST grammarRootAST = parse(fileName, stream);
         final Grammar g = createGrammar(grammarRootAST);
         if (g != null) {
-            System.out.println("CTX SUPER " + g.getOptionString("contextSuperClass"));
             g.fileName = finalFile.path().toString();
             log("Loaded primary grammar " + g.name + " file "
                     + g.fileName + " from " + ctx.inputLocation

@@ -54,8 +54,8 @@ public class AntlrRuntimeErrorsHighlighter extends AbstractHighlighter implement
 
     public AntlrRuntimeErrorsHighlighter(HighlightsLayerFactory.Context ctx) {
         super(ctx, true);
-        if (LOG.isLoggable(Level.INFO)) {
-            LOG.log(Level.INFO, "Create an errors highlighter", new Exception("Create error higlighter " + id()));
+        if (LOG.isLoggable(Level.FINEST)) {
+            LOG.log(Level.FINEST, "Create an errors highlighter", new Exception("Create error higlighter " + id()));
         }
     }
 

@@ -323,7 +323,6 @@ final class PerProjectJFSMappingManager {
 
     JFS jfs() {
         if (dead) {
-            System.out.println("DEAD.");
             try {
                 return JFS.builder().build();
             } catch (IOException ex) {

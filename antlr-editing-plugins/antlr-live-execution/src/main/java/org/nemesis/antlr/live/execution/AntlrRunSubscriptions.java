@@ -502,7 +502,7 @@ public class AntlrRunSubscriptions {
             } catch (WorkCoalescer.ComputationFailedException ex) {
                 Exceptions.printStackTrace(ex);
             }
-            System.out.println("Run-Sub coalescence " + coa.coalescence());
+//            System.out.println("Run-Sub coalescence " + coa.coalescence());
         }
 
         private Obj<GrammarRunResult<T>> doTheThing(GrammarFileContext tree, Extraction extraction, AntlrGenerationResult res, JFS jfs) throws IOException {

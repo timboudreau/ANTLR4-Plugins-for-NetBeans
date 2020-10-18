@@ -151,9 +151,9 @@ public class CellsPanel extends JPanel {
             postMerge(differences);
             int startY = gbc.gridy;
             gbc.gridx = start;
-            System.out.println("HEAD: " + commonHead);
-            System.out.println("TAIL: " + commonTail);
-            System.out.println("DIFFS SIZE " + differences.size());
+//            System.out.println("HEAD: " + commonHead);
+//            System.out.println("TAIL: " + commonTail);
+//            System.out.println("DIFFS SIZE " + differences.size());
             int diffItems = 0;
             boolean containsEmpty = false;
             for (int i = 0; i < differences.size(); i++) {
@@ -285,7 +285,7 @@ public class CellsPanel extends JPanel {
                     }
                 }
             }
-            System.out.println("ATTRS " + attrs);
+//            System.out.println("ATTRS " + attrs);
             font = new Font(fontName == null ? "Courier New" : fontName, Font.PLAIN, size);
         }
         return font;

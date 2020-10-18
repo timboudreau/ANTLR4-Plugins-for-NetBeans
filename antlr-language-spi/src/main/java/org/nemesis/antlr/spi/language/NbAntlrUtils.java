@@ -505,7 +505,7 @@ public final class NbAntlrUtils {
             } while ( temporaryStrongRef.get() == null || temporaryStrongRef.get()
                     .isSourceProbablyModifiedSinceCreation() );
 
-            System.out.println( "Extraction coalescence: " + coa );
+//            System.out.println( "Extraction coalescence: " + coa );
         } catch ( InterruptedException ex ) {
             Exceptions.printStackTrace( ex );
         } catch ( WorkCoalescer.ComputationFailedException ex ) {

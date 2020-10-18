@@ -198,9 +198,9 @@ public class AlternativesExtractors {
                     case "intrinsic_type":
                     case "signed_int_subtype":
                     case "unsigned_int_subtype":
-                        System.out.println("RULE " + currentRule
-                                + " atoms seen " + atomsSeen + " seen types \n" + setToString(CollectionUtils.immutableSet(currentContainedTypes))
-                                + " expecting \n" + setToString(targetTypes) + " match? " + targetTypes.equals(currentContainedTypes) + "\n\n");
+//                        System.out.println("RULE " + currentRule
+//                                + " atoms seen " + atomsSeen + " seen types \n" + setToString(CollectionUtils.immutableSet(currentContainedTypes))
+//                                + " expecting \n" + setToString(targetTypes) + " match? " + targetTypes.equals(currentContainedTypes) + "\n\n");
 
                 }
                 // If all of the elements were single terminal nodes we are a go

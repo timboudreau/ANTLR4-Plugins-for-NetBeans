@@ -61,7 +61,6 @@ public final class EmbeddedParserFeatures {
         int result = ParserExtractor.flagsforPredictionMode(notNull("predictionMode",
                 predictionMode));
         if (flags != result) {
-            System.out.println("SET PREDICTION MODE TO " + predictionMode);
             flags = result;
             if (this == INSTANCE) {
                 NbPreferences.forModule(EmbeddedParserFeatures.class)

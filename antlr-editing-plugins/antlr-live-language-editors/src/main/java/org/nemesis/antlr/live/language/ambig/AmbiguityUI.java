@@ -122,7 +122,6 @@ public class AmbiguityUI implements STVProvider {
 
     private void ensureVisible(String displayName) {
         if (vis.compareAndSet(false, true)) {
-            System.out.println("OPEN A TC " + displayName);
             TC tc = new TC(displayName, panel);
             tc.open();
             tc.requestVisible();
@@ -286,7 +285,6 @@ public class AmbiguityUI implements STVProvider {
                     return range;
                 } else {
                     // WTF
-                    System.out.println("NO RANGE FOR INVOKING STATE " + invokingState + " for " + tree);
                     Interval ival = grammar.getStateToGrammarRegion(invokingState);
                     if (ival != null) {
                         try {
