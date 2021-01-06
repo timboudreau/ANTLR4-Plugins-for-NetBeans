@@ -1891,9 +1891,7 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 bb.lineComment("By default, ANTLR parsers come with a listener that writes to stdout attached.  Remove it");
                                 bb.invoke("removeErrorListeners").on("parser");
                                 bb.blankLine();
-                                bb.lineComment("Invoke the hook method allowing the helper to attach error listeners, or ");
-                                bb.lineComment("configure the parser or lexer before using them.");
-                                bb.declare("maybeSnapshot").initializedByInvoking("lookup").withArgument("Snapshot.class").on("src").as(OPTIONAL.parameterizedOn(SNAPSHOT).simpleName());
+                                bb.declare("maybeSnapshot").initializedByInvoking("lookup").withClassArgument(SNAPSHOT.simpleName()).on("src").as(OPTIONAL.parameterizedOn(SNAPSHOT).simpleName());
                                 bb.blankLine();
                                 bb.lineComment("The registered GrammarSource implementations will synthesize a Snapshot if the GrammarSource");
                                 bb.lineComment("was not created from one (as happens in tests), if a Document or a FileObject is present.");
@@ -1903,7 +1901,10 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
 
                                 String suppType = SUPPLIER.parametrizedName(LIST.parametrizedName("? extends " + SYNTAX_ERROR.simpleName()));
 
-                                bb.declare("errors").initializedByInvoking("parserCreated").withArgument("lexer").withArgument("parser")
+                                bb.lineComment("Invoke the hook method allowing the helper to attach error listeners, or ");
+                                bb.lineComment("configure the parser or lexer before using them.");
+                                bb.declare("errors").initializedByInvoking("parserCreated")
+                                        .withArgument("lexer").withArgument("parser")
                                         .withArgument("snapshot")
                                         .on("HELPER").as(suppType);
 
@@ -1962,7 +1963,8 @@ public class LanguageRegistrationDelegate extends LayerGeneratingDelegate {
                                 bb.lineComment("helper's hook method to add anything it needs, such as semantic error");
                                 bb.lineComment("checking, or other data resolved from the extraction or parse tree - ");
                                 bb.lineComment("this allows existing Antlr code to be used.");
-                                bb.declare("result").initializedWith("new AntlrParseResult[1]").as("AntlrParseResult[]");
+                                bb.declare("result").initializedWith("new " + ANTLR_PARSE_RESULT.simpleNameArray(1))
+                                        .as(ANTLR_PARSE_RESULT.simpleNameArray());
                                 bb.declare("thrown").initializedWith("new Exception[1]").as("Exception[]");
                                 bb.lineComment("Doing this via " + prefix + "Hierarchy simply ensures that");
                                 bb.lineComment("we don't publicly expose a method for constructing parser results");
