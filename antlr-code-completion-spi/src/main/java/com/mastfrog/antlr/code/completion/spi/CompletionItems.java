@@ -15,7 +15,7 @@
  */
 package com.mastfrog.antlr.code.completion.spi;
 
-import org.nemesis.swing.cell.TextCell;
+import com.mastfrog.swing.cell.TextCell;
 
 /**
  * Collection of completion items which can be added to; each item can have a

@@ -15,7 +15,10 @@
  */
 package org.nemesis.antlr.live.language.ambig;
 
+import com.mastfrog.colors.RotatingColors;
 import com.mastfrog.function.state.Obj;
+import com.mastfrog.swing.cell.TextCell;
+import com.mastfrog.swing.cell.TextCellLabel;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -52,9 +55,6 @@ import javax.swing.text.AttributeSet;
 import javax.swing.text.StyleConstants;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
 import org.nemesis.antlr.spi.language.highlighting.EditorAttributesFinder;
-import org.nemesis.swing.RotatingColors;
-import org.nemesis.swing.cell.TextCell;
-import org.nemesis.swing.cell.TextCellLabel;
 import org.netbeans.api.editor.settings.FontColorNames;
 import org.openide.util.NbBundle;
 import org.openide.util.NbBundle.Messages;

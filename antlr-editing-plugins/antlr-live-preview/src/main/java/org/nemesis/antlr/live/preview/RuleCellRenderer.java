@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.swing.cell.TextCell;
+import com.mastfrog.swing.cell.TextCellLabel;
 import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
 import java.awt.Component;
@@ -28,8 +30,6 @@ import javax.swing.UIManager;
 import org.nemesis.antlr.live.language.coloring.AdhocColoring;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
-import org.nemesis.swing.cell.TextCell;
-import org.nemesis.swing.cell.TextCellLabel;
 import org.openide.util.NbBundle.Messages;
 
 /**

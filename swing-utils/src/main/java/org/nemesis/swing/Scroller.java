@@ -45,6 +45,7 @@ import javax.swing.Timer;
 import javax.swing.WindowConstants;
 
 /**
+ * Implements animated smooth scrolling over any JScrollPane.
  *
  * @author Tim Boudreau
  */

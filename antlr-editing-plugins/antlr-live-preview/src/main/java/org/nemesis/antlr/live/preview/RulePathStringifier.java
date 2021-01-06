@@ -15,11 +15,11 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.swing.cell.TextCellLabel;
 import java.awt.Color;
 import javax.swing.JComponent;
 import javax.swing.JList;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies;
-import org.nemesis.swing.cell.TextCellLabel;
 
 /**
  * Manages converting a particular token into an (optionally HTML-ized)

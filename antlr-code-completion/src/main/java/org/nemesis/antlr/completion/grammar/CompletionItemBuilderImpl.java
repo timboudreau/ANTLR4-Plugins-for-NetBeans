@@ -17,11 +17,11 @@ package org.nemesis.antlr.completion.grammar;
 
 import com.mastfrog.antlr.code.completion.spi.CompletionApplier;
 import com.mastfrog.antlr.code.completion.spi.CompletionItemBuilder;
+import com.mastfrog.swing.cell.TextCell;
 import java.awt.event.KeyEvent;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.nemesis.swing.cell.TextCell;
 
 /**
  *

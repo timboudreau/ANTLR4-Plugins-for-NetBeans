@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.swing.activity.ActivityIndicator;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -46,7 +47,6 @@ import org.nemesis.antlr.live.language.ColorUtils;
 import org.nemesis.antlr.live.language.coloring.AdhocColoring;
 import org.nemesis.antlr.live.language.coloring.AdhocColorings;
 import org.nemesis.antlr.live.language.coloring.AttrTypes;
-import org.nemesis.swing.ActivityIndicator;
 import org.openide.util.NbBundle.Messages;
 
 /**

@@ -42,7 +42,7 @@ limitations under the License.
         <mastfrog.subscriptions.version>${mastfrog.version}</mastfrog.subscriptions.version>
         <mastfrog.converters.version>${mastfrog.version}</mastfrog.converters.version>
         <mastfrog.strings.version>${mastfrog.version}</mastfrog.strings.version>
-        <java.vogon.version>${mastfrog.version}</java.vogon.version>
+        <java.vogon.version>${mastfrog.version}.2</java.vogon.version>
         <antlr.message.format>gnu</antlr.message.format>
         <old.junit.version>4.12</old.junit.version>
         <new.junit.version>5.5.2</new.junit.version>
@@ -744,6 +744,21 @@ limitations under the License.
                 <groupId>com.mastfrog</groupId>
                 <artifactId>subscription</artifactId>
                 <version>${mastfrog.subscriptions.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>swing-miscellaneous</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>geometry</artifactId>
+                <version>${mastfrog.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mastfrog</groupId>
+                <artifactId>colors</artifactId>
+                <version>${mastfrog.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.mastfrog</groupId>

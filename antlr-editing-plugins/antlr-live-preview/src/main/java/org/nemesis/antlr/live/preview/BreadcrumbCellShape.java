@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.swing.cell.TextCell;
+import com.mastfrog.swing.cell.TextCellLabel;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -34,8 +36,6 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.WindowConstants;
-import org.nemesis.swing.cell.TextCell;
-import org.nemesis.swing.cell.TextCellLabel;
 
 /**
  *

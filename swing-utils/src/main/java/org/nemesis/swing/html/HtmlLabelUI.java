@@ -159,7 +159,7 @@ class HtmlLabelUI extends LabelUI {
         //XXX We REALLY need to put this in a graphics utils lib
         if (hintsMap == null) {
             //Thanks to Phil Race for making this possible
-            hintsMap = (Map) (Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints")); //NOI18N
+            hintsMap = (Map<Object,Object>) (Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints")); //NOI18N
             if (hintsMap == null) {
                 hintsMap = new HashMap<Object, Object>();
                 if (antialias) {

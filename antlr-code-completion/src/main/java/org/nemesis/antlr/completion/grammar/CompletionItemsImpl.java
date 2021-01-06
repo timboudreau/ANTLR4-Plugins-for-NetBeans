@@ -20,6 +20,7 @@ import com.mastfrog.antlr.code.completion.spi.CompletionApplier;
 import com.mastfrog.antlr.code.completion.spi.CompletionItemBuilder;
 import com.mastfrog.antlr.code.completion.spi.CompletionItems;
 import com.mastfrog.function.throwing.ThrowingRunnable;
+import com.mastfrog.swing.cell.TextCell;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,7 +36,6 @@ import javax.swing.text.StyledDocument;
 import org.nemesis.editor.position.PositionFactory;
 import org.nemesis.editor.position.PositionRange;
 import org.nemesis.localizers.api.Localizers;
-import org.nemesis.swing.cell.TextCell;
 import org.openide.text.PositionBounds;
 import org.openide.util.Exceptions;
 

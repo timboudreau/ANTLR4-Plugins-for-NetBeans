@@ -16,6 +16,7 @@
 package org.nemesis.antlr.completion.grammar;
 
 import com.mastfrog.antlr.code.completion.spi.CompletionApplier;
+import com.mastfrog.swing.cell.TextCell;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -26,7 +27,6 @@ import java.util.function.Supplier;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.StyledDocument;
 import static org.nemesis.antlr.completion.grammar.GCI.SCORE_FACTOR;
-import org.nemesis.swing.cell.TextCell;
 import org.netbeans.api.editor.completion.Completion;
 import org.netbeans.spi.editor.completion.CompletionItem;
 import org.netbeans.spi.editor.completion.CompletionResultSet;

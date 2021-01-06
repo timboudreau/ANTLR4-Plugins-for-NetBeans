@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.swing.cell.TextCell;
+import com.mastfrog.swing.cell.TextCellCellRenderer;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Font;
@@ -24,8 +26,6 @@ import javax.swing.JList;
 import javax.swing.ListCellRenderer;
 import javax.swing.UIManager;
 import static org.nemesis.antlr.live.preview.RuleCellRenderer.escaper;
-import org.nemesis.swing.cell.TextCell;
-import org.nemesis.swing.cell.TextCellCellRenderer;
 
 /**
  *

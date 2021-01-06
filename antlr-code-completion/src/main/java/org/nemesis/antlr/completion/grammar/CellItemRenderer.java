@@ -15,13 +15,13 @@
  */
 package org.nemesis.antlr.completion.grammar;
 
+import com.mastfrog.swing.cell.TextCell;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.geom.Rectangle2D;
 import java.util.function.Consumer;
-import org.nemesis.swing.cell.TextCell;
 
 /**
  *

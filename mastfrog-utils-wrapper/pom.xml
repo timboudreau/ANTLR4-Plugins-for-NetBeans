@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.mastfrog</groupId>
@@ -83,6 +83,9 @@ limitations under the License.
                         <publicPackage>com.mastfrog.util.streams.stdio</publicPackage>
                         <publicPackage>com.mastfrog.util.path</publicPackage>
                         <publicPackage>com.mastfrog.util.preconditions</publicPackage>
+                        <publicPackage>com.mastfrog.swing.cell</publicPackage>
+                        <publicPackage>com.mastfrog.swing.activity</publicPackage>
+                        <publicPackage>com.mastfrog.colors</publicPackage>
                     </publicPackages>
                     <author>Tim Boudreau</author>
                 </configuration>
@@ -144,5 +147,17 @@ limitations under the License.
             <groupId>com.mastfrog</groupId>
             <artifactId>util-strings</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>swing-miscellaneous</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>geometry</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.mastfrog</groupId>
+            <artifactId>colors</artifactId>
+        </dependency>        
     </dependencies>
 </project>

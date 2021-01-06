@@ -15,6 +15,8 @@
  */
 package org.nemesis.antlr.live.preview;
 
+import com.mastfrog.swing.cell.TextCell;
+import com.mastfrog.swing.cell.TextCellLabel;
 import com.mastfrog.util.strings.Escaper;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -33,8 +35,6 @@ import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ParseTreeProxy;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.ProxyToken;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.RuleNodeTreeElement;
 import org.nemesis.antlr.live.parsing.extract.AntlrProxies.TerminalNodeTreeElement;
-import org.nemesis.swing.cell.TextCell;
-import org.nemesis.swing.cell.TextCellLabel;
 
 /**
  *

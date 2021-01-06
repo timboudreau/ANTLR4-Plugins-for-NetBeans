@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlr.live.preview.multiview;
 
+import com.mastfrog.swing.activity.Spinner;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.EventQueue;
@@ -31,7 +32,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import org.nemesis.antlr.live.preview.PreviewPanel;
-import org.nemesis.swing.Spinner;
 import org.openide.util.NbBundle.Messages;
 
 /**

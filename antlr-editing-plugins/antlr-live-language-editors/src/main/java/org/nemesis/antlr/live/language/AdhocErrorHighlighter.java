@@ -15,7 +15,7 @@
  */
 package org.nemesis.antlr.live.language;
 
-import org.nemesis.swing.RotatingColors;
+import com.mastfrog.colors.RotatingColors;
 import com.mastfrog.function.TriConsumer;
 import com.mastfrog.function.state.Bool;
 import com.mastfrog.range.IntRange;
