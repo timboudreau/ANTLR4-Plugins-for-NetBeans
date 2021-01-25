@@ -36,13 +36,13 @@ limitations under the License.
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
         <mastfrog.version>2.7.1</mastfrog.version>
-        <mastfrog.util.collections.version>${mastfrog.version}</mastfrog.util.collections.version>
-        <mastfrog.util.graph.version>${mastfrog.version}</mastfrog.util.graph.version>
-        <mastfrog.function.version>${mastfrog.version}</mastfrog.function.version>
+        <mastfrog.util.collections.version>${mastfrog.version}.1</mastfrog.util.collections.version>
+        <mastfrog.util.graph.version>${mastfrog.version}.1</mastfrog.util.graph.version>
+        <mastfrog.function.version>${mastfrog.version}.4</mastfrog.function.version>
         <mastfrog.subscriptions.version>${mastfrog.version}</mastfrog.subscriptions.version>
         <mastfrog.converters.version>${mastfrog.version}</mastfrog.converters.version>
         <mastfrog.strings.version>${mastfrog.version}</mastfrog.strings.version>
-        <java.vogon.version>${mastfrog.version}.2</java.vogon.version>
+        <java.vogon.version>${mastfrog.version}.4</java.vogon.version>
         <antlr.message.format>gnu</antlr.message.format>
         <old.junit.version>4.12</old.junit.version>
         <new.junit.version>5.5.2</new.junit.version>

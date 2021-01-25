@@ -440,7 +440,7 @@ public class KeybindingsAnnotationProcessor extends LayerGeneratingDelegate {
                     typeToVar.put(ACTION_EVENT_TYPE, "evt");
                     typeToVar.put(J_TEXT_COMPONENT_TYPE, "target");
                     typeToVar.put(EXTRACTION_TYPE, "extraction");
-                    Consumer<BlockBuilderBase<?, ?>> invokeTheMethod = bb -> {
+                    Consumer<BlockBuilderBase<?, ?, ?>> invokeTheMethod = bb -> {
                         if (argumentTypes.contains(DOCUMENT_TYPE)) {
                             bb.declare("doc").initializedByInvoking("getDocument").on("target").as(simpleName(DOCUMENT_TYPE));
                             typeToVar.put(DOCUMENT_TYPE, "doc");
