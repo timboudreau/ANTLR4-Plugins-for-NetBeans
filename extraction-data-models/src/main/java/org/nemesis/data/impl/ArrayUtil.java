@@ -214,7 +214,7 @@ public final class ArrayUtil {
             if (mp2 != last && mp2 < size) {
                 int mv2 = in[mp2];
                 if (mv2 == target) {
-                    System.out.println("  shift forward for match " + mp2 + " with " + mv2  + " size % 2 " + (size % 2));
+                    System.out.println("  shift forward for match " + mp2 + " with " + mv2 + " size % 2 " + (size % 2));
                     midPoint = mp2;
                     midVal = mv2;
                 }
@@ -255,7 +255,7 @@ public final class ArrayUtil {
                         System.out.println("s");
                         return duplicateTolerantFuzzyBinarySearch(target, bias, in, nextFirst, midPoint - 1, size);
                     } else {
-                        System.out.println("tu " + nextFirst + ":" + (midPoint-1));
+                        System.out.println("tu " + nextFirst + ":" + (midPoint - 1));
                         int res = duplicateTolerantFuzzyBinarySearch(target, bias, in, nextFirst, midPoint - 1, size);
                         if (res < 0) {
                             System.out.println("t");
