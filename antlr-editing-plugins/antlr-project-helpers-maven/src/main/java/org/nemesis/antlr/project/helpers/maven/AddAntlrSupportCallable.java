@@ -50,7 +50,7 @@ final class AddAntlrSupportCallable implements Runnable {
     private final Project project;
     private final FileObject dir;
     private final FileObject pom;
-    private static final String DEFAULT_VERSION = AntlrVersion.version("4.8-1");
+    private static final String DEFAULT_VERSION = AntlrVersion.version("4.9.1");
     private final NewAntlrConfigurationInfo info;
     private final CompletableFuture<Boolean> whenDone;
     private Runnable postRun;

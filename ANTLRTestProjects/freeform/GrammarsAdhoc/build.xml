@@ -8,22 +8,23 @@
     <property name="grammars" location="grammar"/>
     <property name="build" location="build/classes"/>
     <property name="dist" location="dist"/>
+    <property name="antlrVersion" value="4.9.1"/>
 
     <property name="antlr.ant.task.jar"
-              location="/home/tim/.m2/repository/com/mastfrog/antlr-ant-task/2.0.48/antlr-ant-task-2.0.48.jar"/>
+              location="${user.home}/.m2/repository/com/mastfrog/antlr-ant-task/2.0.48/antlr-ant-task-2.0.48.jar"/>
 
     <property name="antlr.ant.task.antlr.jar"
-              location="/home/tim/.m2/repository/org/antlr/antlr4/4.8-1/antlr4-4.8-1.jar"/>
+              location="${user.home}/.m2/repository/org/antlr/antlr4/${antlrVersion}/antlr4-${antlrVersion}.jar"/>
 
     <property name="antlr.ant.task.runtime.jar"
-              location="/home/tim/.m2/repository/org/antlr/antlr4-runtime/4.8-1/antlr4-runtime-4.8-1.jar"/>
+              location="${user.home}/.m2/repository/org/antlr/antlr4-runtime/${antlrVersion}/antlr4-runtime-${antlrVersion}.jar"/>
 
 
     <property name="antlr.ant.task.st3.jar"
-              location="/home/tim/.m2/repository/org/antlr/ST4/4.3/ST4-4.3.jar"/>
+              location="${user.home}/.m2/repository/org/antlr/ST4/4.3/ST4-4.3.jar"/>
 
     <property name="antlr.ant.task.treelayout.jar"
-              location="/home/tim/.m2/repository/org/abego/treelayout/org.abego.treelayout.core/1.0.3/org.abego.treelayout.core-1.0.3.jar"/>
+              location="${user.home}/.m2/repository/org/abego/treelayout/org.abego.treelayout.core/1.0.3/org.abego.treelayout.core-1.0.3.jar"/>
     
     <property name="main.grammar" value="MarkdownParser"/>
     

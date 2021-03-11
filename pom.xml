@@ -31,22 +31,22 @@ limitations under the License.
         <java.source.level>1.8</java.source.level>
         <netbeans.hint.licensePath>${project.parent.relativePath}/../license-notice-apache-2.txt</netbeans.hint.licensePath>
         <!--<netbeans.hint.licensePath>${project.parent.relativePath}/license-notice-apache-2.txt</netbeans.hint.licensePath>-->
-        <antlr.version>4.8-1</antlr.version>
+        <antlr.version>4.9.1</antlr.version>
         <module.display.category>Antlr</module.display.category>
         <nbcluster>antlr</nbcluster>
         <netbeans.branding.token>${nbcluster}</netbeans.branding.token>
-        <mastfrog.version>2.7.1</mastfrog.version>
-        <mastfrog.util.collections.version>${mastfrog.version}.4</mastfrog.util.collections.version>
-        <mastfrog.util.graph.version>${mastfrog.version}.3</mastfrog.util.graph.version>
-        <mastfrog.function.version>${mastfrog.version}.8</mastfrog.function.version>
+        <mastfrog.version>2.7.2</mastfrog.version>
+        <mastfrog.util.collections.version>${mastfrog.version}</mastfrog.util.collections.version>
+        <mastfrog.util.graph.version>${mastfrog.version}</mastfrog.util.graph.version>
+        <mastfrog.function.version>${mastfrog.version}</mastfrog.function.version>
         <mastfrog.subscriptions.version>${mastfrog.version}</mastfrog.subscriptions.version>
         <mastfrog.converters.version>${mastfrog.version}</mastfrog.converters.version>
         <mastfrog.strings.version>${mastfrog.version}</mastfrog.strings.version>
-        <mastfrog.bits.version>${mastfrog.version}.2</mastfrog.bits.version>
-        <java.vogon.version>${mastfrog.version}.4</java.vogon.version>
+        <mastfrog.bits.version>${mastfrog.version}</mastfrog.bits.version>
+        <java.vogon.version>${mastfrog.version}</java.vogon.version>
         <antlr.message.format>gnu</antlr.message.format>
-        <old.junit.version>4.12</old.junit.version>
-        <new.junit.version>5.5.2</new.junit.version>
+        <old.junit.version>4.13.1</old.junit.version>
+        <new.junit.version>5.7.1</new.junit.version>
         <manifest.file.path>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifest.file.path>
         <yenta.version>1.1</yenta.version>
         <bcel.version>6.4.1</bcel.version>
