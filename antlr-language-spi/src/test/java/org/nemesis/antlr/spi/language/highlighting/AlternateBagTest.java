@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import javax.swing.event.DocumentEvent;
@@ -69,7 +70,6 @@ public class AlternateBagTest {
             int expectedStart = ix * 10;
             int expectedEnd = expectedStart + 5;
 
-//            System.out.println( ix + ". " + st + ":" + en + " " + attrs );
             assertEquals( st, expectedStart, "Wrong start for attr " + ix );
             assertEquals( en, expectedEnd, "Wrong end for attr " + ix );
             assertAttributes( attrs, ix );
@@ -277,24 +277,20 @@ public class AlternateBagTest {
         }
     }
 
-    private static final String text = "In this directory are general-purpose tooling for generating most of\n"
-                                       + "a language plugin for NetBeans off of an Antlr Grammar and a few annotations.\n"
-                                       + "In the spirit of eating one's own dog food, under this project are modules which\n"
-                                       + "use that tooling to implement support for editing Antlr grammars themselves.\n"
-                                       + "\n"
-                                       + "Those that are working reliably are depended on by the module `antlr-editing-kit`.\n";
+    private final String text = "In this directory are general-purpose tooling for generating most of\n"
+                                + "a language plugin for NetBeans off of an Antlr Grammar and a few annotations.\n"
+                                + "In the spirit of eating one's own dog food, under this project are modules which\n"
+                                + "use that tooling to implement support for editing Antlr grammars themselves.\n"
+                                + "\n"
+                                + "Those that are working reliably are depended on by the module `antlr-editing-kit`.\n";
 
     @Test
     public void testCompareWithOffsetsBag() throws Exception {
-        if (true) {
-            // XXX FIXME - we are not returning the right offsets.  Switching back to slower OffsetsBag for now.
-            return;
-        }
         document( text, AlternateBagTest::decorateText, ( doc, oBag, aBag, hcl ) -> {
               HighlightsSequence oSeq = oBag.getHighlights( 0, text.length() );
               HighlightsSequence aSeq = aBag.getHighlights( 0, text.length() );
               int origEnd = assertSequencesSame( "Full text", oSeq, aSeq );
-              System.out.println( "sequences match" );
+//              System.out.println( "sequences match" );
               for ( int i = 0; i < text.length() - 1; i++ ) {
                   for ( int j = text.length() - i; j >= 1; j-- ) {
                       oSeq = oBag.getHighlights( i, j );
@@ -303,11 +299,11 @@ public class AlternateBagTest {
 //                      System.out.println( i + ":" + j + " ok." );
                   }
               }
-              System.out.println( "insert string now" );
+//              System.out.println( "insert string now" );
               doc.insertString( 29, "-generally-useful-hoober-goober", null );
-              System.out.println( "new text " + doc.getText( 0, doc.getLength() ) );
+//              System.out.println( "new text " + doc.getText( 0, doc.getLength() ) );
               HighlightsChangeEvent evt = hcl.assertAtLeastOneEvent();
-              System.out.println( "EVENT: " + evt.getStartOffset() + ":" + evt.getEndOffset() );
+//              System.out.println( "EVENT: " + evt.getStartOffset() + ":" + evt.getEndOffset() );
 
               oSeq = oBag.getHighlights( 0, text.length() );
               aSeq = aBag.getHighlights( 0, text.length() );
@@ -318,7 +314,7 @@ public class AlternateBagTest {
           } );
     }
 
-    private int assertSequencesSame( String msg, HighlightsSequence a, HighlightsSequence b ) {
+    static int assertSequencesSame( String msg, HighlightsSequence a, HighlightsSequence b ) {
         int result = -1;
         for ( int i = 0;; i++ ) {
             boolean aNext = a.moveNext();
@@ -341,7 +337,8 @@ public class AlternateBagTest {
             assertEquals( aStart, bStart, () -> {
                       return msg + ": Start offsets differ for seq " + ix + ": " + aStart + " vs " + bStart
                              + " expected " + aStart + ":" + aEnd + " " + aAttrs + " but got "
-                             + bStart + ":" + bEnd + " " + bAttrs + " in " + b + " types " + a.getClass().getSimpleName()
+                             + bStart + ":" + bEnd + " " + bAttrs + " in " + b + " types " + a.getClass()
+                                      .getSimpleName()
                              + " and " + b.getClass().getSimpleName();
                   } );
 
@@ -361,7 +358,7 @@ public class AlternateBagTest {
 
     static final Map<String, Integer> wordOffsets = new HashMap<>();
 
-    private static void decorateText( HighlightConsumer con ) {
+    static void decorateText( String text, HighlightConsumer con ) {
         StringBuilder currentWord = new StringBuilder();
         int lastWordStart = -1;
         int sentenceStart = 0;
@@ -399,14 +396,14 @@ public class AlternateBagTest {
         }
     }
 
-    private void document( String text, Consumer<HighlightConsumer> c,
+    static void document( String text, BiConsumer<String, HighlightConsumer> c,
             ThrowingQuadConsumer<Document, OffsetsBag, AlternateBag, HCL> c1 ) throws Exception {
         DefaultStyledDocument doc = new DefaultStyledDocument();
         AlternateBag ourBag = new AlternateBag( "a" );
         OffsetsBag addTo = new OffsetsBag( doc, true );
         doc.insertString( 0, text, null );
-        c.accept( new WrapWrap( ourBag ) );
-        c.accept( new WrapWrap( HighlightConsumer.wrap( addTo, doc ) ) );
+        c.accept( text, ourBag );
+        c.accept( text, HighlightConsumer.wrap( addTo, doc ) );
         OffsetsBag realBag = new OffsetsBag( doc, true );
 
         HCL hcl = new HCL();
@@ -422,13 +419,13 @@ public class AlternateBagTest {
         doc.addDocumentListener( new DocumentListener() {
             @Override
             public void insertUpdate( DocumentEvent e ) {
-                System.out.println( "got insert" );
+//                System.out.println( "got insert" );
                 ourBag.onInsertion( e.getLength(), e.getOffset() );
             }
 
             @Override
             public void removeUpdate( DocumentEvent e ) {
-                System.out.println( "got delete" );
+//                System.out.println( "got delete" );
                 ourBag.onDeletion( e.getLength(), e.getOffset() );
             }
 

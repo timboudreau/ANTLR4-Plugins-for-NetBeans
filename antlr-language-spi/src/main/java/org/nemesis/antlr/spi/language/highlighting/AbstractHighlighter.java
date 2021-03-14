@@ -105,8 +105,8 @@ public abstract class AbstractHighlighter {
         theEditor.addComponentListener( WeakListeners.create(
                 ComponentListener.class, compl, theEditor ) );
 
-//        bag = new AlternateBag( Strings.lazy( this ) );
-        bag = new BagWrapper( new OffsetsBag( doc ), doc );
+        bag = new AlternateBag( Strings.lazy( this ) );
+//        bag = new BagWrapper( new OffsetsBag( doc ), doc );
 
         theEditor.addPropertyChangeListener( WeakListeners.propertyChange( compl, theEditor ) );
         LOG.log( Level.FINE, "Create {0} for {1}", new Object[]{ getClass().getName(), doc } );

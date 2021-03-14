@@ -307,7 +307,6 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
 
     @Override
     public HighlightsSequence getHighlights( int startOffset, int endOffset ) {
-
         SemanticRegions<AttributeSet> regions = current();
         if ( regions == null || regions.isEmpty() ) {
             return HighlightsSequence.EMPTY;
@@ -319,7 +318,8 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
             }
             return new SingleSeq( startOffset, item.key() );
         }
-        return new Seq( regions, startOffset, endOffset );
+        Seq result = new Seq( regions, startOffset, endOffset );
+        return result;
     }
 
     @Override
@@ -444,6 +444,11 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
 
         @Override
         public String toString() {
+            if ( curr == null ) {
+                return "Seq(" + curr + " with " + regions.size() + " at " + cursor
+                       + " covering " + startOffset + ":" + endOffset
+                       + " - finished )";
+            }
             SemanticRegion<AttributeSet> next = curr.index() == regions.size() - 1 ? null : regions.forIndex( curr
                     .index() + 1 );
 

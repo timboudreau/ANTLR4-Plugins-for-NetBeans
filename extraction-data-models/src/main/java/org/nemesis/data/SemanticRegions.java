@@ -313,7 +313,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         if (!hasNesting) {
             int ix = Arrays.binarySearch(starts, 0, size, position);
             if (ix < 0) {
-                searchStart = -ix;
+                searchStart = -ix - 1;
             } else {
                 searchStart = ix;
             }

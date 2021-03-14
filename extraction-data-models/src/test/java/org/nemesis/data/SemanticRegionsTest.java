@@ -54,6 +54,52 @@ import org.nemesis.jfs.javac.JavacOptions;
  */
 public class SemanticRegionsTest {
 
+    @Test
+    public void testNearest() throws Exception {
+        /*
+word=Hello =0:5@0^0
+word=this =6:10@1^0
+word=world =11:16@2^0
+         */
+        SemanticRegions.SemanticRegionsBuilder<String> bldr = SemanticRegions.builder(String.class);
+        bldr.add("Hello", 0, 5);
+        bldr.add("this", 6, 10);
+        bldr.add("world", 11, 16);
+        SemanticRegions<String> r = bldr.build();
+
+        List<String> seen = new ArrayList<>();
+        assertEquals("Wrong key for " + 5, "this", r.nearestTo(5).key());
+        for (int i = 0; i < 16; i++) {
+            SemanticRegion<String> reg = r.nearestTo(i);
+            System.out.println(i + ". nearest " + reg);
+            if (!seen.contains(reg.key())) {
+                seen.add(reg.key());
+            }
+        }
+        assertEquals(Arrays.asList("Hello", "this", "world"), seen);
+    }
+
+    @Test
+    public void testNearestWithSpacing() throws Exception {
+        SemanticRegions.SemanticRegionsBuilder<String> bldr = SemanticRegions.builder(String.class);
+        bldr.add("Hello", 2, 7);
+        bldr.add("this", 9, 13);
+        bldr.add("world", 15, 20);
+        SemanticRegions<String> r = bldr.build();
+
+        List<String> seen = new ArrayList<>();
+        assertEquals("Wrong key for " + 6, "Hello", r.nearestTo(6).key());
+        assertEquals("Wrong key for " + 5, "Hello", r.nearestTo(5).key());
+        assertEquals("Wrong key for " + 8, "this", r.nearestTo(8).key());
+        for (int i = 0; i < 20; i++) {
+            SemanticRegion<String> reg = r.nearestTo(i);
+            if (!seen.contains(reg.key())) {
+                seen.add(reg.key());
+            }
+        }
+        assertEquals(Arrays.asList("Hello", "this", "world"), seen);
+    }
+
     private static SemanticRegions<String> collectBetweenRegions() {
         SemanticRegions.SemanticRegionsBuilder<String> bldr = SemanticRegions.builder(String.class);
         for (int i = 0; i < 10; i++) {
