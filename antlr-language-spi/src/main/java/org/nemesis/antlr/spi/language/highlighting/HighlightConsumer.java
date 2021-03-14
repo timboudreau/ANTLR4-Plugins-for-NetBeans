@@ -15,7 +15,9 @@
  */
 package org.nemesis.antlr.spi.language.highlighting;
 
+import java.util.function.BooleanSupplier;
 import javax.swing.text.AttributeSet;
+import javax.swing.text.Document;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
@@ -26,13 +28,17 @@ import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
  */
 public interface HighlightConsumer {
 
-    public void addHighlight(int startOffset, int endOffset, AttributeSet attributes);
+    void addHighlight(int startOffset, int endOffset, AttributeSet attributes);
 
-    public void clear();
+    void clear();
 
-    public void setHighlights(HighlightsContainer other);
+    void setHighlights(HighlightsContainer other);
 
-    static HighlightConsumer wrap(OffsetsBag bag) {
-        return new BagWrapper(bag);
+    static HighlightConsumer wrap(OffsetsBag bag, Document doc) {
+        return new BagWrapper(bag, doc);
     }
+
+    void update( BooleanSupplier run );
+
+    HighlightsContainer getHighlightsContainer();
 }

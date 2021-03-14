@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.nemesis.antlr.spi.language.highlighting;
 
+import java.util.function.BooleanSupplier;
 import javax.swing.text.AttributeSet;
+import javax.swing.text.Document;
 import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 
@@ -29,9 +30,11 @@ import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
  */
 final class BagWrapper implements HighlightConsumer {
     private final OffsetsBag bag;
+    private final Document doc;
 
-    public BagWrapper( OffsetsBag bag ) {
+    BagWrapper( OffsetsBag bag, Document doc ) {
         this.bag = bag;
+        this.doc = doc;
     }
 
     @Override
@@ -54,4 +57,20 @@ final class BagWrapper implements HighlightConsumer {
         }
     }
 
+    @Override
+    public void update( BooleanSupplier run ) {
+        OffsetsBag nue = new OffsetsBag( doc );
+        try {
+            if ( run.getAsBoolean() ) {
+                bag.setHighlights( nue );
+            }
+        } finally {
+            nue.discard();
+        }
+    }
+
+    @Override
+    public HighlightsContainer getHighlightsContainer() {
+        return bag;
+    }
 }

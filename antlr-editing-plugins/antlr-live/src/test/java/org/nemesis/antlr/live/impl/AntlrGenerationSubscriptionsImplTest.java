@@ -15,10 +15,9 @@
  */
 package org.nemesis.antlr.live.impl;
 
-import org.nemesis.antlr.live.impl.AntlrGenerationSubscriptionsImpl;
-import org.nemesis.antlr.live.impl.JFSManager;
 import com.mastfrog.function.throwing.ThrowingRunnable;
 import com.mastfrog.function.throwing.ThrowingTriConsumer;
+import com.mastfrog.util.collections.CollectionUtils;
 import static com.mastfrog.util.collections.CollectionUtils.setOf;
 import com.mastfrog.util.path.UnixPath;
 import com.mastfrog.util.strings.Strings;
@@ -26,6 +25,7 @@ import com.mastfrog.util.thread.OneThreadLatch;
 import java.io.IOException;
 import java.io.OutputStream;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.logging.Level;
 import javax.swing.text.Document;
 import javax.swing.text.StyledDocument;
 import javax.tools.StandardLocation;
@@ -59,8 +60,6 @@ import org.nemesis.antlr.live.FakeFolderLoader;
 import org.nemesis.antlr.live.FakeG4DataLoader;
 import org.nemesis.antlr.live.ParsingUtils;
 import org.nemesis.antlr.live.Subscriber;
-import org.nemesis.antlr.live.impl.JFSMappingMode;
-import org.nemesis.antlr.live.impl.OneFileMapping;
 import org.nemesis.antlr.memory.AntlrGenerationResult;
 import org.nemesis.antlr.memory.AntlrGenerator;
 import org.nemesis.antlr.project.Folders;
@@ -80,6 +79,7 @@ import org.netbeans.core.NbLoaderPool;
 import org.netbeans.modules.editor.impl.DocumentFactoryImpl;
 import org.netbeans.modules.masterfs.filebasedfs.FileBasedFileSystem;
 import org.netbeans.modules.maven.NbMavenProjectFactory;
+import org.netbeans.modules.parsing.spi.Parser;
 import org.netbeans.spi.editor.document.DocumentFactory;
 import org.openide.cookies.EditorCookie;
 import org.openide.filesystems.FileObject;
@@ -102,6 +102,8 @@ public class AntlrGenerationSubscriptionsImplTest {
 
     @Test
     public void testRebuilds() throws Exception {
+        AntlrGenerationSubscriptionsForProject.LOG.setLevel(Level.ALL);
+        AntlrGenerationSubscriptionsImpl.LOG.setLevel(Level.ALL);
         Project project = nmProject4.project();
         FileObject parserGrammar = nmProject4.file("NestedMaps.g4");
         FileObject lexerGrammar = nmProject4.file("NMLexer.g4");
@@ -109,16 +111,26 @@ public class AntlrGenerationSubscriptionsImplTest {
         assertNotNull(parserGrammar);
         Sub sub = new Sub();
 
-        AntlrGenerationSubscriptionsImpl.subscribe(lexerGrammar, sub);
-        AntlrGenerationSubscriptionsImpl.subscribe(parserGrammar, sub);
-        AntlrGenerationSubscriptionsImpl.subscribe(fragmentsGrammar, sub);
+        Parser.Result res1 = ParsingUtils.parse(lexerGrammar, x -> x);
+        assertNotNull(res1);
+        Parser.Result res2 = ParsingUtils.parse(parserGrammar, x -> x);
+        assertNotNull(res2);
+        System.out.println("RES 2 " + res2);
+
+        assertTrue(AntlrGenerationSubscriptionsImpl.subscribe(lexerGrammar, sub));
+        assertTrue(AntlrGenerationSubscriptionsImpl.subscribe(parserGrammar, sub));
+        assertTrue(AntlrGenerationSubscriptionsImpl.subscribe(fragmentsGrammar, sub));
 
         sub.assertRebuilt(parserGrammar, lexerGrammar);
 
         replaceText(lexerGrammar, txt -> txt.replace("OpenBrace", "WookieBrace"));
         replaceText(parserGrammar, txt -> txt.replace("OpenBrace", "WookieBrace"));
 
-        ParsingUtils.parse(lexerGrammar);
+        Parser.Result res3 = ParsingUtils.parse(lexerGrammar, x -> x);
+        assertNotNull(res3);
+        Parser.Result res4 = ParsingUtils.parse(parserGrammar, x -> x);
+        assertNotNull(res4);
+        System.out.println("RES 4 " + res4);
 
         sub.assertRebuilt(parserGrammar, lexerGrammar);
 
@@ -126,7 +138,10 @@ public class AntlrGenerationSubscriptionsImplTest {
             return txt.replace("TRUE", "TRUTHY").replace("FALSE", "FALLACIOUS");
         });
 
-        ParsingUtils.parse(fragmentsGrammar);
+        Parser.Result res5 = ParsingUtils.parse(fragmentsGrammar, x -> x);
+        assertNotNull(res5);
+        ParsingUtils.parse(lexerGrammar);
+        ParsingUtils.parse(parserGrammar);
         sub.assertRebuilt(parserGrammar, lexerGrammar, fragmentsGrammar);
     }
 
@@ -160,7 +175,12 @@ public class AntlrGenerationSubscriptionsImplTest {
             assertTrue(copy.containsAll(Arrays.asList(files)), () -> {
                 String cnames = Strings.join(", ", copy);
                 String enames = Strings.join(", ", Arrays.asList(files));
-                return "Rebuilt files " + cnames + " does not contain all of " + enames;
+
+                List<FileObject> l = new ArrayList<>(Arrays.asList(files));
+                l.removeAll(copy);
+
+                return "Rebuilt files " + cnames + " does not contain all of " + enames
+                        + " - missing " + CollectionUtils.transform(l, f -> f.getNameExt());
             });
         }
     }

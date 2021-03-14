@@ -43,6 +43,7 @@ import org.nemesis.antlr.ANTLRv4Lexer;
 import org.nemesis.antlr.ANTLRv4Parser;
 import org.nemesis.antlr.sample.AntlrSampleFiles;
 import org.nemesis.jfs.JFS;
+import org.nemesis.jfs.JFSCoordinates;
 import org.nemesis.jfs.JFSFileObject;
 import org.nemesis.simple.SampleFile;
 
@@ -215,12 +216,19 @@ public class AlternativesTest {
         String gname = UnixPath.get(sf.fileName()).rawName();
 //        JFSFileObject fo = map(gname + ".g4", "at/x/" + sf.fileName(), jfs);
         JFSFileObject fo = jfs.create(UnixPath.get("at/x/" + sf.fileName()), SOURCE_PATH, sf.text());
+        assertNotNull(fo);
+
         UnixPath mainGrammar = fo.path();
+        
+        JFSCoordinates coords = fo.toCoordinates();
+        assertEquals(coords.resolve(jfs), fo);
+
 
         AntlrGenerator gen = AntlrGenerator.builder(() -> jfs)
                 .withOriginalFile(Paths.get(sf.fileName()))
                 .generateAllGrammars(true)
                 .generateDependencies(true)
+                .generateIntoJavaPackage("at.x")
                 .withTokensHash("-x-")
                 .requestAlternativesAnalysis()
                 .building(mainGrammar.getParent());

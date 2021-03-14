@@ -135,13 +135,13 @@ public class AntlrGeneratorTest {
                 case "value":
                     switch (info.altIndex) {
                         case 1:
-                            assertEquals("booleanValue", altText);
+                            assertEquals("booleanValue #Bool", altText);
                             break;
                         case 2:
-                            assertEquals("numberValue", altText);
+                            assertEquals("numberValue #Num", altText);
                             break;
                         case 3:
-                            assertEquals("stringValue", altText);
+                            assertEquals("stringValue #Str", altText);
                             break;
                         default:
                             throw new AssertionError(info.altIndex + " " + info);

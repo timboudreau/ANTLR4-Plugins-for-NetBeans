@@ -22,6 +22,7 @@ import com.mastfrog.util.path.UnixPath;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.text.Document;
 import static org.nemesis.antlr.common.AntlrConstants.ANTLR_MIME_TYPE;
@@ -42,7 +43,7 @@ import org.openide.filesystems.FileObject;
  */
 public final class AntlrGenerationSubscriptionsImpl {
 
-    private static final Logger LOG = Logger.getLogger(AntlrGenerationSubscriptionsImpl.class.getName());
+    static final Logger LOG = Logger.getLogger(AntlrGenerationSubscriptionsImpl.class.getName());
     static final UnixPath IMPORTS = UnixPath.get("imports");
 
     public static boolean touched(Document doc) {
@@ -155,17 +156,20 @@ public final class AntlrGenerationSubscriptionsImpl {
     boolean _subscribe(FileObject grammarFile, Subscriber reb) {
         Project proj = FileOwnerQuery.getOwner(grammarFile);
         if (proj == null || proj == FileOwnerQuery.UNOWNED) {
+            LOG.log(Level.WARNING, "Not owned by a project: {0} - cannot subscribe", grammarFile.getNameExt());
             return false;
         }
         AntlrGenerationSubscriptionsForProject subscribers = subscribersByProject.get(proj);
         assert subscribers != null : "Null subscribers from cache";
         subscribers.subscribe(grammarFile, reb);
+        LOG.log(Level.FINE, "Subscribe {0} to {1} in {2}", new Object[] {grammarFile.getNameExt(), reb, subscribers});
         return true;
     }
 
     void _unsubscribe(FileObject grammarFile, Subscriber reb) {
         Project proj = FileOwnerQuery.getOwner(grammarFile);
         if (proj == null || proj == FileOwnerQuery.UNOWNED) {
+            LOG.log(Level.WARNING, "Not owned by a project: {0} - cannot unsubscribe", grammarFile.getNameExt());
             return;
         }
         AntlrGenerationSubscriptionsForProject subscribers = subscribersByProject.get(proj);
@@ -179,6 +183,7 @@ public final class AntlrGenerationSubscriptionsImpl {
     private boolean _touched(Document doc) {
         FileObject fo = NbEditorUtilities.getFileObject(doc);
         if (fo != null && fo.getMIMEType().equals(ANTLR_MIME_TYPE)) {
+            LOG.log(Level.FINEST, "Touched: {0}", fo.getNameExt());
             Project proj = FileOwnerQuery.getOwner(fo);
             if (proj != null && proj != FileOwnerQuery.UNOWNED) {
                 AntlrGenerationSubscriptionsForProject subscribers = subscribersByProject.get(proj);

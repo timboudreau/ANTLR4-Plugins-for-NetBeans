@@ -100,7 +100,7 @@ import org.openide.util.RequestProcessor;
 final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLRv4Parser.GrammarFileContext>
         implements Subscribable<FileObject, Subscriber>, RerunInterceptor {
 
-    private static final Logger LOG = Logger.getLogger(AntlrGenerationSubscriptionsForProject.class.getName());
+    static final Logger LOG = Logger.getLogger(AntlrGenerationSubscriptionsForProject.class.getName());
     private static final RequestProcessor svc = new RequestProcessor("antlr-project-events", 5);
     private static final RequestProcessor generationSubscriptionsCleanup
             = new RequestProcessor("generation-subscriptions-cleanup", 1, true);
@@ -130,7 +130,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                         // run synchronously
                         .withCoalescedAsynchronousEventDelivery(EventQueue::isDispatchThread, svc, MapFactories.EQUALITY, 2, TimeUnit.SECONDS)
                         //                        .withCoalescedAsynchronousEventDelivery(() -> true, svc, MapFactories.EQUALITY, 2, TimeUnit.SECONDS)
-                        //                        .withSynchronousEventDelivery()
+//                                                .withSynchronousEventDelivery()
                         .build();
         subscribableDelegate = sinfo.subscribable;
         dispatcher = sinfo.eventInput;
@@ -399,6 +399,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     @Override
     public void subscribe(FileObject key, Subscriber consumer) {
         notDying();
+        LOG.log(Level.FINE, "Subscribe {0} to {1}", new Object[] {consumer, key.getNameExt()});
         boolean isNew = !subscribersStore.subscribedKeys().contains(key);
         subscribableDelegate.subscribe(key, consumer);
         if (isNew) {
@@ -413,6 +414,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
     @Override
     public void unsubscribe(FileObject key, Subscriber consumer) {
         subscribableDelegate.unsubscribe(key, consumer);
+        LOG.log(Level.FINE, "Unubscribe {0} from {1}", new Object[] {consumer, key.getNameExt()});
         if (subscribersStore.subscribersTo(key).isEmpty()) {
             ParseResultHook.deregister(key, this);
         }
@@ -453,6 +455,8 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
 
     private void invalidateReverseDependencies(FileObject fo, JFSCoordinates mappedPath, ObjectGraph<UnixPath> graph, FileObject initiator) {
         Set<UnixPath> paths = graph.reverseClosureOf(mappedPath.path());
+        LOG.log(Level.FINEST, "Invalidate {4} reverse deps of {0} in graph of {1} with {2} initiated by {3}",
+                new Object[] {fo.getNameExt(), graph.size(), paths, initiator == null ? "null" : initiator.getNameExt(), paths.size()});
         for (UnixPath up : paths) {
             FileObject reverseDep = mappingManager.mappings.originalFile(mappedPath);
             if (reverseDep != null && !fo.equals(reverseDep) && !subscribersStore.subscribersTo(reverseDep).isEmpty() && !Objects.equals(initiator, reverseDep)) {
@@ -526,6 +530,7 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
         if (ShutdownHooks.isShuttingDown()) {
             return;
         }
+        LOG.log(Level.FINEST, "On reparse {0}", extraction.logString());
         BrokenSourceThrottle throttle = AntlrGenerationSubscriptionsImpl.throttle();
         if (extraction != null && !extraction.isPlaceholder()) {
             String hs = extraction.tokensHash();
@@ -567,6 +572,8 @@ final class AntlrGenerationSubscriptionsForProject extends ParseResultHook<ANTLR
                     LOG.log(Level.FINER, "Reentry - using canned generation result for {0} in context {1}", new Object[]{fo.getPath(), context});
                     dispatcher.onEvent(fo, info);
                     return;
+                } else {
+                    LOG.log(Level.INFO, "No generation result to dispatch for {0}", fo.getNameExt());
                 }
                 // Ensure we don't cyclically reparse because something else
                 // indirectly triggered another reparse of the same file - can

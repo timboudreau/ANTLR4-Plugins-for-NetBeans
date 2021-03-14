@@ -43,6 +43,7 @@ import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.netbeans.spi.editor.highlighting.ZOrder;
+import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
@@ -87,7 +88,7 @@ public abstract class AbstractHighlighter {
     private static final Map<Class<?>, RequestProcessor> rpByType = new HashMap<>();
     protected final HighlightsLayerFactory.Context ctx;
     private final CompL compl = new CompL();
-    private final AlternateBag bag;
+    private final HighlightConsumer bag;
 
     protected AbstractHighlighter( HighlightsLayerFactory.Context ctx ) {
         this( ctx, true );
@@ -103,7 +104,10 @@ public abstract class AbstractHighlighter {
         // Listen for component events
         theEditor.addComponentListener( WeakListeners.create(
                 ComponentListener.class, compl, theEditor ) );
-        bag = new AlternateBag( Strings.lazy( this ) );
+
+//        bag = new AlternateBag( Strings.lazy( this ) );
+        bag = new BagWrapper( new OffsetsBag( doc ), doc );
+
         theEditor.addPropertyChangeListener( WeakListeners.propertyChange( compl, theEditor ) );
         LOG.log( Level.FINE, "Create {0} for {1}", new Object[]{ getClass().getName(), doc } );
         // Ensure we are initialized, and don't assume we are constructed in the
@@ -265,7 +269,7 @@ public abstract class AbstractHighlighter {
     }
 
     public final HighlightsContainer getHighlightsBag() {
-        return bag;
+        return bag.getHighlightsContainer();
     }
 
     /**
@@ -435,12 +439,16 @@ public abstract class AbstractHighlighter {
 
         @Override
         public void insertUpdate( DocumentEvent e ) {
-            bag.onInsertion( e.getLength(), e.getOffset() );
+            if ( bag instanceof AlternateBag ) {
+                ( ( AlternateBag ) bag ).onInsertion( e.getLength(), e.getOffset() );
+            }
         }
 
         @Override
         public void removeUpdate( DocumentEvent e ) {
-            bag.onDeletion( e.getLength(), e.getOffset() );
+            if ( bag instanceof AlternateBag ) {
+                ( ( AlternateBag ) bag ).onDeletion( e.getLength(), e.getOffset() );
+            }
         }
 
         @Override

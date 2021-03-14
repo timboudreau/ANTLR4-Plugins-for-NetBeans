@@ -91,7 +91,7 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
         }
     }
 
-    void update( BooleanSupplier run ) {
+    public void update( BooleanSupplier run ) {
         boolean needCommit;
         synchronized ( this ) {
             needCommit = run.getAsBoolean();
@@ -101,6 +101,11 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
         } else {
             clear();
         };
+    }
+
+    @Override
+    public HighlightsContainer getHighlightsContainer() {
+        return this;
     }
 
     @Override

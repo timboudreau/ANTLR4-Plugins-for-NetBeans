@@ -805,7 +805,7 @@ public final class JFS implements JavaFileManager {
     public String list(Location first, Location... more) {
         StringBuilder sb = new StringBuilder();
         BiConsumer<Location, JFSFileObject> writer = (loc, file) -> {
-            sb.append(" * ").append(loc).append(file.getName()).append('\n');
+            sb.append(" * ").append(loc).append(' ').append(file.getName()).append('\n');
         };
         list(first, writer);
         for (Location l : more) {
