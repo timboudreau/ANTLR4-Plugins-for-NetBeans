@@ -15,6 +15,7 @@
  */
 package org.nemesis.antlrformatting.api;
 
+import com.mastfrog.predicates.Predicates;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.IntPredicate;
 import org.antlr.v4.runtime.Token;
 
@@ -171,7 +173,8 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
         boolean ignoreWhitespace = !dist.includeWhitespace;
         IntPredicate matcher = dist.trigger;
         IntPredicate distanceTo = dist.token;
-        return new DistanceConsumer(matcher, forward, ignoreWhitespace, distanceTo, values, ord);
+        IntPredicate ignoring = dist.ignoring;
+        return new DistanceConsumer(matcher, forward, ignoreWhitespace, distanceTo, values, ord, ignoring);
     }
 
     private static <T extends Enum<T>, R> BiConsumer<Token, LexerScanner> buildOne(FinishablePositionRecorderBuilder<T, R> recorder, int[] values) {
@@ -445,14 +448,16 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
         private final IntPredicate distanceTo;
         private final int[] values;
         private final int ord;
+        private final IntPredicate ignore;
 
-        DistanceConsumer(IntPredicate matcher, boolean forward, boolean ignoreWhitespace, IntPredicate distanceTo, int[] values, int ord) {
+        DistanceConsumer(IntPredicate matcher, boolean forward, boolean ignoreWhitespace, IntPredicate distanceTo, int[] values, int ord, IntPredicate ignore) {
             this.matcher = matcher;
             this.forward = forward;
             this.ignoreWhitespace = ignoreWhitespace;
             this.distanceTo = distanceTo;
             this.values = values;
             this.ord = ord;
+            this.ignore = ignore;
         }
 
         @Override
@@ -460,9 +465,9 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
             if (matcher.test(t.getType())) {
                 int distance;
                 if (forward) {
-                    distance = u.tokenCountToNext(ignoreWhitespace, distanceTo);
+                    distance = u.tokenCountToNext(ignore, ignoreWhitespace, distanceTo);
                 } else {
-                    distance = u.tokenCountToPreceding(ignoreWhitespace, distanceTo);
+                    distance = u.tokenCountToPreceding(ignore, ignoreWhitespace, distanceTo);
                 }
                 values[ord] = distance;
             }
@@ -671,6 +676,7 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
         private boolean includeWhitespace;
         private boolean built;
         private final IntPredicate trigger;
+        private IntPredicate ignoring;
 
         FinishableDistanceBuilder(T item, IntPredicate token, LexingStateBuilder<T, R> builder, boolean forward, IntPredicate trigger) {
             this.item = item;
@@ -678,6 +684,19 @@ public final class LexingStateBuilder<T extends Enum<T>, R> {
             this.builder = builder;
             this.forward = forward;
             this.trigger = trigger;
+        }
+
+        /**
+         * Include a set of tokens to ignore in distance computations (note this
+         * causes the code to take a much less optimized path and should not be
+         * used for things that run once on every token).
+         *
+         * @param toIgnoreTokenTypes Token types to ignore
+         * @return this
+         */
+        public FinishableDistanceBuilder<T, R> ignoring(IntPredicate toIgnoreTokenTypes) {
+            this.ignoring = toIgnoreTokenTypes;
+            return this;
         }
 
         /**

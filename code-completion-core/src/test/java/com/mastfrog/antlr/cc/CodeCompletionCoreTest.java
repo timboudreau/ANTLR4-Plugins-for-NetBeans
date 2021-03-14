@@ -57,6 +57,11 @@ public class CodeCompletionCoreTest {
     }
 
     public void testSample(AntlrSampleFiles sample) throws Exception {
+        if (true) {
+            // This is a deathly slow many-iterations performance test,
+            // but exercises everything
+            return;
+        }
         CCLog.enable(true);
         boolean foundAnyOpt = false;
         boolean foundAnyOrig = false;

@@ -75,6 +75,8 @@ public class HighlighterKeyRegistrationProcessor extends LayerGeneratingDelegate
     private Predicate<? super AnnotationMirror> groupMirrorTest;
     private Predicate<? super Element> typeTest;
 
+    // XXX currently you HAVE to have at least one highlighter key,
+    // or your syntax highlighting for tokens is not registered.  Needs fixing.
     @Override
     protected void onInit(ProcessingEnvironment env, AnnotationUtils utils) {
         log("init");

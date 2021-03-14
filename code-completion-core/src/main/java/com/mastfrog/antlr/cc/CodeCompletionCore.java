@@ -532,6 +532,9 @@ public final class CodeCompletionCore {
         }
 
         callStack.add(startState.ruleIndex);
+        if (tokenIndex >= this.tokens.size()) {
+            return result;
+        }
         int currentSymbol = this.tokens.get(tokenIndex).getType();
 
         if (tokenIndex >= this.tokens.size() - 1) { // At caret?

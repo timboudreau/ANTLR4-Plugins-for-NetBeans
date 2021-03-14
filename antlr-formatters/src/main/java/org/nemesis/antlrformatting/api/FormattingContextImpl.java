@@ -221,26 +221,27 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
     TokenCountCache cache;
 
     @Override
-    public int tokenCountToNext(boolean ignoreWhitespace, IntPredicate targetType) {
-        if (useCache) {
+    public int tokenCountToNext(IntPredicate ignore, boolean ignoreWhitespace, IntPredicate targetType) {
+        if (useCache && ignore == null) {
             if (cache == null) {
                 cache = new TokenCountCache();
             }
             return cache.tokenCountToNext(stream, whitespace, ignoreWhitespace, targetType);
         }
-        return defaultTokenCountToNext(ignoreWhitespace, targetType);
+        return defaultTokenCountToNext(ignore, ignoreWhitespace, targetType);
     }
 
-    int defaultTokenCountToNext(boolean ignoreWhitespace, IntPredicate targetType) {
+    int defaultTokenCountToNext(IntPredicate ignore, boolean ignoreWhitespace, IntPredicate targetType) {
         // Original implementation - keep for tests to ensure caching implementation
         // does what it's supposed to
         int count = 0;
         for (int ix = stream.cursor + 1; ix < stream.size(); ix++) {
             Token t = stream.get(ix);
-            if (targetType.test(t.getType())) {
+            int type = t.getType();
+            if (targetType.test(type)) {
                 return count;
             }
-            if (ignoreWhitespace && whitespace.test(t.getType())) {
+            if ((ignore != null && ignore.test(type)) || (ignoreWhitespace && whitespace.test(type))) {
                 continue;
             }
             count++;
@@ -249,26 +250,27 @@ class FormattingContextImpl extends FormattingContext implements LexerScanner {
     }
 
     @Override
-    public int tokenCountToPreceding(boolean ignoreWhitespace, IntPredicate targetType) {
-        if (useCache) {
+    public int tokenCountToPreceding(IntPredicate ignore, boolean ignoreWhitespace, IntPredicate targetType) {
+        if (useCache && ignore == null) {
             if (cache == null) {
                 cache = new TokenCountCache();
             }
             return cache.tokenCountToPreceding(stream, whitespace, ignoreWhitespace, targetType);
         }
-        return defaultTokenCountToPreceding(ignoreWhitespace, targetType);
+        return defaultTokenCountToPreceding(ignore, ignoreWhitespace, targetType);
     }
 
-    int defaultTokenCountToPreceding(boolean ignoreWhitespace, IntPredicate targetType) {
+    int defaultTokenCountToPreceding(IntPredicate ignore, boolean ignoreWhitespace, IntPredicate targetType) {
         // Original implementation - keep for tests to ensure caching implementation
         // does what it's supposed to
         int count = 0;
         for (int ix = stream.cursor - 1; ix >= 0; ix--) {
             Token t = stream.get(ix);
-            if (targetType.test(t.getType())) {
+            int type = t.getType();
+            if (targetType.test(type)) {
                 return count;
             }
-            if (ignoreWhitespace && whitespace.test(t.getType())) {
+            if ((ignore != null && ignore.test(type)) || (ignoreWhitespace && whitespace.test(type))) {
                 continue;
             }
             count++;

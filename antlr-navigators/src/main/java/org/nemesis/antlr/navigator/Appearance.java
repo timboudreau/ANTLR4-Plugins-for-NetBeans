@@ -26,10 +26,12 @@ import org.nemesis.swing.html.HtmlRenderer;
  */
 public interface Appearance<K> {
 
-    void configureAppearance(HtmlRenderer.Renderer on, K region, boolean componentActive, Set<String> scopingDelimiters, SortTypes sort);
+    void configureAppearance(HtmlRenderer.Renderer on, K region, boolean componentActive,
+            Set<String> scopingDelimiters, SortTypes sort);
 
     default Appearance<K> and(Appearance<? super K> appearance) {
-        return (HtmlRenderer.Renderer on, K region, boolean componentActive, Set<String> scopingDelimiter, SortTypes sort) -> {
+        return (HtmlRenderer.Renderer on, K region, boolean componentActive,
+                Set<String> scopingDelimiter, SortTypes sort) -> {
             Appearance.this.configureAppearance(on, region, componentActive, scopingDelimiter, sort);
             appearance.configureAppearance(on, region, componentActive, scopingDelimiter, sort);
         };

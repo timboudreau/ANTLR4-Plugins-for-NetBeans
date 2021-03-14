@@ -27,9 +27,9 @@ interface LexerScanner {
 
     int countBackwardOccurrencesUntilPrevious(IntPredicate toCount, IntPredicate stopType);
 
-    int tokenCountToNext(boolean ignoreWhitespace, IntPredicate targetType);
+    int tokenCountToNext(IntPredicate ignore, boolean ignoreWhitespace, IntPredicate targetType);
 
-    int tokenCountToPreceding(boolean ignoreWhitespace, IntPredicate targetType);
+    int tokenCountToPreceding(IntPredicate ignore, boolean ignoreWhitespace, IntPredicate targetType);
 
     int currentCharPositionInLine();
 

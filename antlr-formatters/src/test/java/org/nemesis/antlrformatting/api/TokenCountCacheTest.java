@@ -359,24 +359,24 @@ public class TokenCountCacheTest {
                     "countBackwardOccurrencesUntilPrevious wrong " + token.getTokenIndex()
                     + ": " + token);
 
-            int nextCbrace = ctx.tokenCountToNext(true, CBRACES);
-            int defaultNextCbrace = ctx.defaultTokenCountToNext(true, CBRACES);
+            int nextCbrace = ctx.tokenCountToNext(null, true, CBRACES);
+            int defaultNextCbrace = ctx.defaultTokenCountToNext(null, true, CBRACES);
             assertEquals(defaultNextCbrace, nextCbrace, "Different token count to next at "
                     + token.getTokenIndex() + ": " + token);
 
-            int defaultNextCbraceWithWs = ctx.defaultTokenCountToNext(false, CBRACES);
-            int nextCbraceWithWs = ctx.tokenCountToNext(false, CBRACES);
+            int defaultNextCbraceWithWs = ctx.defaultTokenCountToNext(null, false, CBRACES);
+            int nextCbraceWithWs = ctx.tokenCountToNext(null, false, CBRACES);
             assertEquals(defaultNextCbraceWithWs, nextCbraceWithWs,
                     "Different token count w/ whitespace to next at "
                     + token.getTokenIndex() + ": " + token);
 
-            int revNextObrace = ctx.tokenCountToPreceding(true, OBRACES);
-            int defaultRevNextObrace = ctx.defaultTokenCountToPreceding(true, OBRACES);
+            int revNextObrace = ctx.tokenCountToPreceding(null, true, OBRACES);
+            int defaultRevNextObrace = ctx.defaultTokenCountToPreceding(null, true, OBRACES);
             assertEquals(defaultRevNextObrace, revNextObrace, "Different tokenCountToPreceding at "
                     + token.getTokenIndex() + ": " + token);
 
-            int revNextObraceWithWs = ctx.tokenCountToPreceding(false, OBRACES);
-            int defaultRevNextObraceWithWs = ctx.defaultTokenCountToPreceding(false, OBRACES);
+            int revNextObraceWithWs = ctx.tokenCountToPreceding(null, false, OBRACES);
+            int defaultRevNextObraceWithWs = ctx.defaultTokenCountToPreceding(null, false, OBRACES);
             assertEquals(defaultRevNextObraceWithWs, revNextObraceWithWs,
                     "Different tokenCountToPreceding w/ whitespace at "
                     + token.getTokenIndex() + ": " + token);
