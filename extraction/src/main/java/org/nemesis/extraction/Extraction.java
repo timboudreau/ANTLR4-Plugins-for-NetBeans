@@ -102,6 +102,7 @@ public final class Extraction implements Externalizable {
     private final IntSet availableRuleIds = IntSet.create(5);
     private final List<RuleIdMapping<?>> ruleIdMappings = new ArrayList<>(3);
     private long lastModified;
+    private final long created = System.currentTimeMillis();
 
     Extraction(String extractorsHash, GrammarSource<?> source, String tokensHash,
             Class<? extends ParserRuleContext> documentRootType, String mimeType) {
@@ -111,6 +112,16 @@ public final class Extraction implements Externalizable {
         this.documentRootType = documentRootType;
         this.mimeType = mimeType;
         this.lastModified = lastModifiedOf(source);
+    }
+
+    /**
+     * Get the age of this extraction - useful for logging purposes and for
+     * debugging coalescing and caching of parsing/extraction generation.
+     *
+     * @return A number of milliseconds
+     */
+    public long age() {
+        return System.currentTimeMillis() - created;
     }
 
     public static Extraction empty(String mimeType) {

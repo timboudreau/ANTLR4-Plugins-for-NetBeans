@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  *
@@ -356,9 +357,8 @@ public class AlternateBagTest {
         return result;
     }
 
-    static final Map<String, Integer> wordOffsets = new HashMap<>();
-
     static void decorateText( String text, HighlightConsumer con ) {
+        Map<String, Integer> wordOffsets = new HashMap<>();
         StringBuilder currentWord = new StringBuilder();
         int lastWordStart = -1;
         int sentenceStart = 0;
@@ -372,10 +372,12 @@ public class AlternateBagTest {
                     char first = word.charAt( 0 );
                     mu.addAttribute( "word", word );
                     wordOffsets.put( word, lastWordStart );
+                    System.out.println( " WORD HL " + lastWordStart + ":" + i + " for " + currentWord );
                     con.addHighlight( lastWordStart, i, mu );
                     if ( Character.isUpperCase( c ) ) {
                         SimpleAttributeSet caps = new SimpleAttributeSet();
                         caps.addAttribute( "cap", c );
+                        System.out.println( "    CAP HL " + lastWordStart + ":" + ( lastWordStart + 1 ) );
                         con.addHighlight( lastWordStart, lastWordStart + 1, caps );
                     }
                     currentWord.setLength( 0 );
@@ -388,6 +390,7 @@ public class AlternateBagTest {
                 currentWord.append( c );
                 if ( c == '.' ) {
                     SimpleAttributeSet sen = new SimpleAttributeSet();
+                    System.out.println( "    SEN HL " + sentenceStart + ":" + ( i - 1 ) );
                     sen.addAttribute( "sentence", sentenceCount++ );
                     con.addHighlight( sentenceStart, i - 1, sen );
                     sentenceStart = i + 1;
@@ -414,17 +417,18 @@ public class AlternateBagTest {
         ourBag.commit();
         addTo.discard();
 
-        hcl.assertEventsSame();
+//        hcl.assertEventsSame();
 
         doc.addDocumentListener( new DocumentListener() {
             @Override
             public void insertUpdate( DocumentEvent e ) {
-//                System.out.println( "got insert" );
+                System.out.println( "got insert " + e.getLength() + " at " + e.getOffset() );
                 ourBag.onInsertion( e.getLength(), e.getOffset() );
             }
 
             @Override
             public void removeUpdate( DocumentEvent e ) {
+                System.out.println( "got delete " + e.getLength() + " at " + e.getOffset() );
 //                System.out.println( "got delete" );
                 ourBag.onDeletion( e.getLength(), e.getOffset() );
             }
@@ -481,6 +485,8 @@ public class AlternateBagTest {
 
         @Override
         public void highlightChanged( HighlightsChangeEvent event ) {
+            System.out.println( "  hlevent " + event.getStartOffset() + ":" + event.getEndOffset() + " for " + event
+                    .getSource().getClass().getSimpleName() );
             events.add( event );
         }
 
@@ -492,6 +498,10 @@ public class AlternateBagTest {
         }
 
         void assertEventsSame() {
+            if ( events.size() == 1 ) {
+                fail( "Only received one event: " + events.get( 0 ) + " from " + events.get( 0 ).getSource().getClass()
+                        .getSimpleName() );
+            }
             assertEquals( 2, events.size(), "Did not receive 2 events: " + events );
             List<HighlightsChangeEvent> l = new ArrayList<>( events );
             events.clear();
@@ -503,7 +513,9 @@ public class AlternateBagTest {
 
             assertEquals( ev1.getStartOffset(), ev2.getStartOffset(), () -> {
                       return "Event start offsets differ " + ev1.getStartOffset() + " from " + src1
-                             + " and " + ev2.getStartOffset() + " from " + src2;
+                             + " and " + ev2.getStartOffset() + " from " + src2
+                             + " - " + ev1.getStartOffset() + ":" + ev1.getEndOffset()
+                             + " vs " + ev2.getStartOffset() + ":" + ev2.getEndOffset();
                   } );
             assertEquals( ev1.getEndOffset(), ev2.getEndOffset(), () -> {
                       return "Event end offsets differ " + ev1.getEndOffset() + " from " + src1

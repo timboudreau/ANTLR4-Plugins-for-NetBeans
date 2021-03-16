@@ -55,12 +55,136 @@ import org.nemesis.jfs.javac.JavacOptions;
 public class SemanticRegionsTest {
 
     @Test
+    public void testWithInsertion() {
+        SemanticRegions.SemanticRegionsBuilder<String> bldr = SemanticRegions.builder(String.class);
+        bldr.add("Hello", 0, 5);
+        bldr.add("this", 6, 10);
+        bldr.add("world", 11, 16);
+
+        SemanticRegions<String> reg = bldr.build();
+
+        assertEntry(reg, "Hello", 0, 5);
+        assertEntry(reg, "this", 6, 10);
+        assertEntry(reg, "world", 11, 16);
+
+        SemanticRegions<String> nue = reg.withInsertion(3, 5);
+
+        assertEntry(nue, "Hello", 0, 8);
+        assertEntry(nue, "this", 9, 13);
+        assertEntry(nue, "world", 14, 19);
+
+        SemanticRegions<String> nue2 = reg.withInsertion(3, 3);
+        assertEntry(nue2, "Hello", 0, 8);
+        assertEntry(nue2, "this", 9, 13);
+        assertEntry(nue2, "world", 14, 19);
+
+        SemanticRegions<String> nue3 = reg.withInsertion(3, 0);
+        assertEntry(nue3, "Hello", 0, 8);
+        assertEntry(nue3, "this", 9, 13);
+        assertEntry(nue3, "world", 14, 19);
+
+        SemanticRegions<String> nue4 = reg.withInsertion(3, 6);
+        assertEntry(nue4, "Hello", 0, 5);
+        assertEntry(nue4, "this", 6, 13);
+        assertEntry(nue4, "world", 14, 19);
+    }
+
+    @Test
+    public void testWithInsertionNested() {
+        SemanticRegions.SemanticRegionsBuilder<String> bldr = SemanticRegions.builder(String.class);
+        for (int i = 0; i < 100; i += 10) {
+            bldr.add("a-" + (i / 10), i, 100);
+        }
+        for (int i = 100; i < 200; i += 10) {
+            bldr.add("b-" + ((i - 100) / 10), i, 200);
+        }
+        SemanticRegions<String> reg = bldr.build();
+
+        SemanticRegions<String> nue = reg.withInsertion(7, 73);
+
+        assertEntry(nue, "a-0", 0, 107);
+        assertEntry(nue, "a-1", 10, 107);
+        assertEntry(nue, "a-2", 20, 107);
+        assertEntry(nue, "a-3", 30, 107);
+        assertEntry(nue, "a-4", 40, 107);
+        assertEntry(nue, "a-5", 50, 107);
+        assertEntry(nue, "a-6", 60, 107);
+        assertEntry(nue, "a-7", 70, 107);
+        assertEntry(nue, "a-8", 87, 107);
+        assertEntry(nue, "a-9", 97, 107);
+        assertEntry(nue, "b-0", 107, 207);
+        assertEntry(nue, "b-1", 117, 207);
+        assertEntry(nue, "b-2", 127, 207);
+        assertEntry(nue, "b-3", 137, 207);
+        assertEntry(nue, "b-4", 147, 207);
+        assertEntry(nue, "b-5", 157, 207);
+        assertEntry(nue, "b-6", 167, 207);
+        assertEntry(nue, "b-7", 177, 207);
+        assertEntry(nue, "b-8", 187, 207);
+        assertEntry(nue, "b-9", 197, 207);
+
+        assertTrue(nue.checkInvariants());
+    }
+
+    @Test
+    public void testMultiplyNested() {
+        SemanticRegions.SemanticRegionsBuilder<String> bldr = SemanticRegions.builder(String.class);
+        bldr.add("a", 0, 100);
+        bldr.add("b", 10, 50);
+        bldr.add("c", 20, 40);
+        bldr.add("d", 60, 100);
+        bldr.add("e", 70, 90);
+        SemanticRegions<String> reg = bldr.build();
+        System.out.println("BASE " + reg);
+
+        SemanticRegions<String> nue = reg.withInsertion(5, 30);
+
+        for (int i = 0; i < nue.size(); i++) {
+            SemanticRegion<String> n = nue.forIndex(i);
+            assertNotNull("No object at index " + i + " in regions of " + nue.size(), n);
+            System.out.println("assertEntry(nue, \"" + n.key() + "\", " + n.start() + ", " + n.end() + ");");
+        }
+        assertEntry(nue, "a", 0, 105);
+        assertEntry(nue, "b", 10, 55);
+        assertEntry(nue, "c", 20, 45);
+        assertEntry(nue, "d", 65, 105);
+        assertEntry(nue, "e", 75, 95);
+
+        System.out.println("AND NOW " + nue);
+
+        SemanticRegions<String> undone = nue.withDeletion(5, 30);
+        System.out.println("UNDOES TO " + undone);
+
+        assertTrue("Undo insertion did not restore state: " + reg + " and " + undone, reg.equalTo(undone));
+
+        System.out.println("\n\nINSERT 7 at 90 in " + nue + "\n\n");
+        SemanticRegions<String> nueur = nue.withInsertion(7, 70);
+
+        System.out.println("AND NOW " + nueur);
+
+        assertEntry(nueur, "a", 0, 112);
+        assertEntry(nueur, "b", 10, 55);
+        assertEntry(nueur, "c", 20, 45);
+        assertEntry(nueur, "d", 65, 112);
+        assertEntry(nueur, "e", 82, 102);
+
+        SemanticRegions<String> del = nueur.withDeletion(7, 70);
+
+        System.out.println("POST DEL: " + del);
+
+        assertTrue("Undo insertion did not restore state: " + nue + " and " + del, nue.equalTo(del));
+
+    }
+
+    private void assertEntry(SemanticRegions<String> reg, String text, int start, int end) {
+        SemanticRegion<String> r = reg.find(str -> text.equals(str));
+        assertNotNull("No '" + text + "' found", r);
+        assertEquals("Wrong start " + r, start, r.start());
+        assertEquals("Wrong end " + r, end, r.end());
+    }
+
+    @Test
     public void testNearest() throws Exception {
-        /*
-word=Hello =0:5@0^0
-word=this =6:10@1^0
-word=world =11:16@2^0
-         */
         SemanticRegions.SemanticRegionsBuilder<String> bldr = SemanticRegions.builder(String.class);
         bldr.add("Hello", 0, 5);
         bldr.add("this", 6, 10);
@@ -71,7 +195,6 @@ word=world =11:16@2^0
         assertEquals("Wrong key for " + 5, "this", r.nearestTo(5).key());
         for (int i = 0; i < 16; i++) {
             SemanticRegion<String> reg = r.nearestTo(i);
-            System.out.println(i + ". nearest " + reg);
             if (!seen.contains(reg.key())) {
                 seen.add(reg.key());
             }
@@ -133,7 +256,7 @@ word=world =11:16@2^0
                 .append("public class Stuff {\n    public static SemanticRegions<String> generate() {\n");
         source.append(ranges.toCode());
         source.append("        return regions;\n    }\n}\n");
-        System.out.println("SOURCE:\n" + source);
+//        System.out.println("SOURCE:\n" + source);
         jfs.create(UnixPath.get("foo", "bar", "Stuff.java"), SOURCE_PATH, source.toString());
         CompileResult result;
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {

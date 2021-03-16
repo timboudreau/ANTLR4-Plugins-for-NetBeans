@@ -16,17 +16,18 @@
 package org.nemesis.antlr.highlighting;
 
 import com.mastfrog.util.collections.AtomicLinkedQueue;
+import com.mastfrog.util.collections.MapFactories;
 import java.lang.ref.WeakReference;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.text.Document;
 import org.nemesis.antlr.spi.language.NbAntlrUtils;
 import org.nemesis.extraction.Extraction;
 import org.netbeans.modules.editor.NbEditorUtilities;
+import org.openide.util.Exceptions;
 import org.openide.util.RequestProcessor;
 
 /**
@@ -43,7 +44,7 @@ import org.openide.util.RequestProcessor;
 final class ParseCoalescer {
 
     private static final int HIGHLIGHTING_PER_MIME_TYPE_THREADS = 1;
-    private final Map<Document, RunReparse> tasks = new WeakHashMap<>();
+    private final Map<Document, RunReparse> tasks = MapFactories.WEAK.createMap(12, true);
     private final Map<String, RequestProcessor> threadPoolForMimeType
             = new ConcurrentHashMap<>();
 
@@ -66,10 +67,9 @@ final class ParseCoalescer {
     private static final class RunReparse implements Runnable {
 
         private final AtomicLinkedQueue<GeneralHighlighter<?>> queue = new AtomicLinkedQueue<>();
-        private final AtomicBoolean pending = new AtomicBoolean();
         private final WeakReference<Document> docRef;
         private final RequestProcessor.Task task;
-        private static final int DELAY = 175;
+        private static final int DELAY = 200;
 
         @SuppressWarnings("LeakingThisInConstructor")
         RunReparse(Document doc, RequestProcessor proc) {
@@ -78,42 +78,53 @@ final class ParseCoalescer {
         }
 
         void add(GeneralHighlighter<?> hl) {
-            synchronized (this) {
-                queue.add(hl);
-            }
-            if (pending.compareAndSet(false, true)) {
-                task.schedule(DELAY);
-            }
+            boolean empty = queue.isEmpty();
+            queue.add(hl);
+            task.schedule(DELAY);
         }
 
         @Override
         public void run() {
+            Document doc = docRef.get();
+            if (doc == null) {
+                return;
+            }
             try {
+                Extraction ext = NbAntlrUtils.parseImmediately(doc);
                 Set<GeneralHighlighter<?>> enqueued;
                 do {
                     enqueued = new LinkedHashSet<>();
-                    while (!queue.isEmpty()) {
-                        queue.drain(enqueued::add);
-                    }
+                    queue.drain(enqueued::add);
                     if (!enqueued.isEmpty()) {
-                        Document doc = docRef.get();
-                        if (doc != null) {
-                            Extraction ext = NbAntlrUtils.extractionFor(doc);
-                            while (ext.isSourceProbablyModifiedSinceCreation()) {
-                                Extraction nue = NbAntlrUtils.extractionFor(doc);
-                                if (nue == ext) {
-                                    break;
-                                }
+                        int ct = 0;
+                        while (ext == null || ext.isSourceProbablyModifiedSinceCreation()) {
+                            Extraction nue = NbAntlrUtils.extractionFor(doc);
+                            if (nue == ext) {
+                                break;
+                            }
+                            if ((ext == null && nue != null) || (nue.age() < ext.age())) {
                                 ext = nue;
+                                break;
                             }
-                            for (GeneralHighlighter<?> hl : enqueued) {
-                                hl.refresh(doc, ext);
+                            if (nue != null) {
+                                break;
                             }
+                            if (ct > 20) {
+                                return;
+                            }
+                        }
+                        if (ext == null) {
+                            queue.addAll(enqueued);
+                            task.schedule(DELAY * 5);
+                            return;
+                        }
+                        for (GeneralHighlighter<?> hl : enqueued) {
+                            hl.refresh(doc, ext);
                         }
                     }
                 } while (!enqueued.isEmpty());
-            } finally {
-                pending.set(false);
+            } catch (Exception ex) {
+                Exceptions.printStackTrace(ex);
             }
         }
     }

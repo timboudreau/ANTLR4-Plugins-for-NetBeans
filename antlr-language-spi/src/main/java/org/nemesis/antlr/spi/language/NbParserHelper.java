@@ -253,17 +253,18 @@ public abstract class NbParserHelper<P extends Parser, L extends Lexer, R extend
      * Parse trees are deliberately not embedded in an Antlr parser results,
      * so they do not memory-leak the entire parse tree for the lifetime of the
      * parser result, but may be needed for post-processing that happens within
-     * the scope of post-parse runtime hooks.  This method allows access to
+     * the scope of post-parse runtime hooks. This method allows access to
      * it if called within that scope.
      *
-     * @param <T> The expected tree type
+     * @param <T>  The expected tree type
      * @param type The expected tree type
+     *
      * @return A parse tree or null
      */
-    static <T extends ParserRuleContext> T currentTree(Class<T> type) {
+    static <T extends ParserRuleContext> T currentTree( Class<T> type ) {
         Object tree = currentTree.get();
-        if (type.isInstance( tree )) {
-            return type.cast(tree);
+        if ( type.isInstance( tree ) ) {
+            return type.cast( tree );
         }
         return null;
     }

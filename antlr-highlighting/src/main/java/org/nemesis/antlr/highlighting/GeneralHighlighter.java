@@ -18,7 +18,6 @@ package org.nemesis.antlr.highlighting;
 import java.awt.EventQueue;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.event.CaretEvent;
@@ -116,9 +115,7 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
 //        if (isActive()) {
             Document doc = ctx.getDocument();
             if (doc != null) {
-                EventQueue.invokeLater(() -> {
-                    ParseCoalescer.getDefault().enqueueParse(doc, this);
-                });
+                ParseCoalescer.getDefault().enqueueParse(doc, this);
             }
 //        }
     }
@@ -160,7 +157,7 @@ abstract class GeneralHighlighter<T> extends AbstractHighlighter {
             implements DocumentListener, LookupListener, Runnable {
 
         private Lookup.Result<FontColorSettings> res;
-        private final AtomicBoolean pendingRefresh = new AtomicBoolean();
+//        private final AtomicBoolean pendingRefresh = new AtomicBoolean();
 
         @SuppressWarnings("LeakingThisInConstructor")
         public DocumentOriented(Context ctx, int refreshDelay, AntlrHighlighter implementation) {

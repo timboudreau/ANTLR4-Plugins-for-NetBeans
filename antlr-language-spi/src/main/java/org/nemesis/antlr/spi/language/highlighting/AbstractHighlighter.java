@@ -43,7 +43,6 @@ import org.netbeans.spi.editor.highlighting.HighlightsContainer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayer;
 import org.netbeans.spi.editor.highlighting.HighlightsLayerFactory;
 import org.netbeans.spi.editor.highlighting.ZOrder;
-import org.netbeans.spi.editor.highlighting.support.OffsetsBag;
 import org.openide.filesystems.FileObject;
 import org.openide.loaders.DataObject;
 import org.openide.util.Exceptions;
@@ -88,7 +87,8 @@ public abstract class AbstractHighlighter {
     private static final Map<Class<?>, RequestProcessor> rpByType = new HashMap<>();
     protected final HighlightsLayerFactory.Context ctx;
     private final CompL compl = new CompL();
-    private final HighlightConsumer bag;
+    private final AlternateBag bag;
+    private final BagL bagListener = new BagL();
 
     protected AbstractHighlighter( HighlightsLayerFactory.Context ctx ) {
         this( ctx, true );
@@ -106,7 +106,6 @@ public abstract class AbstractHighlighter {
                 ComponentListener.class, compl, theEditor ) );
 
         bag = new AlternateBag( Strings.lazy( this ) );
-//        bag = new BagWrapper( new OffsetsBag( doc ), doc );
 
         theEditor.addPropertyChangeListener( WeakListeners.propertyChange( compl, theEditor ) );
         LOG.log( Level.FINE, "Create {0} for {1}", new Object[]{ getClass().getName(), doc } );
@@ -117,6 +116,8 @@ public abstract class AbstractHighlighter {
 //            if ( ctx.getComponent().isShowing() ) {
             LOG.log( Level.FINER, "Component is showing, set active" );
             compl.setActive( true );
+            DocumentUtilities.addPriorityDocumentListener( doc, WeakListeners.document( bagListener, doc ),
+                                                           DocumentListenerPriority.FIRST );
 //            }
         } );
 //        }
@@ -142,22 +143,6 @@ public abstract class AbstractHighlighter {
     protected abstract void deactivated( FileObject file, Document doc );
 
     private void onAfterDeactivated() {
-    }
-
-    private String identifier() {
-        Object o = ctx.getDocument().getProperty( StreamDescriptionProperty );
-        String fileName;
-        if ( o instanceof DataObject ) {
-            fileName = ( ( DataObject ) o ).getName();
-        } else if ( o instanceof FileObject ) {
-            fileName = ( ( FileObject ) o ).getName();
-        } else {
-            fileName = Objects.toString( o );
-        }
-        JTextComponent comp = ctx.getComponent();
-        String name = comp.getName();
-        return getClass().getSimpleName() + ":" + fileName + " " + toString()
-               + ( name == null ? "" : name );
     }
 
     /**
@@ -228,8 +213,7 @@ public abstract class AbstractHighlighter {
         return fileName + "-" + h + ( name == null ? "" : name );
     }
 
-    @SuppressWarnings( "DoubleCheckedLocking" )
-    private static final RequestProcessor threadPool( Class<?> type ) {
+    private static RequestProcessor threadPool( Class<?> type ) {
         return rpByType.computeIfAbsent( type, cl -> {
                                      return new RequestProcessor( cl.getName() + "-subscribe", 1, false );
                                  } );
@@ -317,6 +301,23 @@ public abstract class AbstractHighlighter {
         }
     }
 
+    private final class BagL implements DocumentListener {
+        @Override
+        public void insertUpdate( DocumentEvent e ) {
+            bag.onInsertion( e.getLength(), e.getOffset() );
+        }
+
+        @Override
+        public void removeUpdate( DocumentEvent e ) {
+            bag.onDeletion( e.getLength(), e.getOffset() );
+        }
+
+        @Override
+        public void changedUpdate( DocumentEvent e ) {
+            // do noting
+        }
+    }
+
     /**
      * Listens on the editor component, and informs the owning highlighter when
      * the component becomes visible or is hidden, so it can ignore changes
@@ -386,15 +387,14 @@ public abstract class AbstractHighlighter {
         }
 
         void deactivate() {
-//            System.out.println( "DEACTIVATE " + identifier() );
             Document doc = ctx.getDocument();
             FileObject fo = NbEditorUtilities.getFileObject( doc );
             try {
                 synchronized ( this ) {
                     LOG.log( Level.FINE, "Activating against {0}", fo );
                     try {
-                        DocumentUtilities.removePriorityDocumentListener( doc, this,
-                                                                          DocumentListenerPriority.AFTER_CARET_UPDATE );
+//                        DocumentUtilities.removePriorityDocumentListener( doc, this,
+//                                                                          DocumentListenerPriority.AFTER_CARET_UPDATE );
 //                        doc.removeDocumentListener( this );
                         deactivated( fo, doc );
                     } finally {
@@ -408,7 +408,6 @@ public abstract class AbstractHighlighter {
         }
 
         void activate() {
-//            System.out.println( "ACTIVATE " + identifier() );
             Document doc = ctx.getDocument();
             FileObject fo = NbEditorUtilities.getFileObject( doc );
             if ( active ) {
@@ -416,8 +415,8 @@ public abstract class AbstractHighlighter {
                     synchronized ( this ) {
                         LOG.log( Level.FINE, "Activating against {0}", fo );
                         activated( fo, doc );
-                        DocumentUtilities.addPriorityDocumentListener( doc, this,
-                                                                       DocumentListenerPriority.AFTER_CARET_UPDATE );
+//                        DocumentUtilities.addPriorityDocumentListener( doc, this,
+//                                                                       DocumentListenerPriority.AFTER_CARET_UPDATE );
 //                        doc.addDocumentListener( this );
                     }
                 } catch ( Exception ex ) {
@@ -439,16 +438,16 @@ public abstract class AbstractHighlighter {
 
         @Override
         public void insertUpdate( DocumentEvent e ) {
-            if ( bag instanceof AlternateBag ) {
-                ( ( AlternateBag ) bag ).onInsertion( e.getLength(), e.getOffset() );
-            }
+//            if ( bag instanceof AlternateBag ) {
+//                ( ( AlternateBag ) bag ).onInsertion( e.getLength(), e.getOffset() );
+//            }
         }
 
         @Override
         public void removeUpdate( DocumentEvent e ) {
-            if ( bag instanceof AlternateBag ) {
-                ( ( AlternateBag ) bag ).onDeletion( e.getLength(), e.getOffset() );
-            }
+//            if ( bag instanceof AlternateBag ) {
+//                ( ( AlternateBag ) bag ).onDeletion( e.getLength(), e.getOffset() );
+//            }
         }
 
         @Override

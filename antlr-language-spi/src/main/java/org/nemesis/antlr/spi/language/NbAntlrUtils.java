@@ -97,22 +97,6 @@ public final class NbAntlrUtils {
 
     public static void parseImmediately( Document doc, BiConsumer<Extraction, Exception> consumer ) {
         long ts = DocumentUtilities.getDocumentVersion( doc );
-//        Extraction result = null;
-//        synchronized ( NbAntlrUtils.class ) {
-//            if ( lastExtractionRev == ts && lastExtraction != null ) {
-//                if ( lastDocumentIdHash == System.identityHashCode( doc ) ) {
-//                    Extraction cached = lastExtraction.get();
-//                    if ( cached != null && !cached.isSourceProbablyModifiedSinceCreation()) {
-//                        System.out.println( "\n\nUSE CACHED" );
-//                        result = cached;
-//                    }
-//                }
-//            }
-//        }
-//        if ( result != null ) {
-//            consumer.accept( result, null );
-//            return;
-//        }
         parseImmediately( Source.create( doc ), ( ext, exp ) -> {
                       if ( exp == null && ext != null ) {
                           synchronized ( NbAntlrUtils.class ) {
@@ -497,6 +481,9 @@ public final class NbAntlrUtils {
                         return null;
                     }
                 }, ref );
+                if ( newRef != null && ref != null ) {
+                    ref.set( newRef );
+                }
                 if ( prev == temporaryStrongRef.get() && prev != null ) {
                     break;
                 } else if ( temporaryStrongRef.get() == null ) {
@@ -504,8 +491,6 @@ public final class NbAntlrUtils {
                 }
             } while ( temporaryStrongRef.get() == null || temporaryStrongRef.get()
                     .isSourceProbablyModifiedSinceCreation() );
-
-//            System.out.println( "Extraction coalescence: " + coa );
         } catch ( InterruptedException ex ) {
             Exceptions.printStackTrace( ex );
         } catch ( WorkCoalescer.ComputationFailedException ex ) {

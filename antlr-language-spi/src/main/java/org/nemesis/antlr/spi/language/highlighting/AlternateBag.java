@@ -18,7 +18,6 @@ package org.nemesis.antlr.spi.language.highlighting;
 import com.mastfrog.range.DataIntRange;
 import com.mastfrog.range.DataRange;
 import com.mastfrog.range.Range;
-import java.awt.EventQueue;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,7 +49,11 @@ import org.netbeans.spi.editor.highlighting.support.AbstractHighlightsContainer;
  * <p>
  * The principal difference with OffsetsBag in usage is that an entire set of
  * highlights is applied, and then commit() is called to actually update the live
- * data; there are no incremental updates.
+ * data; there are no incremental updates that add or remove highlights (but there
+ * is no straightforward way to do a partial parse with Antlr anyway). Incremental
+ * updates on insertion/deletion DO happen, simply expanding or contracting the
+ * affected regions, the same way OffsetsBag does - in both cases, a subsequent
+ * lex or parse updates the actual highlights.
  * </p>
  *
  * @author Tim Boudreau
@@ -71,6 +74,7 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
         this.ident = ident;
     }
 
+    @Override
     public String toString() {
         SemanticRegions<AttributeSet> regs = current;
         return "bag(" + ident + " " + ( regs == null ? "null" : regs.size() ) + " pending " + entries.size() + ")";
@@ -153,7 +157,7 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
             changed = true;
         }
         if ( changed ) {
-            fireHighlights( old, nue );
+//            fireHighlights( old, nue );
         }
     }
 
@@ -170,7 +174,7 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
             changed = true;
         }
         if ( changed ) {
-            fireHighlights( old, nue );
+//            fireHighlights( old, nue );
         }
     }
 
@@ -209,7 +213,6 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
             cache.put( new ArrayList<>( attrs ), result );
             return result;
         }
-
     }
 
     void commit() {
@@ -231,21 +234,40 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
             return;
         }
         if ( old == null ) {
-            fireHighlightsChange( 0, nue.forIndex( nue.size() - 1 ).end() );
+            int start = 0;
+            if ( !nue.isEmpty() ) {
+                start = nue.startAt( 0 );
+            }
+            fireHighlightsChange( start, nue.forIndex( nue.size() - 1 ).end() );
             return;
         }
         if ( nue.isEmpty() ) {
-            fireHighlightsChange( old.forIndex( 0 ).start(), old.forIndex( old.size() - 1 ).end() );
+            if ( old != null && !old.isEmpty() ) {
+                fireHighlightsChange( old.forIndex( 0 ).start(), old.forIndex( old.size() - 1 ).end() );
+            }
             return;
         }
-        int changeStart = 0;
-        int changeEnd = 0;
+        if ( true ) {
+            SemanticRegion<AttributeSet> firstOld = old == null || old.isEmpty() ? null : old.forIndex( 0 );
+            SemanticRegion<AttributeSet> firstNew = nue.forIndex( 0 );
+
+            SemanticRegion<AttributeSet> lastOld = old == null || old.isEmpty() ? null : old.forIndex( old.size() - 1 );
+            SemanticRegion<AttributeSet> lastNew = nue.forIndex( nue.size() - 1 );
+
+            int st = firstOld == null ? firstNew.start() : Math.min( firstOld.start(), firstNew.start() );
+            int en = lastOld == null ? lastNew.end() : Math.max( lastOld.end(), lastNew.end() );
+            fireHighlightsChange( st, en );
+            return;
+        }
+        SemanticRegion<AttributeSet> first = nue.forIndex( 0 );
+        int changeStart = first.start();
+        int changeEnd = first.end();
         int target = -1;
         for ( int i = 0; i < Math.min( nue.size(), old.size() ); i++ ) {
             SemanticRegion<AttributeSet> a = old.forIndex( i );
             SemanticRegion<AttributeSet> b = nue.forIndex( i );
             if ( a.start() == b.start() && a.end() == b.end() ) {
-                if ( !a.key().equals( b.key() ) ) {
+                if ( !a.key().isEqual( b.key() ) ) {
                     changeStart = a.start();
                     target = i;
                     break;
@@ -274,12 +296,12 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
         }
         if ( changeStart != changeEnd ) {
             fireHighlightsChange( changeStart, changeEnd );
-            ChangeFirer f = new ChangeFirer( changeStart, changeEnd, this, was );
-            if ( async ) {
-                EventQueue.invokeLater( f );
-            } else {
-                f.run();
-            }
+//            ChangeFirer f = new ChangeFirer( changeStart, changeEnd, this, was );
+//            if ( async ) {
+//                EventQueue.invokeLater( f );
+//            } else {
+//                f.run();
+//            }
         }
     }
 
@@ -348,6 +370,7 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
             HighlightsSequence seq = other.getHighlights( 0, Integer.MAX_VALUE );
             if ( seq == null ) {
                 clear();
+                return;
             }
             boolean any = false;
             int rev;
@@ -359,8 +382,9 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
                 }
             }
             if ( rev == this.rev ) {
+                rev++;
                 if ( any ) {
-                    build();
+                    setCurrent( build() );
                 } else {
                     clear();
                 }
@@ -507,8 +531,6 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
         private final long value;
 
         public RangeEntry( int start, int size, AttributeSet attrs, short index ) {
-//            this.start = start;
-//            this.size = ( short ) Math.min( size, Short.MAX_VALUE );
             this.attrs = attrs;
             this.index = index;
             // We can wind up with thousands of these in memory.  It's worth it.
@@ -523,6 +545,12 @@ final class AlternateBag extends AbstractHighlightsContainer implements Highligh
                 result = Short.compare( index, re.index );
             }
             return result;
+        }
+
+        @Override
+        public String toString() {
+            int ix = index + Short.MAX_VALUE + 1;
+            return ix + "-" + start() + ":" + end();
         }
 
         @Override

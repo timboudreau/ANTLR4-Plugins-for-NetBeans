@@ -18,6 +18,7 @@ package org.nemesis.data;
 import com.mastfrog.range.IntRange;
 import com.mastfrog.range.Range;
 import com.mastfrog.range.RangePositionRelation;
+import com.mastfrog.range.RangeRelation;
 import com.mastfrog.util.collections.CollectionUtils;
 import com.mastfrog.util.collections.IntList;
 import com.mastfrog.util.collections.IntSet;
@@ -156,6 +157,54 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         if (atPosition <= starts[0] && atPosition + chars >= ends[size - 1]) {
             return empty();
         }
+        if (!hasNesting) {
+//            return withDeletionNoNesting(chars, atPosition);
+        }
+        IntRange rng = Range.of(atPosition, chars);
+        SemanticRegionsBuilder<T> bldr = new SemanticRegionsBuilder<>(keyType(), size);
+        for (int i = 0; i < size; i++) {
+            SemanticRegion<T> reg = forIndex(i);
+            RangeRelation rel = reg.relationTo(rng);
+            switch (rel) {
+                case BEFORE:
+                    bldr.add(reg.key(), reg.start(), reg.end());
+                    continue;
+                case CONTAINS:
+                    if (reg.end() - chars > reg.start()) {
+                        bldr.add(reg.key(), reg.start(), reg.end() - chars);
+                    } else {
+                    }
+                    continue;
+                case AFTER:
+                    bldr.add(reg.key(), reg.start() - chars, reg.end() - chars);
+                    continue;
+                case CONTAINED:
+                case EQUAL:
+                    continue;
+                case STRADDLES_START:
+                    int sub = reg.end() - atPosition;
+                    // The deletion overlaps the end of this item
+                    if (reg.end() - sub > reg.start()) {
+                        bldr.add(reg.key(), reg.start(), reg.end() - sub);
+                    }
+                    continue;
+                case STRADDLES_END:
+                    int newLength = reg.end() - (atPosition + chars);
+                    int overlap = (atPosition + chars) - reg.start();
+                    int newStart = reg.start() - (chars - overlap);
+                    int newEnd = newStart + newLength;
+                    if (newEnd > newStart) {
+                        bldr.add(reg.key(), newStart, newEnd);
+                    }
+                    continue;
+                default:
+                    throw new AssertionError(rel);
+            }
+        }
+        return bldr.build();
+    }
+
+    private SemanticRegions<T> withDeletionNoNesting(int chars, int atPosition) {
         int deletionEnd = atPosition + chars;
         int newSize = size;
         int[] newStarts = new int[size];
@@ -248,7 +297,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         }
         assert chars > 0;
         assert atPosition >= 0;
-        if (atPosition <= starts[0]) { // just shift everything by chars
+        if (atPosition < starts[0]) { // just shift everything by chars
             int[] newStarts = new int[size];
             int[] newEnds = new int[size];
             for (int i = 0; i < size; i++) {
@@ -256,41 +305,89 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
                 newEnds[i] = ends[i] + chars;
             }
             return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
-        } else if (atPosition >= starts[size - 1] && atPosition <= ends[size - 1]) {
-            int[] newStarts = Arrays.copyOf(starts, size);
-            int[] newEnds = Arrays.copyOf(ends, size);
-            newEnds[size - 1] += chars;
-            return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
-        } else if (atPosition > starts[0] && atPosition < ends[0]) {
+        } else if (atPosition == starts[0]) {
             int[] newStarts = new int[size];
             int[] newEnds = new int[size];
             newStarts[0] = starts[0];
             newEnds[0] = ends[0] + chars;
             for (int i = 1; i < size; i++) {
-                newStarts[i] = starts[i] + chars;
+                if (starts[i] > starts[0]) {
+                    newStarts[i] = starts[i] + chars;
+                } else {
+                    newStarts[i] = starts[i];
+                }
                 newEnds[i] = ends[i] + chars;
             }
             return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
         }
-        SemanticRegion<T> target = at(atPosition);
-        int[] newStarts = Arrays.copyOf(starts, size);
-        int[] newEnds = Arrays.copyOf(ends, size);
-        if (target == null) {
-            for (int i = 0; i < size; i++) {
-                if (newStarts[i] >= atPosition) {
-                    newStarts[i] += chars;
-                    newEnds[i] += chars;
+
+        SemanticRegion<T> n = nearestTo(atPosition);
+
+        assert n != null : "Null nearest to for " + atPosition + " in " + this;
+
+        SemanticRegion<T> out = n.outermost();
+        if (out != null) {
+            n = out;
+        }
+        // If we are on the end position of an element, and that is not also the
+        // start of the found element, then expand that one - err on the side of
+        // insertion at end point meaning expansion (i.e. user typing into the end of
+        // a token is the common case).
+        if (n.index() > 0 && ends[n.index() - 1] == atPosition) {
+            n = forIndex(n.index() - 1);
+        }
+
+        if (n.contains(atPosition)) {
+            int ix = n.index();
+            int[] newStarts = new int[size];
+            int[] newEnds = new int[size];
+            System.arraycopy(starts, 0, newStarts, 0, ix);
+            System.arraycopy(ends, 0, newEnds, 0, ix);
+            newStarts[ix] = starts[ix];
+            newEnds[ix] = ends[ix] + chars;
+            for (int i = ix + 1; i < size; i++) {
+                if (starts[i] > atPosition) {
+                    newStarts[i] = starts[i] + chars;
+                } else {
+                    newStarts[i] = starts[i];
+                }
+                if (ends[i] > atPosition) {
+                    newEnds[i] = ends[i] + chars;
+                } else {
+                    newEnds[i] = ends[i];
                 }
             }
+            return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
         } else {
-            int ix = target.index();
-            newEnds[ix] += chars;
-            for (int i = ix + 1; i < size; i++) {
-                newStarts[i] += chars;
-                newEnds[i] += chars;
+            int ix;
+            int[] newStarts = new int[size];
+            int[] newEnds = new int[size];
+            switch (n.relationTo(atPosition)) {
+                case AFTER:
+                    ix = n.index();
+                    break;
+                case BEFORE:
+                    ix = n.index() + 1;
+                    break;
+                default:
+                    throw new AssertionError();
             }
+            System.arraycopy(starts, 0, newStarts, 0, ix);
+            System.arraycopy(ends, 0, newEnds, 0, ix);
+            for (int i = ix; i < size; i++) {
+                if (starts[i] >= atPosition) {
+                    newStarts[i] = starts[i] + chars;
+                } else {
+                    newStarts[i] = starts[i];
+                }
+                if (ends[i] >= atPosition) {
+                    newEnds[i] = ends[i] + chars;
+                } else {
+                    newEnds[i] = ends[i];
+                }
+            }
+            return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
         }
-        return new SemanticRegions<>(newStarts, newEnds, keys, size, firstUnsortedEndsEntry, hasNesting);
     }
 
     public SemanticRegion<T> nearestTo(int position) {
@@ -301,7 +398,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         if (result != null) {
             return result;
         }
-        if (position > ends[size - 1]) {
+        if (position >= ends[size - 1]) {
             // we are guaranteed that the last is the smallest that
             // can possibly match
             return forIndex(size - 1);
@@ -360,7 +457,7 @@ public final class SemanticRegions<T> implements Iterable<SemanticRegion<T>>, Se
         if (bestIndex != -1) {
             return forIndex(bestIndex);
         }
-        return null;
+        return forIndex(size - 1);
     }
 
     /*
